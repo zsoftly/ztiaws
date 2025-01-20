@@ -1,7 +1,7 @@
 # quickssm
 
-![Ubuntu](https://github.com/{your-actual-username}/quickssm/actions/workflows/test.yml/badge.svg)
-![macOS](https://github.com/{your-actual-username}/quickssm/actions/workflows/test.yml/badge.svg)
+![Ubuntu](https://github.com/ZSoftly/quickssm/actions/workflows/test.yml/badge.svg)
+![macOS](https://github.com/ZSoftly/quickssm/actions/workflows/test.yml/badge.svg)
 
 A streamlined CLI tool for AWS SSM Session Manager, making it easier to list and connect to EC2 instances across regions.
 
