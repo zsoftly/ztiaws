@@ -77,7 +77,6 @@ detect_os() {
 }
 
 # Check system requirements
-# Check system requirements
 check_requirements() {
     local missing_deps=0
 
@@ -164,32 +163,46 @@ validate_instance_id() {
 main() {
     # Handle special commands first
     case "${1:-}" in
-        "version")
-            show_version
-            exit 0
-            ;;
-        "install")
-            # Since we have interactive SSM plugin installation, just show AWS CLI instructions
-            log_info "Installation Instructions:"
-            echo
-            log_info "1. AWS CLI Installation:"
-            echo "   Visit: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
-            echo "   Follow the instructions for your platform"
-            echo
-            log_info "2. Session Manager Plugin:"
-            echo "   Run 'ssm check' to install the plugin interactively"
-            echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
-            exit 0
-            ;;
-        "check")
-            check_requirements
-            exit 0
-            ;;
-        "help"|"-h"|"--help")
-            usage
-            exit 0
-            ;;
-    esac
+            "-v"|"--version"|"version")
+                show_version
+                exit 0
+                ;;
+            "-i"|"--install"|"install")
+                # Since we have interactive SSM plugin installation, just show AWS CLI instructions
+                log_info "Installation Instructions:"
+                echo
+                log_info "1. AWS CLI Installation:"
+                echo "   Visit: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
+                echo "   Follow the instructions for your platform"
+                echo
+                log_info "2. Session Manager Plugin:"
+                echo "   Run 'ssm check' to install the plugin interactively"
+                echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
+                exit 0
+                ;;
+            "-c"|"--check"|"check")
+                check_requirements
+                exit 0
+                ;;
+            "-h"|"--help"|"help")
+                usage
+                exit 0
+                ;;
+            # Handle missing command
+            "")
+                log_error "No command specified"
+                echo
+                usage
+                exit 1
+                ;;
+            # Catch-all for invalid commands
+            *)
+                log_error "Unknown command: $1"
+                echo
+                usage
+                exit 1
+                ;;
+        esac
 
     # Check requirements before proceeding
     if ! check_requirements >/dev/null 2>&1; then
