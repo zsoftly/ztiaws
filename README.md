@@ -26,12 +26,12 @@ A streamlined CLI tool for AWS SSM Session Manager, making it easier to list and
 
 One-liner to download, install, and start using quickssm (for bash users):
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm && ./ssm check && echo 'export PATH="$PATH:$HOME/quickssm"' >> ~/.bashrc && source ~/.bashrc
+git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
 ```
 
 For zsh users:
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm && ./ssm check && echo 'export PATH="$PATH:$HOME/quickssm"' >> ~/.zshrc && source ~/.zshrc
+git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
 ```
 
 After running the appropriate command for your shell, you can use the tool by simply typing `ssm` from anywhere.
@@ -46,7 +46,7 @@ git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
 chmod +x ssm
 ./ssm check
-echo 'export PATH="$PATH:$HOME/quickssm"' >> ~/.bashrc
+echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc
 source ~/.bashrc
 ```
 
@@ -56,7 +56,7 @@ git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
 chmod +x ssm
 ./ssm check
-echo 'export PATH="$PATH:$HOME/quickssm"' >> ~/.zshrc
+echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc
 source ~/.zshrc
 ```
 
@@ -74,8 +74,9 @@ git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
 chmod +x ssm
 ./ssm check
-sudo ln -s "$(pwd)/ssm" /usr/local/bin/ssm
-sudo ln -s "$(pwd)/src" /usr/local/bin/src
+INSTALL_DIR="$(pwd)"
+sudo ln -s "$INSTALL_DIR/ssm" /usr/local/bin/ssm
+sudo ln -s "$INSTALL_DIR/src" /usr/local/bin/src
 ```
 
 Not recommended because:
