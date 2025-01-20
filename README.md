@@ -16,32 +16,71 @@ A streamlined CLI tool for AWS SSM Session Manager, making it easier to list and
 - AWS CLI installed (follow [official installation guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html))
 - AWS Session Manager plugin (can be installed interactively via `ssm check`)
 - AWS credentials configured (`aws configure`)
-- Bash shell
+- Bash or Zsh shell
 - Proper IAM permissions for SSM Session Manager
 
-## Installation
+## Quick Start
 
-1. Clone this repository:
+One-liner to download, install, and start using quickssm (for bash users):
+```bash
+git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm && ./ssm check && echo 'export PATH="$PATH:$HOME/quickssm"' >> ~/.bashrc && source ~/.bashrc
+```
+
+For zsh users:
+```bash
+git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm && ./ssm check && echo 'export PATH="$PATH:$HOME/quickssm"' >> ~/.zshrc && source ~/.zshrc
+```
+
+After running the appropriate command for your shell, you can use the tool by simply typing `ssm` from anywhere.
+
+## Installation Options
+
+### Option 1: Local User Installation (Recommended)
+
+For bash users:
 ```bash
 git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
-```
-
-2. Make the script executable:
-```bash
 chmod +x ssm
-```
-
-3. Check requirements and install Session Manager plugin if needed:
-```bash
 ./ssm check
+echo 'export PATH="$PATH:$HOME/quickssm"' >> ~/.bashrc
+source ~/.bashrc
 ```
 
-4. Optionally, make it available system-wide:
+For zsh users:
 ```bash
+git clone https://github.com/ZSoftly/quickssm.git
+cd quickssm
+chmod +x ssm
+./ssm check
+echo 'export PATH="$PATH:$HOME/quickssm"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+This is the recommended approach because:
+- Keeps AWS tooling scoped to your user
+- Maintains better security practices
+- Makes updates easier without requiring sudo
+- Aligns with AWS credentials being stored per-user in ~/.aws/
+- Follows principle of least privilege
+- Easier to manage different AWS configurations per user
+
+### Option 2: System-wide Installation (Not Recommended)
+```bash
+git clone https://github.com/ZSoftly/quickssm.git
+cd quickssm
+chmod +x ssm
+./ssm check
 sudo ln -s "$(pwd)/ssm" /usr/local/bin/ssm
 sudo ln -s "$(pwd)/src" /usr/local/bin/src
 ```
+
+Not recommended because:
+- Any user on the system could run the tool and potentially access AWS resources
+- Doesn't align well with per-user AWS credential management
+- Requires sudo privileges for updates and modifications
+- Can lead to security and audit tracking complications
+- Makes it harder to manage different AWS configurations for different users
 
 ## Usage
 
@@ -112,6 +151,13 @@ Run `aws configure` to set up your AWS credentials.
 
 ### Permission Errors
 Ensure your AWS user/role has the required IAM permissions listed above.
+
+### Shell Configuration
+If the `ssm` command isn't available after installation, make sure you've added it to your PATH in the correct shell configuration file:
+- For Bash users: `~/.bashrc`
+- For Zsh users: `~/.zshrc`
+
+You may need to restart your terminal or run `source ~/.bashrc` (or `source ~/.zshrc` for Zsh) for the changes to take effect.
 
 ## Contributing
 
