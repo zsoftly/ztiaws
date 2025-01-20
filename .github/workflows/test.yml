@@ -27,7 +27,7 @@ jobs:
       shell: bash
 
     - name: Run shellcheck
-      run: shellcheck ssm src/*.sh tests/*.sh
+      run: shellcheck -x ssm src/*.sh tests/*.sh
       
     - name: Make scripts executable
       run: |

@@ -21,14 +21,14 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # Import regions from regions.sh
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "${SCRIPT_DIR}/src/regions.sh" ]; then
-    # shellcheck source=src/regions.sh
+    # shellcheck source=./src/regions.sh
     source "${SCRIPT_DIR}/src/regions.sh"
+elif [ -f "/usr/local/bin/src/regions.sh" ]; then
+    # shellcheck source=/dev/null
+    source "/usr/local/bin/src/regions.sh"
 else
-    # Fallback if running as installed command
-    if [ -f "/usr/local/bin/src/regions.sh" ]; then
-        # shellcheck source=/dev/null
-        source "/usr/local/bin/src/regions.sh"
-    fi
+    echo "Error: Could not find src/regions.sh in either ${SCRIPT_DIR}/src/ or /usr/local/bin/src/" >&2
+    exit 1
 fi
 
 # Function to show usage
@@ -200,7 +200,7 @@ main() {
             REGION=$(get_region "$1")
             log_info "Listing instances in $REGION..."
             aws ec2 describe-instances --region "$REGION" \
-                --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value | [0],PlatformDetails,State.Name]' \
+                --query "Reservations[*].Instances[*].[InstanceId, Tags[?Key==\`Name\`].Value | [0], PlatformDetails, State.Name]" \
                 --filters "Name=instance-state-name,Values=running" --output table
             echo -e "\nUsage: ssm $1 <instance-id>"
         else
