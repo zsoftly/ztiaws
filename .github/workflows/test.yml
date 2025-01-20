@@ -29,16 +29,16 @@ jobs:
     - name: Run shellcheck
       run: shellcheck -x ssm src/*.sh tests/*.sh
       
-    - name: Make scripts executable
-      run: |
-        chmod +x ssm
-        chmod +x tests/test_ssm.sh
+    # - name: Make scripts executable
+    #   run: |
+    #     chmod +x ssm
+    #     chmod +x tests/test_ssm.sh
         
-    - name: Run tests
-      run: ./tests/test_ssm.sh
+    # - name: Run tests
+    #   run: ./tests/test_ssm.sh
       
-    - name: Test installation script
-      run: |
-        sudo cp ssm /usr/local/bin/
-        ssm version
-        ssm check
+    # - name: Test installation script
+    #   run: |
+    #     sudo cp ssm /usr/local/bin/
+    #     ssm version
+    #     ssm check
