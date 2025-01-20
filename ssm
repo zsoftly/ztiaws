@@ -77,6 +77,7 @@ detect_os() {
 }
 
 # Check system requirements
+# Check system requirements
 check_requirements() {
     local missing_deps=0
 
@@ -92,10 +93,15 @@ check_requirements() {
     # Check SSM plugin
     if ! command -v session-manager-plugin >/dev/null 2>&1; then
         log_error "AWS Session Manager plugin is not installed"
-        log_info "Please install the Session Manager plugin by following the official documentation:"
-        log_info "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
-        log_info "Select your platform and follow the installation instructions provided"
-        missing_deps=1
+        log_info "Would you like to auto-install it? (yes/no): "
+        read -r response
+        if [[ "$response" =~ ^[Yy](es)?$ ]]; then
+            install_ssm_plugin
+        else
+            log_info "Please install the Session Manager plugin by following the official documentation:"
+            log_info "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
+            missing_deps=1
+        fi
     fi
 
     # Check AWS credentials
