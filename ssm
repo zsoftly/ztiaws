@@ -21,19 +21,19 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # Import regions from regions.sh
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "${SCRIPT_DIR}/src/regions.sh" ]; then
-  # shellcheck disable=SC1091
-  source "${SCRIPT_DIR}/src/regions.sh"
+    # shellcheck source=./src/regions.sh
+    source "${SCRIPT_DIR}/src/regions.sh"
 elif [ -f "/usr/local/bin/src/regions.sh" ]; then
-  # shellcheck disable=SC1091
-  source "/usr/local/bin/src/regions.sh"
+    # shellcheck source=/dev/null
+    source "/usr/local/bin/src/regions.sh"
 else
-  echo "Error: Could not find src/regions.sh in either ${SCRIPT_DIR}/src/ or /usr/local/bin/src/" >&2
-  exit 1
+    echo "Error: Could not find src/regions.sh in either ${SCRIPT_DIR}/src/ or /usr/local/bin/src/" >&2
+    exit 1
 fi
 
 # Function to show usage
 usage() {
-  cat << EOF
+    cat << EOF
 AWS SSM Session Manager Helper
 Usage: ssm [region] [instance-id]
        ssm [instance-id]        # Uses default region (Canada Central)
@@ -60,91 +60,92 @@ EOF
 # Version information
 VERSION="1.1.0"
 show_version() {
-  echo "AWS SSM Helper version: $VERSION"
+    echo "AWS SSM Helper version: $VERSION"
 }
 
 # Detect OS and package manager
 detect_os() {
-  if [ -f /etc/os-release ]; then
-    # shellcheck source=/dev/null
-    . /etc/os-release
-    OS=$NAME
-    VERSION=$VERSION_ID
-  else
-    OS=$(uname -s)
-    VERSION=$(uname -r)
-  fi
+    if [ -f /etc/os-release ]; then
+        # shellcheck source=/dev/null
+        . /etc/os-release
+        OS=$NAME
+        VERSION=$VERSION_ID
+    else
+        OS=$(uname -s)
+        VERSION=$(uname -r)
+    fi
 }
 
 # Check system requirements
+# Check system requirements
 check_requirements() {
-  local missing_deps=0
+    local missing_deps=0
 
-  # Check AWS CLI
-  if ! command -v aws >/dev/null 2>&1; then
-    log_error "AWS CLI is not installed"
-    log_info "Please install AWS CLI by following the official documentation:"
-    log_info "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
-    log_info "Choose your platform and follow the installation steps provided"
-    missing_deps=1
-  fi
-
-  # Check SSM plugin
-  if ! command -v session-manager-plugin >/dev/null 2>&1; then
-    log_error "AWS Session Manager plugin is not installed"
-    log_info "Would you like to auto-install it? (yes/no): "
-    read -r response
-    if [[ "$response" =~ ^[Yy](es)?$ ]]; then
-      install_ssm_plugin
-    else
-      log_info "Please install the Session Manager plugin by following the official documentation:"
-      log_info "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
-      missing_deps=1
+    # Check AWS CLI
+    if ! command -v aws >/dev/null 2>&1; then
+        log_error "AWS CLI is not installed"
+        log_info "Please install AWS CLI by following the official documentation:"
+        log_info "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
+        log_info "Choose your platform and follow the installation steps provided"
+        missing_deps=1
     fi
-  fi
 
-  # Check AWS credentials
-  if ! aws sts get-caller-identity >/dev/null 2>&1; then
-    log_error "AWS credentials are not configured or invalid"
-    log_info "Run 'aws configure' to set up your credentials"
-    missing_deps=1
-  fi
+    # Check SSM plugin
+    if ! command -v session-manager-plugin >/dev/null 2>&1; then
+        log_error "AWS Session Manager plugin is not installed"
+        log_info "Would you like to auto-install it? (yes/no): "
+        read -r response
+        if [[ "$response" =~ ^[Yy](es)?$ ]]; then
+            install_ssm_plugin
+        else
+            log_info "Please install the Session Manager plugin by following the official documentation:"
+            log_info "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
+            missing_deps=1
+        fi
+    fi
 
-  if [ $missing_deps -eq 0 ]; then
-    log_info "All requirements met!"
-  else
-    return 1
-  fi
+    # Check AWS credentials
+    if ! aws sts get-caller-identity >/dev/null 2>&1; then
+        log_error "AWS credentials are not configured or invalid"
+        log_info "Run 'aws configure' to set up your credentials"
+        missing_deps=1
+    fi
+
+    if [ $missing_deps -eq 0 ]; then
+        log_info "All requirements met!"
+    else
+        return 1
+    fi
 }
 
 # Install SSM plugin based on OS
 install_ssm_plugin() {
-  detect_os
-  log_info "Installing SSM plugin for $OS..."
-  
-  case $OS in
-    *"Red Hat"*|*"Fedora"*)
-      sudo curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin" -o "/usr/local/bin/session-manager-plugin"
-      sudo chmod +x /usr/local/bin/session-manager-plugin
-      ;;
-    *"Ubuntu"*|*"Debian"*)
-      curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb"
-      sudo dpkg -i session-manager-plugin.deb
-      rm session-manager-plugin.deb
-      ;;
-    *)
-      log_error "Unsupported OS: $OS"
-      log_info "Please visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
-      exit 1
-      ;;
-  esac
-  
-  if command -v session-manager-plugin >/dev/null 2>&1; then
-    log_info "SSM plugin installed successfully!"
-  else
-    log_error "Failed to install SSM plugin"
-    exit 1
-  fi
+    detect_os
+    log_info "Installing SSM plugin for $OS..."
+    
+    case $OS in
+        *"Red Hat"*|*"Fedora"*)
+            sudo curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin" -o "/usr/local/bin/session-manager-plugin"
+            sudo chmod +x /usr/local/bin/session-manager-plugin
+            ;;
+        *"Ubuntu"*|*"Debian"*)
+            curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb"
+            sudo dpkg -i session-manager-plugin.deb
+            rm session-manager-plugin.deb
+            ;;
+        *)
+            log_error "Unsupported OS: $OS"
+            log_info "Please visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
+            exit 1
+            ;;
+    esac
+    
+    if command -v session-manager-plugin >/dev/null 2>&1; then
+        log_info "SSM plugin installed successfully!"
+    else
+        log_error "Failed to install SSM plugin"
+        exit 1
+    fi
 }
 
 # Default region
@@ -152,101 +153,89 @@ REGION="ca-central-1"
 
 # Validate instance ID format
 validate_instance_id() {
-  if ! [[ $1 =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
-    log_error "Invalid instance ID format. Should be i-xxxxxxxx"
-    return 1
-  fi
-  return 0
+    if ! [[ $1 =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
+        log_error "Invalid instance ID format. Should be i-xxxxxxxx"
+        return 1
+    fi
+    return 0
 }
 
 # Main logic
 main() {
-  # Handle special commands through a separate function
-  handle_special_command() {
+    # Handle special commands first
     case "${1:-}" in
-      -v|--version|version)
-        show_version
-        return 0
-        ;;
-      -i|--install|install)
-        log_info "Installation Instructions:"
-        echo
-        log_info "1. AWS CLI Installation:"
-        echo "   Visit: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
-        echo "   Follow the instructions for your platform"
-        echo
-        log_info "2. Session Manager Plugin:"
-        echo "   Run 'ssm check' to install the plugin interactively"
-        echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
-        return 0
-        ;;
-      -c|--check|check)
-        check_requirements
-        return 0
-        ;;
-      -h|--help|help)
-        usage
-        return 0
-        ;;
-      "") # Handle missing command
-        log_error "No command specified"
-        echo
-        usage
-        return 1
-        ;;
-      *) # Not a special command
-        return 2
-        ;;
+        "version")
+            show_version
+            exit 0
+            ;;
+        "install")
+            # Since we have interactive SSM plugin installation, just show AWS CLI instructions
+            log_info "Installation Instructions:"
+            echo
+            log_info "1. AWS CLI Installation:"
+            echo "   Visit: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
+            echo "   Follow the instructions for your platform"
+            echo
+            log_info "2. Session Manager Plugin:"
+            echo "   Run 'ssm check' to install the plugin interactively"
+            echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
+            exit 0
+            ;;
+        "check")
+            check_requirements
+            exit 0
+            ;;
+        "help"|"-h"|"--help")
+            usage
+            exit 0
+            ;;
     esac
-  }
 
-  # Process special commands first
-  handle_special_command "$1"
-  local cmd_status=$?
-  [ $cmd_status -ne 2 ] && exit $cmd_status
-
-  # Check requirements before proceeding
-  if ! check_requirements >/dev/null 2>&1; then
-    log_error "System requirements not met. Run 'ssm check' for details"
-    exit 1
-  fi
-
-  # Handle standard command processing based on argument count
-  case $# in
-    0)  usage
+    # Check requirements before proceeding
+    if ! check_requirements >/dev/null 2>&1; then
+        log_error "System requirements not met. Run 'ssm check' for details"
         exit 1
-        ;;
-    1)  if [[ "$1" =~ ^(cac1|caw1|usw1|use1|euw1)$ ]]; then
-          REGION=$(get_region "$1")
-          log_info "Listing instances in $REGION..."
-          aws ec2 describe-instances --region "$REGION" \
-            --query "Reservations[*].Instances[*].[InstanceId, Tags[?Key==\`Name\`].Value | [0], PlatformDetails, State.Name]" \
-            --filters "Name=instance-state-name,Values=running" --output table
-          echo -e "\nUsage: ssm $1 <instance-id>"
+    fi
+
+    # Regular command processing
+    if [ $# -eq 0 ]; then
+        usage
+        exit 1
+    elif [ $# -eq 1 ]; then
+        if [[ "$1" =~ ^(cac1|caw1|usw1|use1|euw1)$ ]]; then
+            REGION=$(get_region "$1")
+            log_info "Listing instances in $REGION..."
+            aws ec2 describe-instances --region "$REGION" \
+                --query "Reservations[*].Instances[*].[InstanceId, Tags[?Key==\`Name\`].Value | [0], PlatformDetails, State.Name]" \
+                --filters "Name=instance-state-name,Values=running" --output table
+            echo -e "\nUsage: ssm $1 <instance-id>"
         else
-          validate_instance_id "$1" || exit 1
-          log_info "Connecting to instance $1 in $REGION..."
-          aws ssm start-session \
-            --region "$REGION" \
-            --target "$1"
+            if ! validate_instance_id "$1"; then
+                exit 1
+            fi
+            log_info "Connecting to instance $1 in $REGION..."
+            aws ssm start-session \
+                --region "$REGION" \
+                --target "$1"
         fi
-        ;;
-    2)  REGION=$(get_region "$1")
+    elif [ $# -eq 2 ]; then
+        REGION=$(get_region "$1")
         if [ "$REGION" = "invalid" ]; then
-          log_error "Invalid region. Use cac1, caw1, usw1, use1, or euw1"
-          usage
-          exit 1
+            log_error "Invalid region. Use cac1, caw1, usw1, use1, or euw1"
+            usage
+            exit 1
         fi
-        validate_instance_id "$2" || exit 1
+        if ! validate_instance_id "$2"; then
+            exit 1
+        fi
         log_info "Connecting to instance $2 in $REGION..."
         aws ssm start-session \
-          --region "$REGION" \
-          --target "$2"
-        ;;
-    *)  usage
+            --region "$REGION" \
+            --target "$2"
+    else
+        usage
         exit 1
-        ;;
-  esac
+    fi
 }
 
 # Run main function
