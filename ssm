@@ -59,7 +59,7 @@ EOF
 }
 
 # Version information
-VERSION="1.1.1"
+VERSION="1.1.2"
 show_version() {
     echo "AWS SSM Helper version: $VERSION"
 }
@@ -207,7 +207,13 @@ main() {
             REGION=$(get_region "$1")
             log_info "Listing instances in $REGION..."
             aws ec2 describe-instances --region "$REGION" \
-                --query "Reservations[*].Instances[*].[InstanceId, Tags[?Key==\`Name\`].Value | [0], PlatformDetails, State.Name]" \
+                --query "Reservations[*].Instances[*].{
+                    Name: Tags[?Key=='Name'].Value | [0],
+                    InstanceId: InstanceId,
+                    IP: PrivateIpAddress,
+                    State: State.Name,
+                    OS: PlatformDetails
+                }" \
                 --filters "Name=instance-state-name,Values=running" --output table
             echo -e "\nUsage: ssm $1 <instance-id>"
         else
