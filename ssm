@@ -40,6 +40,7 @@ Usage: ssm [region] [instance-id]
 
 Supported regions:
   cac1  - Canada Central (Montreal) [default]
+  apse1 -  Asia Pacific (Seoul)
   caw1  - Canada West (Calgary)
   usw1  - US West (N. California)
   use1  - US East (N. Virginia)
@@ -58,7 +59,7 @@ EOF
 }
 
 # Version information
-VERSION="1.1.0"
+VERSION="1.1.1"
 show_version() {
     echo "AWS SSM Helper version: $VERSION"
 }
@@ -202,7 +203,7 @@ main() {
         usage
         exit 1
     elif [ $# -eq 1 ]; then
-        if [[ "$1" =~ ^(cac1|caw1|usw1|use1|euw1)$ ]]; then
+        if [[ "$1" =~ ^(apse1|cac1|caw1|usw1|use1|euw1)$ ]]; then
             REGION=$(get_region "$1")
             log_info "Listing instances in $REGION..."
             aws ec2 describe-instances --region "$REGION" \
