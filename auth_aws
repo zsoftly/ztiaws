@@ -1,0 +1,322 @@
+#!/usr/bin/env bash
+
+# AWS SSO Authentication Helper Script
+# Version: 1.1.0
+# Repository: https://github.com/ZSoftly/quickssm
+
+set -e  # Exit on error
+set -u  # Exit on undefined variables
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Get the directory where the script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+ENV_FILE="${SCRIPT_DIR}/.env"
+
+# Setup logging
+SCRIPT_NAME=$(basename "$0")
+LOG_DIR="${LOG_DIR:-$HOME/logs}"
+mkdir -p "$LOG_DIR"
+LOG_FILE="${LOG_DIR}/${SCRIPT_NAME%-*}-$(date +%Y-%m-%d).log"
+
+# Log function with timestamps
+log() {
+  local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+  local message="$timestamp - $*"
+  echo "$message" >> "$LOG_FILE"
+}
+
+# Logging functions with colors for terminal and regular logging for file
+log_info() { 
+  echo -e "${GREEN}[INFO]${NC} $1"
+  log "[INFO] $1"
+}
+log_warn() { 
+  echo -e "${YELLOW}[WARN]${NC} $1"
+  log "[WARN] $1"
+}
+log_error() { 
+  echo -e "${RED}[ERROR]${NC} $1"
+  log "[ERROR] $1"
+}
+log_debug() { 
+  echo -e "${BLUE}[DEBUG]${NC} $1"
+  log "[DEBUG] $1"
+}
+
+# Add a single line spacer to log file
+echo "" >> "$LOG_FILE"
+log "========== NEW AWS SSO SCRIPT EXECUTION =========="
+
+# Function to create a sample .env file
+create_env_file() {
+  cat > "${ENV_FILE}" << 'EOL'
+# AWS SSO Configuration
+# Replace these values with your organization's settings
+
+# Your AWS SSO portal URL
+SSO_START_URL="https://d-xxxxxxxxxx.awsapps.com/start"
+
+# The AWS region where your SSO is configured
+SSO_REGION="us-east-1"
+
+# Default profile name to use when none is specified
+DEFAULT_PROFILE="default-sso-profile"
+
+# Log directory (optional)
+# LOG_DIR="/custom/path/to/logs"
+# If not specified, $HOME/logs will be used
+EOL
+
+  log_info "Created sample .env file at ${ENV_FILE}"
+  log_info "Please edit it with your organization's settings."
+  exit 1
+}
+
+# Display help information
+show_help() {
+  cat << 'EOL'
+AWS SSO Authentication Helper
+Usage: auth_aws [profile-name]
+       auth_aws              # Uses default profile from .env file
+
+Commands:
+  auth_aws help       # Show this help message
+  auth_aws version    # Show version information
+  auth_aws check      # Check system requirements
+
+Setup:
+  Before first use, create a .env file in the script directory with:
+  SSO_START_URL="https://your-sso-url.awsapps.com/start"
+  SSO_REGION="your-region"
+  DEFAULT_PROFILE="your-default-profile"
+
+Examples:
+  auth_aws                # Login with default profile
+  auth_aws dev-profile    # Login with specific profile
+  auth_aws check          # Verify dependencies
+EOL
+  exit 0
+}
+
+# Show version information
+VERSION="1.0.0"
+show_version() {
+  echo "AWS SSO Authentication Helper version: $VERSION"
+  exit 0
+}
+
+# Check system requirements
+check_requirements() {
+  local missing_deps=0
+
+  # Check for required dependencies
+  for dep in aws jq fzf; do
+    if ! command -v "$dep" &> /dev/null; then
+      log_error "Missing dependency: $dep"
+      case "$dep" in
+        aws)
+          log_info "To install AWS CLI, follow: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
+          ;;
+        jq)
+          log_info "To install jq, run: sudo apt-get install jq (Ubuntu/Debian) or brew install jq (macOS)"
+          ;;
+        fzf)
+          log_info "To install fzf, run: sudo apt-get install fzf (Ubuntu/Debian) or brew install fzf (macOS)"
+          ;;
+      esac
+      missing_deps=1
+    fi
+  done
+
+  # Check AWS credentials
+  if ! aws sts get-caller-identity >/dev/null 2>&1; then
+    log_warn "AWS credentials are not configured or have expired"
+    log_info "This is normal if you haven't logged in yet"
+  fi
+
+  if [ $missing_deps -eq 0 ]; then
+    log_info "All dependencies met! ✅"
+    return 0
+  else
+    return 1
+  fi
+}
+
+# Find SSO token file and check validity
+find_token_file() {
+  find ~/.aws/sso/cache -name '*.json' -type f | while read -r file; do
+    if jq -e '.startUrl' "$file" > /dev/null 2>&1; then
+      echo "$file"
+      return
+    fi
+  done
+}
+
+is_token_valid() {
+  local expires_at=$(jq -r '.expiresAt' "$1")
+  local current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  [[ "$expires_at" > "$current_time" ]]
+}
+
+# Main function
+main() {
+  # Handle special commands first
+  case "${1:-}" in
+    "help"|"-h"|"--help")
+      show_help
+      ;;
+    "version")
+      show_version
+      ;;
+    "check")
+      if check_requirements; then
+        log_info "System requirements check passed"
+      else
+        log_error "System requirements not met"
+        exit 1
+      fi
+      exit 0
+      ;;
+  esac
+
+  # Check for .env file and load it
+  if [[ -f "${ENV_FILE}" ]]; then
+    source "${ENV_FILE}"
+  else
+    log_warn "No .env file found in the script directory."
+    read -p "Would you like to create a sample .env file? (y/n): " create_env
+    [[ $create_env =~ ^[Yy]$ ]] && create_env_file
+    log_error "Cannot proceed without configuration. Please create a .env file."
+    exit 1
+  fi
+
+  # Run the system checks
+  if ! check_requirements; then
+    log_error "Missing required dependencies. Please install them and try again."
+    exit 1
+  fi
+
+  # Validate required environment variables
+  for var in SSO_START_URL SSO_REGION DEFAULT_PROFILE; do
+    if [[ -z "${!var:-}" ]]; then
+      log_error "Missing required configuration in .env file: $var"
+      exit 1
+    fi
+  done
+
+  # Set profile name from argument or use default
+  if [[ $# -eq 0 ]]; then
+    log_info "No profile specified. Using default: $DEFAULT_PROFILE"
+    read -p "Proceed with default profile? (y/n): " proceed
+    if [[ $proceed =~ ^[Yy]$ ]]; then
+      PROFILE_NAME="$DEFAULT_PROFILE"
+    else
+      log_info "Please run: $0 <profile-name>"
+      exit 1
+    fi
+  else
+    PROFILE_NAME="$1"
+  fi
+
+  # Configure the profile
+  log_info "Configuring AWS profile: $PROFILE_NAME"
+  aws configure set profile.${PROFILE_NAME}.sso_start_url "$SSO_START_URL"
+  aws configure set profile.${PROFILE_NAME}.sso_region "$SSO_REGION"
+  aws configure set profile.${PROFILE_NAME}.region "$SSO_REGION"
+  aws configure set profile.${PROFILE_NAME}.output "json"
+
+  # Check cached credentials
+  log_info "🔍 Checking cached SSO credentials..."
+  token_file=$(find_token_file)
+
+  if [[ -n "$token_file" && -f "$token_file" ]] && \
+     jq -e '.startUrl == "'"$SSO_START_URL"'"' "$token_file" > /dev/null && \
+     is_token_valid "$token_file"; then
+    log_info "✅ Cached credentials are valid."
+  else
+    log_warn "⚠️ Initiating AWS SSO login..."
+    aws sso login --profile "$PROFILE_NAME"
+    token_file=$(find_token_file)
+
+    if [[ -z "$token_file" || ! -f "$token_file" ]]; then
+      log_error "❌ Failed to retrieve cache file after login."
+      exit 1
+    fi
+    log_info "✅ Successfully retrieved new cache file."
+  fi
+
+  # Get access token and fetch accounts
+  access_token=$(jq -r 'select(.startUrl=="'"$SSO_START_URL"'") | .accessToken' "$token_file")
+  if [[ -z "$access_token" || "$access_token" == "null" ]]; then
+    log_error "❌ Failed to get access token from SSO cache"
+    exit 1
+  fi
+
+  log_info "📋 Fetching available accounts..."
+  accounts_json=$(aws sso list-accounts --access-token "$access_token" --region "$SSO_REGION" --output json) || {
+    log_error "Failed to list accounts."
+    exit 1
+  }
+
+  # Basic fzf border option that works on all versions
+  FZF_BORDER="--border"
+
+  # Select account
+  log_info "Please select an AWS account:"
+  selected_account=$(echo "$accounts_json" | \
+    jq -r '.accountList[] | "\(.accountId)|\(.accountName)"' | \
+    sort | \
+    column -t -s '|' | \
+    fzf --header="Select AWS Account" \
+        --preview 'echo "Account ID: $(echo {} | awk '\''{print $1}'\'')"; echo "Name: $(echo {} | cut -d" " -f2-)"' \
+        --preview-window=right:40%:wrap \
+        $FZF_BORDER \
+        --height=20% \
+        --layout=reverse) || { log_error "❌ No account selected"; exit 1; }
+
+  account_id=$(echo "$selected_account" | awk '{print $1}')
+  account_name=$(echo "$selected_account" | cut -d' ' -f2-)
+
+  # Get roles for the selected account
+  log_info "Fetching available roles for account: $account_name"
+  roles_json=$(aws sso list-account-roles --access-token "$access_token" --account-id "$account_id" --region "$SSO_REGION" --output json)
+
+  # Select role with preview window
+  log_info "Please select a role:"
+  selected_role=$(echo "$roles_json" | \
+    jq -r '.roleList[] | "\(.roleName)"' | \
+    sort | \
+    fzf --header="Select Role" \
+        --preview 'echo "Role: {}"; echo "Account: '"$account_name"'"; echo "Account ID: '"$account_id"'"' \
+        --preview-window=right:40%:wrap \
+        $FZF_BORDER \
+        --height=20% \
+        --layout=reverse) || { log_error "❌ No role selected"; exit 1; }
+
+  # Update profile
+  log_info "Updating AWS profile with selected account and role..."
+  aws configure set profile.$PROFILE_NAME.sso_account_id "$account_id"
+  aws configure set profile.$PROFILE_NAME.sso_role_name "$selected_role"
+
+  # Print success message
+  echo ""
+  log_info "🎉 Successfully configured AWS SSO profile."
+  log_info "----------------------------------------"
+  log_info "Account: $account_name"
+  log_info "Role: $selected_role"
+  log_info "Profile: $PROFILE_NAME"
+  log_info ""
+  log_info "To use this profile, run:"
+  log_info "export AWS_PROFILE=$PROFILE_NAME AWS_DEFAULT_REGION=$SSO_REGION"
+  log "========== AWS SSO SCRIPT EXECUTION COMPLETED =========="
+  echo "" >> "$LOG_FILE"
+}
+
+# Run main function with all arguments
+main "$@"

@@ -3,14 +3,14 @@
 ![Ubuntu](https://github.com/ZSoftly/quickssm/actions/workflows/test.yml/badge.svg)
 ![macOS](https://github.com/ZSoftly/quickssm/actions/workflows/test.yml/badge.svg)
 
-A streamlined CLI tool for AWS SSM Session Manager, making it easier to list and connect to EC2 instances across regions.
+A set of streamlined CLI tools for AWS management, including SSM Session Manager and SSO authentication, making it easier to interact with AWS services across regions.
 
 ## Features
 
-- Quick connection to EC2 instances using short region codes
-- Interactive listing of available instances
-- Automatic validation of AWS CLI and Session Manager plugin
-- Interactive Session Manager plugin installation
+- **quickssm**: Connect to EC2 instances using short region codes 
+- **auth_aws**: Streamlined AWS SSO authentication with account and role selection
+- Interactive listing of available instances and accounts
+- Automatic validation of AWS CLI and required plugins
 - Support for multiple AWS regions
 - Color-coded output for better readability
 
@@ -20,21 +20,22 @@ A streamlined CLI tool for AWS SSM Session Manager, making it easier to list and
 - AWS Session Manager plugin (can be installed interactively via `ssm check`)
 - AWS credentials configured (`aws configure`)
 - Bash or Zsh shell
-- Proper IAM permissions for SSM Session Manager
+- Proper IAM permissions for SSM Session Manager and SSO access
+- Additional utilities: `jq` and `fzf` (required for `aws_auth`)
 
 ## Quick Start
 
-One-liner to download, install, and start using quickssm (for bash users):
+One-liner to download, install, and start using both tools (for bash users):
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
+git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm auth_aws && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
 ```
 
 For zsh users:
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
+git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm auth_aws && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
 ```
 
-After running the appropriate command for your shell, you can use the tool by simply typing `ssm` from anywhere.
+After running the appropriate command for your shell, you can use the tools by simply typing `ssm` or `auth_aws` from anywhere.
 
 ## Installation Options
 
@@ -44,8 +45,9 @@ For bash users:
 ```bash
 git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
-chmod +x ssm
+chmod +x ssm auth_aws
 ./ssm check
+./auth_aws check
 echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc
 source ~/.bashrc
 ```
@@ -54,8 +56,9 @@ For zsh users:
 ```bash
 git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
-chmod +x ssm
+chmod +x ssm auth_aws
 ./ssm check
+./auth_aws check
 echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc
 source ~/.zshrc
 ```
@@ -72,10 +75,12 @@ This is the recommended approach because:
 ```bash
 git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
-chmod +x ssm
+chmod +x ssm auth_aws
 ./ssm check
+./auth_aws check
 INSTALL_DIR="$(pwd)"
 sudo ln -s "$INSTALL_DIR/ssm" /usr/local/bin/ssm
+sudo ln -s "$INSTALL_DIR/auth_aws" /usr/local/bin/auth_aws
 sudo ln -s "$INSTALL_DIR/src" /usr/local/bin/src
 ```
 
@@ -88,28 +93,60 @@ Not recommended because:
 
 ## Usage
 
-### Check System Requirements
+### SSM Session Manager Tool
+
+#### Check System Requirements
 ```bash
 ssm check
 ```
 
-### List Instances in a Region
+#### List Instances in a Region
 ```bash
 ssm cac1  # Lists instances in Canada Central
 ```
 
-### Connect to an Instance
+#### Connect to an Instance
 ```bash
 ssm i-1234abcd              # Connect to instance in default region (Canada Central)
 ssm use1 i-1234abcd         # Connect to instance in US East
 ```
 
-### Show Help
+#### Show Help
 ```bash
 ssm help
 ```
 
-## Supported Regions
+### AWS SSO Authentication Tool
+
+#### First-time Setup
+```bash
+auth_aws check       # Check dependencies
+auth_aws help        # Show help information
+```
+
+Before using `auth_aws`, set up a `.env` file in the same directory with the following content:
+```
+SSO_START_URL="https://your-sso-url.awsapps.com/start"
+SSO_REGION="your-region"
+DEFAULT_PROFILE="your-default-profile"
+```
+
+You can create a template file by running `auth_aws` without a valid .env file.
+
+#### Log in to AWS SSO
+```bash
+auth_aws             # Use default profile from .env
+auth_aws myprofile   # Use a specific profile name
+```
+
+The tool will:
+1. Check for valid cached credentials
+2. Initiate AWS SSO login if needed
+3. Show an interactive list of accounts
+4. Show an interactive list of roles for the selected account
+5. Configure your AWS profile with the selected account and role
+
+## Supported Regions (for SSM tool)
 
 | Shortcode | AWS Region    | Location     |
 |-----------|---------------|--------------|
@@ -123,7 +160,7 @@ For a complete list of regions and their status, see [REGIONS.md](docs/REGIONS.m
 
 ## IAM Permissions
 
-Your AWS user/role needs the following permissions:
+### For SSM Session Manager:
 ```json
 {
     "Version": "2012-10-17",
@@ -142,6 +179,24 @@ Your AWS user/role needs the following permissions:
 }
 ```
 
+### For AWS SSO Authentication:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "sso:GetRoleCredentials",
+                "sso:ListAccountRoles",
+                "sso:ListAccounts"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
 ## Troubleshooting
 
 ### AWS CLI Not Found
@@ -150,6 +205,10 @@ If AWS CLI is not installed, follow the [official AWS CLI installation guide](ht
 ### Session Manager Plugin Missing
 Run `ssm check` to install the plugin interactively, or follow the [manual installation instructions](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
 
+### Missing jq or fzf
+For Ubuntu/Debian: `sudo apt-get install jq fzf`
+For macOS: `brew install jq fzf`
+
 ### AWS Credentials Not Configured
 Run `aws configure` to set up your AWS credentials.
 
@@ -157,7 +216,7 @@ Run `aws configure` to set up your AWS credentials.
 Ensure your AWS user/role has the required IAM permissions listed above.
 
 ### Shell Configuration
-If the `ssm` command isn't available after installation, make sure you've added it to your PATH in the correct shell configuration file:
+If the commands aren't available after installation, make sure you've added them to your PATH in the correct shell configuration file:
 - For Bash users: `~/.bashrc`
 - For Zsh users: `~/.zshrc`
 
@@ -179,7 +238,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Security
 
-This tool requires AWS credentials and access to your instances. Always:
+These tools require AWS credentials and access to your AWS resources. Always:
 - Keep your AWS credentials secure
 - Use appropriate IAM permissions
 - Review security best practices in the [AWS Security Documentation](https://docs.aws.amazon.com/security/)
