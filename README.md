@@ -8,7 +8,7 @@ A set of streamlined CLI tools for AWS management, including SSM Session Manager
 ## Features
 
 - **quickssm**: Connect to EC2 instances using short region codes 
-- **aws_auth**: Streamlined AWS SSO authentication with account and role selection
+- **auth_aws**: Streamlined AWS SSO authentication with account and role selection
 - Interactive listing of available instances and accounts
 - Automatic validation of AWS CLI and required plugins
 - Support for multiple AWS regions
@@ -27,15 +27,15 @@ A set of streamlined CLI tools for AWS management, including SSM Session Manager
 
 One-liner to download, install, and start using both tools (for bash users):
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm aws_auth && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
+git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm auth_aws && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
 ```
 
 For zsh users:
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm aws_auth && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
+git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm auth_aws && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
 ```
 
-After running the appropriate command for your shell, you can use the tools by simply typing `ssm` or `aws_auth` from anywhere.
+After running the appropriate command for your shell, you can use the tools by simply typing `ssm` or `auth_aws` from anywhere.
 
 ## Installation Options
 
@@ -45,9 +45,9 @@ For bash users:
 ```bash
 git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
-chmod +x ssm aws_auth
+chmod +x ssm auth_aws
 ./ssm check
-./aws_auth check
+./auth_aws check
 echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc
 source ~/.bashrc
 ```
@@ -56,9 +56,9 @@ For zsh users:
 ```bash
 git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
-chmod +x ssm aws_auth
+chmod +x ssm auth_aws
 ./ssm check
-./aws_auth check
+./auth_aws check
 echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc
 source ~/.zshrc
 ```
@@ -75,12 +75,12 @@ This is the recommended approach because:
 ```bash
 git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
-chmod +x ssm aws_auth
+chmod +x ssm auth_aws
 ./ssm check
-./aws_auth check
+./auth_aws check
 INSTALL_DIR="$(pwd)"
 sudo ln -s "$INSTALL_DIR/ssm" /usr/local/bin/ssm
-sudo ln -s "$INSTALL_DIR/aws_auth" /usr/local/bin/aws_auth
+sudo ln -s "$INSTALL_DIR/auth_aws" /usr/local/bin/auth_aws
 sudo ln -s "$INSTALL_DIR/src" /usr/local/bin/src
 ```
 
@@ -120,23 +120,23 @@ ssm help
 
 #### First-time Setup
 ```bash
-aws_auth check       # Check dependencies
-aws_auth help        # Show help information
+auth_aws check       # Check dependencies
+auth_aws help        # Show help information
 ```
 
-Before using `aws_auth`, set up a `.env` file in the same directory with the following content:
+Before using `auth_aws`, set up a `.env` file in the same directory with the following content:
 ```
 SSO_START_URL="https://your-sso-url.awsapps.com/start"
 SSO_REGION="your-region"
 DEFAULT_PROFILE="your-default-profile"
 ```
 
-You can create a template file by running `aws_auth` without a valid .env file.
+You can create a template file by running `auth_aws` without a valid .env file.
 
 #### Log in to AWS SSO
 ```bash
-aws_auth             # Use default profile from .env
-aws_auth myprofile   # Use a specific profile name
+auth_aws             # Use default profile from .env
+auth_aws myprofile   # Use a specific profile name
 ```
 
 The tool will:

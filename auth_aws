@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # AWS SSO Authentication Helper Script
-# Version: 1.0.0
+# Version: 1.1.0
 # Repository: https://github.com/ZSoftly/quickssm
 
 set -e  # Exit on error
@@ -82,32 +82,24 @@ EOL
 show_help() {
   cat << 'EOL'
 AWS SSO Authentication Helper
-============================
+Usage: auth_aws [profile-name]
+       auth_aws              # Uses default profile from .env file
 
-This script automates AWS SSO login by using configuration from a .env file
-and provides an interactive selection of AWS accounts and roles.
+Commands:
+  auth_aws help       # Show this help message
+  auth_aws version    # Show version information
+  auth_aws check      # Check system requirements
 
-SETUP:
-------
-Before first use, create a .env file in the same directory as this script with:
-(The script will look for .env relative to its own location)
+Setup:
+  Before first use, create a .env file in the script directory with:
+  SSO_START_URL="https://your-sso-url.awsapps.com/start"
+  SSO_REGION="your-region"
+  DEFAULT_PROFILE="your-default-profile"
 
-SSO_START_URL="https://your-sso-url.awsapps.com/start"
-SSO_REGION="your-region"
-DEFAULT_PROFILE="your-default-profile"
-LOG_DIR="/optional/path/to/logs"  (defaults to $HOME/logs)
-
-USAGE:
-------
-./aws_auth [profile-name]
-
-OPTIONS:
---------
-  help, -h, --help     Show this help message
-  version              Show version information
-  check                Check system requirements
-
-If no profile name is provided, the DEFAULT_PROFILE from .env will be used.
+Examples:
+  auth_aws                # Login with default profile
+  auth_aws dev-profile    # Login with specific profile
+  auth_aws check          # Verify dependencies
 EOL
   exit 0
 }
@@ -313,7 +305,7 @@ main() {
   aws configure set profile.$PROFILE_NAME.sso_role_name "$selected_role"
 
   # Print success message
-  log ""
+  echo ""
   log_info "🎉 Successfully configured AWS SSO profile."
   log_info "----------------------------------------"
   log_info "Account: $account_name"
