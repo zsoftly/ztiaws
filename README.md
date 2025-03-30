@@ -27,12 +27,12 @@ A set of streamlined CLI tools for AWS management, including SSM Session Manager
 
 One-liner to download, install, and start using both tools (for bash users):
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm authaws && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
+git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add quickssm to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
 ```
 
 For zsh users:
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm authaws && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
+git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add quickssm to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
 ```
 
 After running the appropriate command for your shell, you can use the tools by simply typing `ssm` or `authaws` from anywhere.
@@ -48,7 +48,7 @@ cd quickssm
 chmod +x ssm authaws
 ./ssm check
 ./authaws check
-echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc
+echo -e "\n# Add quickssm to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc
 source ~/.bashrc
 ```
 
@@ -59,7 +59,7 @@ cd quickssm
 chmod +x ssm authaws
 ./ssm check
 ./authaws check
-echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc
+echo -e "\n# Add quickssm to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc
 source ~/.zshrc
 ```
 
