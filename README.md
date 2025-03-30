@@ -8,7 +8,7 @@ A set of streamlined CLI tools for AWS management, including SSM Session Manager
 ## Features
 
 - **quickssm**: Connect to EC2 instances using short region codes 
-- **auth_aws**: Streamlined AWS SSO authentication with account and role selection
+- **authaws**: Streamlined AWS SSO authentication with account and role selection
 - Interactive listing of available instances and accounts
 - Automatic validation of AWS CLI and required plugins
 - Support for multiple AWS regions
@@ -21,21 +21,21 @@ A set of streamlined CLI tools for AWS management, including SSM Session Manager
 - AWS credentials configured (`aws configure`)
 - Bash or Zsh shell
 - Proper IAM permissions for SSM Session Manager and SSO access
-- Additional utilities: `jq` and `fzf` (required for `aws_auth`)
+- Additional utilities: `jq` and `fzf` (required for `authaws`)
 
 ## Quick Start
 
 One-liner to download, install, and start using both tools (for bash users):
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm auth_aws && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
+git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add quickssm to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
 ```
 
 For zsh users:
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm auth_aws && ./ssm check && echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
+git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add quickssm to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
 ```
 
-After running the appropriate command for your shell, you can use the tools by simply typing `ssm` or `auth_aws` from anywhere.
+After running the appropriate command for your shell, you can use the tools by simply typing `ssm` or `authaws` from anywhere.
 
 ## Installation Options
 
@@ -45,10 +45,10 @@ For bash users:
 ```bash
 git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
-chmod +x ssm auth_aws
+chmod +x ssm authaws
 ./ssm check
-./auth_aws check
-echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc
+./authaws check
+echo -e "\n# Add quickssm to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc
 source ~/.bashrc
 ```
 
@@ -56,10 +56,10 @@ For zsh users:
 ```bash
 git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
-chmod +x ssm auth_aws
+chmod +x ssm authaws
 ./ssm check
-./auth_aws check
-echo "export PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc
+./authaws check
+echo -e "\n# Add quickssm to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc
 source ~/.zshrc
 ```
 
@@ -75,12 +75,12 @@ This is the recommended approach because:
 ```bash
 git clone https://github.com/ZSoftly/quickssm.git
 cd quickssm
-chmod +x ssm auth_aws
+chmod +x ssm authaws
 ./ssm check
-./auth_aws check
+./authaws check
 INSTALL_DIR="$(pwd)"
 sudo ln -s "$INSTALL_DIR/ssm" /usr/local/bin/ssm
-sudo ln -s "$INSTALL_DIR/auth_aws" /usr/local/bin/auth_aws
+sudo ln -s "$INSTALL_DIR/authaws" /usr/local/bin/authaws
 sudo ln -s "$INSTALL_DIR/src" /usr/local/bin/src
 ```
 
@@ -90,6 +90,45 @@ Not recommended because:
 - Requires sudo privileges for updates and modifications
 - Can lead to security and audit tracking complications
 - Makes it harder to manage different AWS configurations for different users
+
+## Updating from Previous Versions
+
+If you're updating from a previous version that used `auth_aws` instead of `authaws`, follow these steps:
+
+### Option 1: Clean Update (Recommended)
+```bash
+# Navigate to your quickssm directory
+cd /path/to/quickssm
+
+# Backup your .env file if you have one
+cp .env .env.backup
+
+# Pull the latest changes
+git pull
+
+# Make the new scripts executable
+chmod +x ssm authaws
+
+# Remove the old symlink if you had one
+rm -f /usr/local/bin/auth_aws  # May require sudo
+
+# Update your path if needed or recreate symlinks
+```
+
+### Option 2: In-place Migration
+```bash
+# Navigate to your quickssm directory
+cd /path/to/quickssm
+
+# Pull the latest changes
+git pull
+
+# Make the new script executable
+chmod +x authaws
+
+# Create a symlink from the old name to the new script for compatibility
+ln -s "$(pwd)/authaws" "$(pwd)/auth_aws"
+```
 
 ## Usage
 
@@ -120,23 +159,23 @@ ssm help
 
 #### First-time Setup
 ```bash
-auth_aws check       # Check dependencies
-auth_aws help        # Show help information
+authaws check       # Check dependencies
+authaws help        # Show help information
 ```
 
-Before using `auth_aws`, set up a `.env` file in the same directory with the following content:
+Before using `authaws`, set up a `.env` file in the same directory with the following content:
 ```
 SSO_START_URL="https://your-sso-url.awsapps.com/start"
 SSO_REGION="your-region"
 DEFAULT_PROFILE="your-default-profile"
 ```
 
-You can create a template file by running `auth_aws` without a valid .env file.
+You can create a template file by running `authaws` without a valid .env file.
 
 #### Log in to AWS SSO
 ```bash
-auth_aws             # Use default profile from .env
-auth_aws myprofile   # Use a specific profile name
+authaws             # Use default profile from .env
+authaws myprofile   # Use a specific profile name
 ```
 
 The tool will:
@@ -145,6 +184,14 @@ The tool will:
 3. Show an interactive list of accounts
 4. Show an interactive list of roles for the selected account
 5. Configure your AWS profile with the selected account and role
+
+#### View AWS Credentials
+```bash
+authaws creds           # Show credentials for current profile
+authaws creds myprofile # Show credentials for a specific profile
+```
+
+This will display your AWS access key, secret key, and session token for the specified profile.
 
 ## Supported Regions (for SSM tool)
 
@@ -222,6 +269,9 @@ If the commands aren't available after installation, make sure you've added them
 
 You may need to restart your terminal or run `source ~/.bashrc` (or `source ~/.zshrc` for Zsh) for the changes to take effect.
 
+### Script Name Changed
+If you're getting "command not found" for `auth_aws`, note that the script has been renamed to `authaws` in v1.4.0+. Update your scripts and aliases accordingly.
+
 ## Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
@@ -235,6 +285,36 @@ Key areas for contribution:
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Releasing a New Version
+
+For maintainers who want to create a new release:
+
+```bash
+# Make sure you're on the main branch
+git checkout main
+
+# Pull the latest changes (including merged PRs)
+git pull origin main
+
+# Ensure all changes are committed and the working directory is clean
+git status
+
+# Create an annotated tag
+git tag -a v1.x.x -m "Version 1.x.x: Brief description of changes"
+
+# Push the tag to GitHub
+git push origin v1.x.x
+```
+
+After pushing the tag, go to the GitHub repository and:
+1. Click on "Releases"
+2. Click "Draft a new release"
+3. Select the tag you just pushed
+4. Add release notes
+5. Publish the release
+
+This process ensures that releases are always created from the stable main branch after code has been properly reviewed and merged.
 
 ## Security
 
