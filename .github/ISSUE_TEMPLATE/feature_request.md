@@ -1,11 +1,10 @@
 ---
 name: Feature request
-about: Suggest an idea for quickssm
+about: Suggest an idea for ZTiAWS
 title: '[FEATURE] '
 labels: enhancement
 assignees: ''
 ---
-
 **Is your feature request related to a problem? Please describe.**
 A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
 
@@ -16,8 +15,9 @@ A clear and concise description of what you want to happen.
 A clear and concise description of any alternative solutions or features you've considered.
 
 **Additional context**
+- Tool affected: [e.g., ssm, authaws, both]
 - AWS Region(s) affected: [e.g., all regions, specific regions]
-- OS Environment: [e.g., Linux, MacOS]
+- OS Environment: [e.g., Linux, MacOS, Windows]
 - AWS CLI Version: [e.g., 2.11.0]
 - SSM Plugin Version: [e.g., 1.2.463.0]
 

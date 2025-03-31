@@ -1,11 +1,10 @@
 ---
 name: Region request
-about: Request support for a new AWS region
+about: Request support for a new AWS region in ZTiAWS
 title: '[REGION] '
 labels: enhancement, region
 assignees: ''
 ---
-
 **AWS Region Details**
 - AWS Region Name: [e.g. eu-west-2]
 - Location/City: [e.g. London]
