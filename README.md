@@ -1,7 +1,7 @@
 # ZTiAWS
 
-![Ubuntu](https://github.com/ZSoftly/ztiaws/actions/workflows/test.yml/badge.svg)
-![macOS](https://github.com/ZSoftly/ztiaws/actions/workflows/test.yml/badge.svg)
+![Ubuntu](https://github.com/zsoftly/ztiaws/actions/workflows/test.yml/badge.svg)
+![macOS](https://github.com/zsoftly/ztiaws/actions/workflows/test.yml/badge.svg)
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 <p align="center">
@@ -39,17 +39,17 @@ One-liner to download, install, and start using both tools:
 
 **Bash users:**
 ```bash
-git clone https://github.com/ZSoftly/ztiaws.git && cd ztiaws && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add ZTiAWS to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
+git clone https://github.com/zsoftly/ztiaws.git && cd ztiaws && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add ZTiAWS to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
 ```
 
 **Zsh users:**
 ```bash
-git clone https://github.com/ZSoftly/ztiaws.git && cd ztiaws && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add ZTiAWS to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
+git clone https://github.com/zsoftly/ztiaws.git && cd ztiaws && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add ZTiAWS to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
 ```
 
 **PowerShell users:**
 ```powershell
-git clone https://github.com/ZSoftly/ztiaws.git
+git clone https://github.com/zsoftly/ztiaws.git
 cd ztiaws
 # Follow the PowerShell setup in the detailed installation section
 ```
@@ -62,7 +62,7 @@ After running the appropriate command for your shell, you can use the tools by s
 
 **Bash users:**
 ```bash
-git clone https://github.com/ZSoftly/ztiaws.git
+git clone https://github.com/zsoftly/ztiaws.git
 cd ztiaws
 chmod +x ssm authaws
 ./ssm check
@@ -73,7 +73,7 @@ source ~/.bashrc
 
 **Zsh users:**
 ```bash
-git clone https://github.com/ZSoftly/ztiaws.git
+git clone https://github.com/zsoftly/ztiaws.git
 cd ztiaws
 chmod +x ssm authaws
 ./ssm check
@@ -84,7 +84,7 @@ source ~/.zshrc
 
 **PowerShell users:**
 ```powershell
-git clone https://github.com/ZSoftly/ztiaws.git
+git clone https://github.com/zsoftly/ztiaws.git
 cd ztiaws
 # Copy the profile to your PowerShell profile directory
 Copy-Item .\Microsoft.PowerShell_profile.ps1 $PROFILE
@@ -102,7 +102,7 @@ This is the recommended approach because:
 
 ### Option 2: System-wide Installation (Not Recommended)
 ```bash
-git clone https://github.com/ZSoftly/ztiaws.git
+git clone https://github.com/zsoftly/ztiaws.git
 cd ztiaws
 chmod +x ssm authaws
 ./ssm check
@@ -136,7 +136,7 @@ cp .env .env.backup
 
 # Clone the new repository
 cd ..
-git clone https://github.com/ZSoftly/ztiaws.git
+git clone https://github.com/zsoftly/ztiaws.git
 
 # Copy your .env file if needed
 cp /path/to/old/quickssm/.env.backup ztiaws/.env
@@ -151,7 +151,7 @@ cp /path/to/old/quickssm/.env.backup ztiaws/.env
 cd /path/to/old/quickssm
 
 # Update your remote URL
-git remote set-url origin https://github.com/ZSoftly/ztiaws.git
+git remote set-url origin https://github.com/zsoftly/ztiaws.git
 
 # Pull the latest changes
 git pull origin main
