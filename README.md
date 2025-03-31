@@ -1,80 +1,109 @@
-# quickssm
+# ZTiAWS
 
-![Ubuntu](https://github.com/ZSoftly/quickssm/actions/workflows/test.yml/badge.svg)
-![macOS](https://github.com/ZSoftly/quickssm/actions/workflows/test.yml/badge.svg)
+![Ubuntu](https://github.com/ZSoftly/ztiaws/actions/workflows/test.yml/badge.svg)
+![macOS](https://github.com/ZSoftly/ztiaws/actions/workflows/test.yml/badge.svg)
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A set of streamlined CLI tools for AWS management, including SSM Session Manager and SSO authentication, making it easier to interact with AWS services across regions.
+<p align="center">
+  <img src="assets/zs_logo.jpeg" alt="ZSoftly Logo" width="200"/>
+  <br>
+  <em>Simplify your AWS workflow</em>
+</p>
 
-## Features
+**ZTiAWS** (ZSoftly Tools for AWS) is a collection of streamlined CLI tools that make AWS management effortless. Developed by [ZSoftly](https://zsoftly.com), these open-source utilities help you connect to EC2 instances and authenticate with AWS SSO without the typical complexity.
 
-- **quickssm**: Connect to EC2 instances using short region codes 
-- **authaws**: Streamlined AWS SSO authentication with account and role selection
-- Interactive listing of available instances and accounts
+> **"Life's too short for long AWS commands"** - ZSoftly Team
+
+## 🚀 Key Features
+
+- **ssm**: Connect to EC2 instances using intuitive short region codes
+- **authaws**: Streamlined AWS SSO authentication with interactive account/role selection
+- Smart interactive listing of available instances and accounts
 - Automatic validation of AWS CLI and required plugins
-- Support for multiple AWS regions
-- Color-coded output for better readability
+- Support for multiple AWS regions with simple shortcodes
+- Color-coded output for enhanced readability
+- Time-saving workflows designed by AWS practitioners for real-world use
 
-## Prerequisites
+## 📋 Prerequisites
 
-- AWS CLI installed (follow [official installation guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html))
+- AWS CLI installed ([official installation guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html))
 - AWS Session Manager plugin (can be installed interactively via `ssm check`)
 - AWS credentials configured (`aws configure`)
-- Bash or Zsh shell
+- Bash, Zsh, or PowerShell
 - Proper IAM permissions for SSM Session Manager and SSO access
 - Additional utilities: `jq` and `fzf` (required for `authaws`)
 
-## Quick Start
+## ⚡ Quick Start
 
-One-liner to download, install, and start using both tools (for bash users):
+One-liner to download, install, and start using both tools:
+
+**Bash users:**
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add quickssm to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
+git clone https://github.com/ZSoftly/ztiaws.git && cd ztiaws && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add ZTiAWS to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
 ```
 
-For zsh users:
+**Zsh users:**
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git && cd quickssm && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add quickssm to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
+git clone https://github.com/ZSoftly/ztiaws.git && cd ztiaws && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add ZTiAWS to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
+```
+
+**PowerShell users:**
+```powershell
+git clone https://github.com/ZSoftly/ztiaws.git
+cd ztiaws
+# Follow the PowerShell setup in the detailed installation section
 ```
 
 After running the appropriate command for your shell, you can use the tools by simply typing `ssm` or `authaws` from anywhere.
 
-## Installation Options
+## 🔧 Installation Options
 
 ### Option 1: Local User Installation (Recommended)
 
-For bash users:
+**Bash users:**
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git
-cd quickssm
+git clone https://github.com/ZSoftly/ztiaws.git
+cd ztiaws
 chmod +x ssm authaws
 ./ssm check
 ./authaws check
-echo -e "\n# Add quickssm to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc
+echo -e "\n# Add ZTiAWS to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc
 source ~/.bashrc
 ```
 
-For zsh users:
+**Zsh users:**
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git
-cd quickssm
+git clone https://github.com/ZSoftly/ztiaws.git
+cd ztiaws
 chmod +x ssm authaws
 ./ssm check
 ./authaws check
-echo -e "\n# Add quickssm to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc
+echo -e "\n# Add ZTiAWS to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc
 source ~/.zshrc
+```
+
+**PowerShell users:**
+```powershell
+git clone https://github.com/ZSoftly/ztiaws.git
+cd ztiaws
+# Copy the profile to your PowerShell profile directory
+Copy-Item .\Microsoft.PowerShell_profile.ps1 $PROFILE
+# Reload your profile
+. $PROFILE
 ```
 
 This is the recommended approach because:
 - Keeps AWS tooling scoped to your user
 - Maintains better security practices
-- Makes updates easier without requiring sudo
-- Aligns with AWS credentials being stored per-user in ~/.aws/
+- Makes updates easier without requiring sudo/admin privileges
+- Aligns with AWS credentials being stored per-user
 - Follows principle of least privilege
 - Easier to manage different AWS configurations per user
 
 ### Option 2: System-wide Installation (Not Recommended)
 ```bash
-git clone https://github.com/ZSoftly/quickssm.git
-cd quickssm
+git clone https://github.com/ZSoftly/ztiaws.git
+cd ztiaws
 chmod +x ssm authaws
 ./ssm check
 ./authaws check
@@ -91,46 +120,45 @@ Not recommended because:
 - Can lead to security and audit tracking complications
 - Makes it harder to manage different AWS configurations for different users
 
-## Updating from Previous Versions
+## 🔄 Updating from Previous Versions
 
-If you're updating from a previous version that used `auth_aws` instead of `authaws`, follow these steps:
+If you're updating from the previous repository name (quickssm) or older versions:
 
 ### Option 1: Clean Update (Recommended)
 ```bash
-# Navigate to your quickssm directory
-cd /path/to/quickssm
+# Navigate to your installation directory
+cd /path/to/old/quickssm
 
 # Backup your .env file if you have one
 cp .env .env.backup
 
-# Pull the latest changes
-git pull
+# Clone the new repository
+cd ..
+git clone https://github.com/ZSoftly/ztiaws.git
 
-# Make the new scripts executable
-chmod +x ssm authaws
+# Copy your .env file if needed
+cp /path/to/old/quickssm/.env.backup ztiaws/.env
 
-# Remove the old symlink if you had one
-rm -f /usr/local/bin/auth_aws  # May require sudo
-
-# Update your path if needed or recreate symlinks
+# Update your path in your shell config file
+# (Replace the old path with the new one)
 ```
 
 ### Option 2: In-place Migration
 ```bash
-# Navigate to your quickssm directory
-cd /path/to/quickssm
+# Navigate to your installation directory
+cd /path/to/old/quickssm
+
+# Update your remote URL
+git remote set-url origin https://github.com/ZSoftly/ztiaws.git
 
 # Pull the latest changes
-git pull
+git pull origin main
 
-# Make the new script executable
-chmod +x authaws
-
-# Create a symlink from the old name to the new script for compatibility
-ln -s "$(pwd)/authaws" "$(pwd)/auth_aws"
+# Make the scripts executable
+chmod +x ssm authaws
 ```
 
-## Usage
+## 📘 Usage
 
 ### SSM Session Manager Tool
 
@@ -193,7 +221,7 @@ authaws creds myprofile # Show credentials for a specific profile
 
 This will display your AWS access key, secret key, and session token for the specified profile.
 
-## Supported Regions (for SSM tool)
+## 🌎 Supported Regions (for SSM tool)
 
 | Shortcode | AWS Region    | Location     |
 |-----------|---------------|--------------|
@@ -205,7 +233,7 @@ This will display your AWS access key, secret key, and session token for the spe
 
 For a complete list of regions and their status, see [REGIONS.md](docs/REGIONS.md).
 
-## IAM Permissions
+## 🔒 IAM Permissions
 
 ### For SSM Session Manager:
 ```json
@@ -244,7 +272,7 @@ For a complete list of regions and their status, see [REGIONS.md](docs/REGIONS.m
 }
 ```
 
-## Troubleshooting
+## ❓ Troubleshooting
 
 ### AWS CLI Not Found
 If AWS CLI is not installed, follow the [official AWS CLI installation guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
@@ -272,7 +300,7 @@ You may need to restart your terminal or run `source ~/.bashrc` (or `source ~/.z
 ### Script Name Changed
 If you're getting "command not found" for `auth_aws`, note that the script has been renamed to `authaws` in v1.4.0+. Update your scripts and aliases accordingly.
 
-## Contributing
+## 👥 Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
@@ -282,11 +310,13 @@ Key areas for contribution:
 - Adding new features
 - Bug fixes
 
-## License
+## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Releasing a New Version
+**ZTiAWS is completely free and open source** for anyone to use, modify, and distribute. While developed by ZSoftly, we believe in giving back to the community and making AWS management easier for everyone.
+
+## 🚀 Releasing a New Version
 
 For maintainers who want to create a new release:
 
@@ -316,9 +346,22 @@ After pushing the tag, go to the GitHub repository and:
 
 This process ensures that releases are always created from the stable main branch after code has been properly reviewed and merged.
 
-## Security
+## 🔐 Security
 
 These tools require AWS credentials and access to your AWS resources. Always:
 - Keep your AWS credentials secure
 - Use appropriate IAM permissions
 - Review security best practices in the [AWS Security Documentation](https://docs.aws.amazon.com/security/)
+
+## ✨ About ZSoftly
+
+ZSoftly is a forward-thinking Managed Service Provider dedicated to empowering businesses with cutting-edge technology solutions. Founded by industry veterans, we combine technical expertise with a client-first approach while maintaining ZTiAWS as a free, open-source project to support the developer community.
+
+[Visit our website](https://zsoftly.com) to learn more about our services.
+
+---
+
+<p align="center">
+  <strong>Simplify your AWS workflow with ZTiAWS</strong><br>
+  Made with ❤️ by ZSoftly
+</p>
