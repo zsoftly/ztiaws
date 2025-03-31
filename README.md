@@ -122,6 +122,8 @@ Not recommended because:
 
 ## 🔄 Updating from Previous Versions
 
+> **Note:** This repository was previously named "quickssm" and has been renamed to "ZTiAWS" as of March 2025. This note will be removed in June 2025.
+
 If you're updating from the previous repository name (quickssm) or older versions:
 
 ### Option 1: Clean Update (Recommended)
