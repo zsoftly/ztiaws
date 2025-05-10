@@ -1,0 +1,65 @@
+# ZTiAWS v1.4.2 Release Notes
+
+Release Date: May 10, 2025
+
+## SUMMARY
+This release introduces powerful remote command execution capabilities to ZTiAWS, allowing you to run shell commands on EC2 instances directly via the SSM utility. We've also enhanced AWS SSO token management for more reliable authentication.
+
+## NEW FEATURES
+
+### Remote Command Execution via SSM
+The flagship feature of this release lets you execute commands on your EC2 instances without needing to establish a full SSH session:
+
+- New `exec` command for single-instance command execution:
+  ```
+  ssm exec <region> <instance-id> "<command>"
+  ```
+
+- New `exec-tagged` command for multi-instance command execution based on tags:
+  ```
+  ssm exec-tagged <region> <tag-key> <tag-value> "<command>"
+  ```
+
+- Real-time status updates during command execution
+- Comprehensive output formatting showing both stdout and stderr
+- Clear error handling when no matching instances are found
+
+### Enhanced AWS SSO Token Management
+- Improved token cache file detection that matches against your configured SSO_START_URL
+- Better error handling for mismatched or expired tokens
+- Clearer guidance when SSO configuration changes are detected
+
+## BUG FIXES
+- Fixed "base64: invalid input" errors when using exec-tagged command
+- Resolved ShellCheck warnings for improved CI pipeline reliability
+- Enhanced error reporting across all components
+
+## EXAMPLES
+
+Run a command on a single instance:
+```
+ssm exec cac1 i-00ddcf01799e02060 "hostname"
+```
+
+Check disk space on all web servers:
+```
+ssm exec-tagged use1 Role web "df -h"
+```
+
+View system services on all instances in a project:
+```
+ssm exec-tagged cac1 Project GTM "systemctl status nginx"
+```
+
+## INSTALLATION
+
+For new installations, follow our guide at:
+https://github.com/zsoftly/ztiaws/blob/main/docs/INSTALLATION.md
+
+To update from a previous version:
+```
+git pull origin main
+chmod +x ssm authaws
+```
+
+For more information, please refer to the documentation in the docs/ directory.

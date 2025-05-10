@@ -1,0 +1,60 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger only when a version tag is pushed (e.g., v1.4.2)
+
+jobs:
+  build:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Fetch all history to properly generate changelogs
+
+      - name: Set up variables
+        id: vars
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "tag_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "release_name=ZTiAWS $VERSION" >> $GITHUB_OUTPUT
+          # Extract release date in proper format
+          echo "release_date=$(date '+%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+      - name: Read release notes
+        id: release_notes
+        run: |
+          if [ -f "RELEASE_NOTES.txt" ]; then
+            # Extract content from the RELEASE_NOTES.txt file
+            RELEASE_BODY=$(cat RELEASE_NOTES.txt)
+            # Convert markdown content to GitHub Actions syntax
+            RELEASE_BODY="${RELEASE_BODY//'%'/'%25'}"
+            RELEASE_BODY="${RELEASE_BODY//$'\n'/'%0A'}"
+            RELEASE_BODY="${RELEASE_BODY//$'\r'/'%0D'}"
+            echo "body=$RELEASE_BODY" >> $GITHUB_OUTPUT
+          else
+            echo "body=Release ${{ steps.vars.outputs.tag_version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate scripts
+        run: |
+          chmod +x ssm authaws
+          shellcheck -x ssm authaws src/*.sh tests/*.sh || {
+            echo "⚠️ ShellCheck detected issues. Release will continue but please fix these in a future update."
+          }
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ steps.vars.outputs.release_name }}
+          body: ${{ steps.release_notes.outputs.body }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
