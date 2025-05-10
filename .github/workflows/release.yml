@@ -27,21 +27,6 @@ jobs:
           # Extract release date in proper format
           echo "release_date=$(date '+%Y-%m-%d')" >> $GITHUB_OUTPUT
 
-      - name: Read release notes
-        id: release_notes
-        run: |
-          if [ -f "RELEASE_NOTES.txt" ]; then
-            # Extract content from the RELEASE_NOTES.txt file
-            RELEASE_BODY=$(cat RELEASE_NOTES.txt)
-            # Convert markdown content to GitHub Actions syntax
-            RELEASE_BODY="${RELEASE_BODY//'%'/'%25'}"
-            RELEASE_BODY="${RELEASE_BODY//$'\n'/'%0A'}"
-            RELEASE_BODY="${RELEASE_BODY//$'\r'/'%0D'}"
-            echo "body=$RELEASE_BODY" >> $GITHUB_OUTPUT
-          else
-            echo "body=Release ${{ steps.vars.outputs.tag_version }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Validate scripts
         run: |
           chmod +x ssm authaws
@@ -50,10 +35,11 @@ jobs:
           }
 
       - name: Create Release
+        id: create_release
         uses: softprops/action-gh-release@v1
         with:
           name: ${{ steps.vars.outputs.release_name }}
-          body: ${{ steps.release_notes.outputs.body }}
+          body_path: RELEASE_NOTES.txt # Use the file directly instead of processing it
           draft: false
           prerelease: false
         env:
