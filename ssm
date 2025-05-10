@@ -1,17 +1,28 @@
 #!/usr/bin/env bash
 
 # AWS SSM Session Manager Helper Script
-# Version: 1.1.0
-# Repository: https://github.com/ZSoftly/quickssm
+# Version: 1.3.0
+# Repository: https://github.com/ZSoftly/ztiaws
 
 set -e  # Exit on error
 set -u  # Exit on undefined variables
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Get SCRIPT_DIR and source utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source utilities (like colors)
+if [ -f "${SCRIPT_DIR}/src/utils.sh" ]; then
+    # shellcheck source=./src/utils.sh
+    source "${SCRIPT_DIR}/src/utils.sh"
+elif [ -f "/usr/local/bin/src/utils.sh" ]; then # For system-wide installation
+    # shellcheck source=/dev/null
+    source "/usr/local/bin/src/utils.sh"
+else
+    # utils.sh is mandatory
+    echo "[ERROR] src/utils.sh not found. This script requires utils.sh for color definitions and common functions." >&2
+    echo "Please ensure src/utils.sh is present in the script directory or in /usr/local/bin/src/." >&2
+    exit 1
+fi
 
 # Logging functions
 log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
@@ -19,7 +30,6 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Import regions from regions.sh
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ -f "${SCRIPT_DIR}/src/regions.sh" ]; then
     # shellcheck source=./src/regions.sh
     source "${SCRIPT_DIR}/src/regions.sh"
@@ -28,6 +38,18 @@ elif [ -f "/usr/local/bin/src/regions.sh" ]; then
     source "/usr/local/bin/src/regions.sh"
 else
     echo "Error: Could not find src/regions.sh in either ${SCRIPT_DIR}/src/ or /usr/local/bin/src/" >&2
+    exit 1
+fi
+
+# Import run_command functions
+if [ -f "${SCRIPT_DIR}/src/run_command.sh" ]; then
+    # shellcheck source=./src/run_command.sh
+    source "${SCRIPT_DIR}/src/run_command.sh"
+elif [ -f "/usr/local/bin/src/run_command.sh" ]; then
+    # shellcheck source=/dev/null
+    source "/usr/local/bin/src/run_command.sh"
+else
+    echo "Error: Could not find src/run_command.sh in either ${SCRIPT_DIR}/src/ or /usr/local/bin/src/" >&2
     exit 1
 fi
 
@@ -47,19 +69,27 @@ Supported regions:
   euw1  - EU West (Ireland)
 
 Commands:
-  ssm install      # Show installation instructions
-  ssm version      # Show version information
-  ssm check       # Check system requirements
+  ssm install              # Show installation instructions
+  ssm version              # Show version information
+  ssm check                # Check system requirements
+  ssm exec [options]        # Run a command on an instance
+  ssm exec-tagged [options] # Run a command on instances by tag
+
+Run Command Options:
+  ssm exec <region> <instance-id> "<command>"
+  ssm exec-tagged <region> <tag-key> <tag-value> "<command>"
 
 Examples:
-  ssm cac1         # List instances in Canada Central
-  ssm use1 i-1234  # Connect to instance in US East
-  ssm i-1234       # Connect to instance in Canada Central
+  ssm cac1                             # List instances in Canada Central
+  ssm use1 i-1234                      # Connect to instance in US East
+  ssm i-1234                           # Connect to instance in Canada Central
+  ssm exec cac1 i-1234 "systemctl status nginx"   # Run command on instance
+  ssm exec-tagged use1 Role web "df -h" # Run command on instances with tag Role=web
 EOF
 }
 
 # Version information
-VERSION="1.1.2"
+VERSION="1.3.0"
 show_version() {
     echo "AWS SSM Helper version: $VERSION"
 }
@@ -77,7 +107,6 @@ detect_os() {
     fi
 }
 
-# Check system requirements
 # Check system requirements
 check_requirements() {
     local missing_deps=0
@@ -103,6 +132,17 @@ check_requirements() {
             log_info "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
             missing_deps=1
         fi
+    fi
+
+    # Check jq
+    if ! command -v jq >/dev/null 2>&1; then
+        log_error "jq is not installed"
+        log_info "jq is required for robust parsing of AWS command output."
+        log_info "Please install jq. Examples:"
+        log_info "  Ubuntu/Debian: sudo apt-get install jq"
+        log_info "  macOS: brew install jq"
+        log_info "  Other: https://stedolan.github.io/jq/download/"
+        missing_deps=1
     fi
 
     # Check AWS credentials
@@ -161,6 +201,64 @@ validate_instance_id() {
     return 0
 }
 
+# Exec command handler
+handle_exec_command() {
+    # Check if we have all required arguments
+    if [ $# -lt 3 ]; then
+        log_error "Missing required parameters for exec command"
+        echo "Usage: ssm exec <region> <instance-id> \"<command>\""
+        exit 1
+    fi
+
+    local region_code="$1"
+    local instance_id="$2"
+    local command="$3"
+    
+    # Convert region code to AWS region name
+    local region
+    region=$(get_region "$region_code")
+    if [ "$region" = "invalid" ]; then
+        log_error "Invalid region code: $region_code"
+        exit 1
+    fi
+    
+    # Validate instance ID
+    if ! validate_instance_id "$instance_id"; then
+        exit 1
+    fi
+    
+    # Run the command
+    run_remote_command "$instance_id" "$region" "$command"
+    return $?
+}
+
+# Run command by tag handler
+handle_exec_tagged_command() {
+    # Check if we have all required arguments
+    if [ $# -lt 4 ]; then
+        log_error "Missing required parameters for exec-tagged command"
+        echo "Usage: ssm exec-tagged <region> <tag-key> <tag-value> \"<command>\""
+        exit 1
+    fi
+
+    local region_code="$1"
+    local tag_key="$2"
+    local tag_value="$3"
+    local command="$4"
+    
+    # Convert region code to AWS region name
+    local region
+    region=$(get_region "$region_code")
+    if [ "$region" = "invalid" ]; then
+        log_error "Invalid region code: $region_code"
+        exit 1
+    fi
+    
+    # Run the command by tag
+    run_remote_command_tagged "$tag_key" "$tag_value" "$region" "$command"
+    return $?
+}
+
 # Main logic
 main() {
     # Handle special commands first
@@ -189,6 +287,16 @@ main() {
         "help"|"-h"|"--help")
             usage
             exit 0
+            ;;
+        "exec")
+            shift
+            handle_exec_command "$@"
+            exit $?
+            ;;
+        "exec-tagged")
+            shift
+            handle_exec_tagged_command "$@"
+            exit $?
             ;;
     esac
 
