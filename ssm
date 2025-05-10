@@ -94,7 +94,7 @@ detect_os() {
     else
         OS=$(uname -s)
         VERSION=$(uname -r)
-    }
+    fi
 }
 
 # Check system requirements
