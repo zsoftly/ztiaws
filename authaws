@@ -36,7 +36,9 @@ LOG_FILE="${LOG_DIR}/${SCRIPT_NAME%-*}-$(date +%Y-%m-%d).log"
 
 # Log function with timestamps
 log() {
-  local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+  # Fix SC2155: Split declaration and assignment
+  local timestamp
+  timestamp=$(date '+%Y-%m-%d %H:%M:%S')
   local message="$timestamp - $*"
   echo "$message" >> "$LOG_FILE"
 }
@@ -173,8 +175,11 @@ find_token_file() {
 }
 
 is_token_valid() {
-  local expires_at=$(jq -r '.expiresAt' "$1")
-  local current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  # Fix SC2155: Split declaration and assignment
+  local expires_at
+  expires_at=$(jq -r '.expiresAt' "$1")
+  local current_time
+  current_time=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   [[ "$expires_at" > "$current_time" ]]
 }
 
@@ -250,6 +255,7 @@ main() {
         local cred_profile="${AWS_PROFILE:-}"
         if [[ -z "$cred_profile" ]]; then
           if [[ -f "${ENV_FILE}" ]]; then
+            # shellcheck source=/dev/null
             source "${ENV_FILE}"
             cred_profile="$DEFAULT_PROFILE"
           else
@@ -268,10 +274,12 @@ main() {
 
   # Check for .env file and load it
   if [[ -f "${ENV_FILE}" ]]; then
+    # shellcheck source=/dev/null
     source "${ENV_FILE}"
   else
     log_warn "No .env file found in the script directory."
-    read -p "Would you like to create a sample .env file? (y/n): " create_env
+    # Fix SC2162: Add -r flag to read
+    read -r -p "Would you like to create a sample .env file? (y/n): " create_env
     [[ $create_env =~ ^[Yy]$ ]] && create_env_file
     log_error "Cannot proceed without configuration. Please create a .env file."
     exit 1
@@ -294,7 +302,8 @@ main() {
   # Set profile name from argument or use default
   if [[ $# -eq 0 ]]; then
     log_info "No profile specified. Using default: $DEFAULT_PROFILE"
-    read -p "Proceed with default profile? (y/n): " proceed
+    # Fix SC2162: Add -r flag to read
+    read -r -p "Proceed with default profile? (y/n): " proceed
     if [[ $proceed =~ ^[Yy]$ ]]; then
       PROFILE_NAME="$DEFAULT_PROFILE"
     else
@@ -307,10 +316,11 @@ main() {
 
   # Configure the profile
   log_info "Configuring AWS profile: $PROFILE_NAME"
-  aws configure set profile.${PROFILE_NAME}.sso_start_url "$SSO_START_URL"
-  aws configure set profile.${PROFILE_NAME}.sso_region "$SSO_REGION"
-  aws configure set profile.${PROFILE_NAME}.region "$SSO_REGION"
-  aws configure set profile.${PROFILE_NAME}.output "json"
+  # Fix SC2086: Double quote to prevent globbing and word splitting
+  aws configure set "profile.${PROFILE_NAME}.sso_start_url" "$SSO_START_URL"
+  aws configure set "profile.${PROFILE_NAME}.sso_region" "$SSO_REGION"
+  aws configure set "profile.${PROFILE_NAME}.region" "$SSO_REGION"
+  aws configure set "profile.${PROFILE_NAME}.output" "json"
 
   # Check cached credentials
   log_info "🔍 Checking cached SSO credentials..."
@@ -371,6 +381,10 @@ main() {
 
   # Select account
   log_info "Please select an AWS account:"
+  # IMPORTANT: The following fzf preview commands use single quotes intentionally.
+  # shellcheck disable=SC2016
+  # Single quotes are needed for fzf previews as expressions should be evaluated by fzf,
+  # not by the shell when the command is executed.
   selected_account=$(echo "$accounts_json" | \
     jq -r '.accountList[] | "\(.accountId)|\(.accountName)"' | \
     sort | \
@@ -391,6 +405,8 @@ main() {
 
   # Select role with preview window
   log_info "Please select a role:"
+  # shellcheck disable=SC2016
+  # Again, single quotes are used intentionally for the fzf preview command
   selected_role=$(echo "$roles_json" | \
     jq -r '.roleList[] | "\(.roleName)"' | \
     sort | \
@@ -403,8 +419,9 @@ main() {
 
   # Update profile
   log_info "Updating AWS profile with selected account and role..."
-  aws configure set profile.$PROFILE_NAME.sso_account_id "$account_id"
-  aws configure set profile.$PROFILE_NAME.sso_role_name "$selected_role"
+  # Fix SC2086: Double quote to prevent globbing and word splitting
+  aws configure set "profile.${PROFILE_NAME}.sso_account_id" "$account_id"
+  aws configure set "profile.${PROFILE_NAME}.sso_role_name" "$selected_role"
 
   # Print success message
   echo ""

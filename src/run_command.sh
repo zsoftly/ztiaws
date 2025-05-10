@@ -8,7 +8,8 @@
 # If run_command.sh is ever called directly in a way that SCRIPT_DIR is not set,
 # this sourcing might fail or need adjustment.
 if [ -n "${SCRIPT_DIR:-}" ] && [ -f "${SCRIPT_DIR}/src/utils.sh" ]; then
-    # shellcheck source=./utils.sh
+    # This warning is expected as ShellCheck can't follow dynamically constructed file paths
+    # shellcheck disable=SC1091
     source "${SCRIPT_DIR}/src/utils.sh"
 elif [ -f "/usr/local/bin/src/utils.sh" ]; then # For system-wide installation
     # shellcheck source=/dev/null
@@ -125,8 +126,11 @@ run_remote_command() {
             command_result_std_out=$(echo "$command_result" | jq -r '.StandardOutputContent')
             command_result_std_err=$(echo "$command_result" | jq -r '.StandardErrorContent')
 
-            local std_out=$([[ "$command_result_std_out" == "null" ]] && echo "" || echo "$command_result_std_out")
-            local std_err=$([[ "$command_result_std_err" == "null" ]] && echo "" || echo "$command_result_std_err")
+            local std_out
+            std_out=$([[ "$command_result_std_out" == "null" ]] && echo "" || echo "$command_result_std_out")
+            
+            local std_err
+            std_err=$([[ "$command_result_std_err" == "null" ]] && echo "" || echo "$command_result_std_err")
             
             echo "Status: $status"
             echo "--------- Command Output ---------"
@@ -234,7 +238,10 @@ run_remote_command_tagged() {
         return 1 # Exit with an error status because no instances were targeted
     fi
 
-    local overall_status=0 # Initialize overall_status here, after we know there are instances.
+    # Create a temp file to store status across subshells
+    local status_file
+    status_file=$(mktemp)
+    echo "0" > "$status_file" # Initialize with success status
 
     echo "Waiting for command to complete on all instances..."
 
@@ -252,6 +259,8 @@ run_remote_command_tagged() {
 
         if [[ -z "$invocations_response" ]]; then
             echo "Error: Failed to get command invocations list."
+            echo "1" > "$status_file" # Mark as failed
+            rm -f "$status_file"
             return 1
         fi
 
@@ -270,7 +279,7 @@ run_remote_command_tagged() {
 
     if ! $all_done; then
         echo "Error: Command timed out or failed to get status for all instances after $max_retries retries."
-        overall_status=1
+        echo "1" > "$status_file" # Mark as failed
     fi
 
     # Get final results and display
@@ -284,13 +293,20 @@ run_remote_command_tagged() {
 
     if [[ -z "$invocations_summary_response" ]]; then
         echo "Error: Failed to get final command invocations list."
+        echo "1" > "$status_file" # Mark as failed
+        rm -f "$status_file"
         return 1
     fi
 
-    echo "$invocations_summary_response" | jq -c '.CommandInvocations[]' | while IFS= read -r invocation_summary_json; do
-        local instance_id status_from_list
-        instance_id=$(echo "$invocation_summary_json" | jq -r '.InstanceId')
-        status_from_list=$(echo "$invocation_summary_json" | jq -r '.Status') # Status from the list summary
+    # Process each instance result without using base64 (which was causing the error)
+    # Get the instance IDs first, then process each one individually
+    local instance_ids
+    instance_ids=$(echo "$invocations_summary_response" | jq -r '.CommandInvocations[].InstanceId')
+    
+    for instance_id in $instance_ids; do
+        # Get the status from the summary response
+        local status_from_list
+        status_from_list=$(echo "$invocations_summary_response" | jq -r --arg id "$instance_id" '.CommandInvocations[] | select(.InstanceId == $id) | .Status')
 
         # Fetch detailed invocation results for this specific instance
         local detailed_command_result
@@ -305,7 +321,7 @@ run_remote_command_tagged() {
             echo "Instance ID: $instance_id"
             echo "Status: $status_from_list (Error fetching detailed output)"
             echo "----------------------------------------"
-            overall_status=1
+            echo "1" > "$status_file" # Mark as failed
             continue
         fi
 
@@ -314,8 +330,11 @@ run_remote_command_tagged() {
         command_result_std_out=$(echo "$detailed_command_result" | jq -r '.StandardOutputContent')
         command_result_std_err=$(echo "$detailed_command_result" | jq -r '.StandardErrorContent')
 
-        local std_out=$([[ "$command_result_std_out" == "null" ]] && echo "" || echo "$command_result_std_out")
-        local std_err=$([[ "$command_result_std_err" == "null" ]] && echo "" || echo "$command_result_std_err")
+        local std_out
+        std_out=$([[ "$command_result_std_out" == "null" ]] && echo "" || echo "$command_result_std_out")
+        
+        local std_err
+        std_err=$([[ "$command_result_std_err" == "null" ]] && echo "" || echo "$command_result_std_err")
 
         echo "----------------------------------------"
         echo "Instance ID: $instance_id"
@@ -329,10 +348,15 @@ run_remote_command_tagged() {
         fi
 
         if [[ "$status_from_get" != "Success" ]]; then
-            overall_status=1 # Mark overall failure if any instance fails
+            echo "1" > "$status_file" # Mark as failed
         fi
     done
     echo "----------------------------------------"
+
+    # Read the final status from our temp file
+    local overall_status
+    overall_status=$(cat "$status_file")
+    rm -f "$status_file" # Clean up temp file
 
     if [[ $overall_status -ne 0 ]]; then
         # The instance_count check for the specific "no instances targeted" message is now handled earlier.
@@ -341,5 +365,5 @@ run_remote_command_tagged() {
         log_info "All commands completed successfully on targeted instances."
     fi # No specific message if instance_count was 0, as we exit earlier.
     
-    return $overall_status
+    return "$overall_status"
 }
