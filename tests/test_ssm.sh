@@ -140,11 +140,11 @@ run_test "Exec command missing parameters" \
     1
 
 run_test "Run command by tag" \
-    "$MAIN_SCRIPT run-by-tag cac1 Role web 'ls -la'" \
+    "$MAIN_SCRIPT exec-tagged cac1 Role web 'ls -la'" \
     "Executing command on instances with tag Role=web"
 
 run_test "Run command by tag missing parameters" \
-    "$MAIN_SCRIPT run-by-tag cac1 Role" \
+    "$MAIN_SCRIPT exec-tagged cac1 Role" \
     "Missing required parameters" \
     1
 

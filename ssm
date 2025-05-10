@@ -63,18 +63,18 @@ Commands:
   ssm version              # Show version information
   ssm check                # Check system requirements
   ssm exec [options]        # Run a command on an instance
-  ssm run-by-tag [options] # Run a command on instances by tag
+  ssm exec-tagged [options] # Run a command on instances by tag
 
 Run Command Options:
   ssm exec <region> <instance-id> "<command>"
-  ssm run-by-tag <region> <tag-key> <tag-value> "<command>"
+  ssm exec-tagged <region> <tag-key> <tag-value> "<command>"
 
 Examples:
   ssm cac1                             # List instances in Canada Central
   ssm use1 i-1234                      # Connect to instance in US East
   ssm i-1234                           # Connect to instance in Canada Central
   ssm exec cac1 i-1234 "systemctl status nginx"   # Run command on instance
-  ssm run-by-tag use1 Role web "df -h" # Run command on instances with tag Role=web
+  ssm exec-tagged use1 Role web "df -h" # Run command on instances with tag Role=web
 EOF
 }
 
@@ -223,11 +223,11 @@ handle_exec_command() {
 }
 
 # Run command by tag handler
-handle_run_command_by_tag() {
+handle_exec_tagged_command() {
     # Check if we have all required arguments
     if [ $# -lt 4 ]; then
-        log_error "Missing required parameters for run-by-tag command"
-        echo "Usage: ssm run-by-tag <region> <tag-key> <tag-value> \"<command>\""
+        log_error "Missing required parameters for exec-tagged command"
+        echo "Usage: ssm exec-tagged <region> <tag-key> <tag-value> \"<command>\""
         exit 1
     fi
 
@@ -245,7 +245,7 @@ handle_run_command_by_tag() {
     fi
     
     # Run the command by tag
-    run_remote_command_by_tag "$tag_key" "$tag_value" "$region" "$command"
+    run_remote_command_tagged "$tag_key" "$tag_value" "$region" "$command"
     return $?
 }
 
@@ -283,9 +283,9 @@ main() {
             handle_exec_command "$@"
             exit $?
             ;;
-        "run-by-tag")
+        "exec-tagged")
             shift
-            handle_run_command_by_tag "$@"
+            handle_exec_tagged_command "$@"
             exit $?
             ;;
     esac
