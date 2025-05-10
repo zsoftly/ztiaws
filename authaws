@@ -326,7 +326,27 @@ main() {
   # Get access token and fetch accounts
   access_token=$(jq -r 'select(.startUrl=="'"$SSO_START_URL"'") | .accessToken' "$token_file")
   if [[ -z "$access_token" || "$access_token" == "null" ]]; then
-    log_error "❌ Failed to get access token from SSO cache"
+    log_error "❌ Failed to get access token from SSO cache file: $token_file"
+    if [[ -f "$token_file" ]]; then
+        actual_start_url_in_file=$(jq -r '.startUrl' "$token_file" 2>/dev/null)
+        if [[ -n "$actual_start_url_in_file" && "$actual_start_url_in_file" != "$SSO_START_URL" ]]; then
+            log_error "Mismatched SSO Start URLs!"
+            log_error "  Expected (from .env): $SSO_START_URL"
+            log_error "  Found in token file ($token_file): $actual_start_url_in_file"
+            log_warn "This often happens if your SSO configuration has changed."
+            log_info "Please run 'aws sso logout' for all relevant profiles, then try 'authaws $PROFILE_NAME' again."
+        else
+            log_warn "The token file ($token_file) for $SSO_START_URL does not contain a valid accessToken."
+            log_debug "Contents of token file ($token_file) that failed accessToken extraction:"
+            # Log the content for debugging to the script's log file
+            echo "--- Token File Content ($token_file) ---" >> "$LOG_FILE"
+            jq '.' "$token_file" >> "$LOG_FILE" 2>&1 || echo "jq failed to parse token file" >> "$LOG_FILE"
+            echo "--- End Token File Content ---" >> "$LOG_FILE"
+            log_info "Consider running 'aws sso logout' and then 'authaws $PROFILE_NAME' again."
+        fi
+    else
+        log_debug "Token file $token_file not found during accessToken extraction (this should have been caught earlier)."
+    fi
     exit 1
   fi
 
