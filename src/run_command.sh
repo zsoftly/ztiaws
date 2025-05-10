@@ -3,6 +3,28 @@
 # SSM Run Command functionality
 # Repository: https://github.com/ZSoftly/ztiaws
 
+# Get SCRIPT_DIR and source utilities
+# This assumes SCRIPT_DIR is set by the calling script (ssm or authaws)
+# If run_command.sh is ever called directly in a way that SCRIPT_DIR is not set,
+# this sourcing might fail or need adjustment.
+if [ -n "${SCRIPT_DIR:-}" ] && [ -f "${SCRIPT_DIR}/src/utils.sh" ]; then
+    # shellcheck source=./utils.sh
+    source "${SCRIPT_DIR}/src/utils.sh"
+elif [ -f "/usr/local/bin/src/utils.sh" ]; then # For system-wide installation
+    # shellcheck source=/dev/null
+    source "/usr/local/bin/src/utils.sh"
+else
+    # utils.sh is mandatory for run_command.sh as well, as it uses log_error etc.
+    # However, since this script is sourced, echoing directly might be problematic for tests or other consumers.
+    # The primary scripts (ssm, authaws) will catch the absence of utils.sh and exit.
+    # If this script *were* to be run standalone and utils.sh was missing, it would likely fail when log_error is called.
+    # For now, we assume the calling script handles the mandatory nature of utils.sh.
+    # To make it truly standalone-safe, it would need its own exit here.
+    echo "[ERROR] src/utils.sh not found. run_command.sh requires utils.sh." >&2
+    echo "This script is typically sourced by 'ssm' or 'authaws', which should handle this error." >&2
+    # Consider adding 'exit 1' here if standalone execution is a primary concern and it shouldn't proceed.
+fi
+
 # Execute a command on a remote EC2 instance using SSM Run Command
 run_remote_command() {
     local instance_id=$1
@@ -27,20 +49,41 @@ run_remote_command() {
     
     # Execute the command using AWS SSM Send-Command
     local response
+    local aws_error_log
+    aws_error_log=$(mktemp)
+    local aws_exit_code
+
+    set +e # Temporarily disable exit on error to capture AWS CLI errors
     response=$(aws ssm send-command \
         --instance-ids "$instance_id" \
         --document-name "AWS-RunShellScript" \
         --parameters commands="[\"$escaped_command\"]" \
         --comment "$comment" \
         --region "$region" \
-        --output json)
+        --output json 2> "$aws_error_log")
+    aws_exit_code=$?
+    set -e # Re-enable exit on error
+
+    if [ $aws_exit_code -ne 0 ]; then
+        log_error "AWS CLI command failed (send-command for single instance) with exit code $aws_exit_code."
+        if [ -s "$aws_error_log" ]; then # Check if error log is not empty
+            echo -e "${RED}--- AWS CLI Error Details ---${NC}"
+            while IFS= read -r line; do echo -e "${RED}${line}${NC}"; done < "$aws_error_log"
+            echo -e "${RED}-----------------------------${NC}"
+        else
+            log_error "No specific error message captured from AWS CLI, but command failed."
+        fi
+        rm -f "$aws_error_log"
+        return 1 # Propagate error
+    fi
+    rm -f "$aws_error_log" # Clean up temp file on success
     
     local command_id
     command_id=$(echo "$response" | jq -r '.Command.CommandId')
     
     if [[ -z "$command_id" || "$command_id" == "null" ]]; then
-        echo "Error: Failed to execute command. AWS Response:"
-        echo "$response"
+        log_error "Failed to parse CommandId from AWS response (send-command for single instance)."
+        log_info "AWS Response: $response"
         return 1
     fi
     
@@ -87,11 +130,11 @@ run_remote_command() {
             
             echo "Status: $status"
             echo "--------- Command Output ---------"
-            echo "$std_out"
+            echo -e "${CYAN}$std_out${NC}"
             
             if [[ -n "$std_err" ]]; then
                 echo "--------- Command Error ---------"
-                echo "$std_err"
+                echo -e "${CYAN}$std_err${NC}"
             fi
             
             if [[ "$status" != "Success" ]]; then
@@ -134,30 +177,70 @@ run_remote_command_tagged() {
     
     # Execute the command using AWS SSM Send-Command with tag targeting
     local response
+    local aws_error_log
+    aws_error_log=$(mktemp)
+    local aws_exit_code
+
+    set +e # Temporarily disable exit on error to capture AWS CLI errors
     response=$(aws ssm send-command \
         --targets "Key=tag:$tag_key,Values=$tag_value" \
         --document-name "AWS-RunShellScript" \
         --parameters commands="[\"$escaped_command\"]" \
         --comment "$comment" \
         --region "$region" \
-        --output json)
+        --output json 2> "$aws_error_log")
+    aws_exit_code=$?
+    set -e # Re-enable exit on error
+
+    if [ $aws_exit_code -ne 0 ]; then
+        log_error "AWS CLI command failed (send-command for tags) with exit code $aws_exit_code."
+        if [ -s "$aws_error_log" ]; then # Check if error log is not empty
+            echo -e "${RED}--- AWS CLI Error Details ---${NC}"
+            # Read line by line to ensure color is applied per line
+            while IFS= read -r line; do echo -e "${RED}${line}${NC}"; done < "$aws_error_log"
+            echo -e "${RED}-----------------------------${NC}"
+        else
+            log_error "No specific error message captured from AWS CLI, but command failed."
+        fi
+        rm -f "$aws_error_log"
+        return 1 # Propagate error
+    fi
+    rm -f "$aws_error_log" # Clean up temp file on success
     
     local command_id
     command_id=$(echo "$response" | jq -r '.Command.CommandId')
     
     if [[ -z "$command_id" || "$command_id" == "null" ]]; then
-        echo "Error: Failed to execute command. AWS Response:"
-        echo "$response"
+        log_error "Failed to parse CommandId from AWS response (send-command for tags)."
+        log_info "AWS Response: $response"
         return 1
     fi
-    
-    echo "Command ID: $command_id"
+
+    # Check if any instances were targeted by list-command-invocations
+    # This is a proxy for whether the send-command found any targets.
+    # The send-command API itself doesn't directly tell you if no targets were found for a tag.
+    local initial_invocations_check
+    initial_invocations_check=$(aws ssm list-command-invocations \
+        --command-id "$command_id" \
+        --region "$region" \
+        --output json 2>/dev/null)
+
+    local instance_count
+    instance_count=$(echo "$initial_invocations_check" | jq -r '.CommandInvocations | length')
+
+    if [[ "$instance_count" -eq 0 ]]; then
+        log_error "No instances found matching the specified tags (Tag: $tag_key=$tag_value) in region $region for command $command_id."
+        log_error "Command was sent to AWS SSM, but no targets were identified. Halting execution."
+        return 1 # Exit with an error status because no instances were targeted
+    fi
+
+    local overall_status=0 # Initialize overall_status here, after we know there are instances.
+
     echo "Waiting for command to complete on all instances..."
 
     local max_retries=60 # Increased retries for multiple instances
     local retry_count=0
     local all_done=false
-    local overall_status=0
 
     while ! $all_done && (( retry_count < max_retries )); do
         local invocations_response
@@ -238,11 +321,11 @@ run_remote_command_tagged() {
         echo "Instance ID: $instance_id"
         echo "Status: $status_from_get"
         echo "--------- Command Output ---------"
-        echo "$std_out"
+        echo -e "${CYAN}$std_out${NC}"
 
         if [[ -n "$std_err" ]]; then
             echo "--------- Command Error ---------"
-            echo "$std_err"
+            echo -e "${CYAN}$std_err${NC}"
         fi
 
         if [[ "$status_from_get" != "Success" ]]; then
@@ -252,8 +335,11 @@ run_remote_command_tagged() {
     echo "----------------------------------------"
 
     if [[ $overall_status -ne 0 ]]; then
-        echo "One or more commands failed or timed out."
-    fi
+        # The instance_count check for the specific "no instances targeted" message is now handled earlier.
+        log_error "One or more commands failed or timed out on the targeted instances."
+    elif [[ "$instance_count" -gt 0 ]]; then # Should always be true if we reached here
+        log_info "All commands completed successfully on targeted instances."
+    fi # No specific message if instance_count was 0, as we exit earlier.
     
     return $overall_status
 }

@@ -5,7 +5,7 @@
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 <p align="center">
-  <img src="assets/zs_logo.jpeg" alt="ZSoftly Logo" width="200"/>
+  <img src="assets/no_padding.png" alt="ZSoftly Logo" width="800"/>
   <br>
   <em>Simplify your AWS workflow</em>
 </p>
@@ -16,11 +16,15 @@
 
 ## 🚀 Key Features
 
-- **ssm**: Connect to EC2 instances using intuitive short region codes
-- **authaws**: Streamlined AWS SSO authentication with interactive account/role selection
-- Smart interactive listing of available instances and accounts
-- Automatic validation of AWS CLI and required plugins
-- Support for multiple AWS regions with simple shortcodes
+- **ssm**:
+    - Connect to EC2 instances via AWS Systems Manager Session Manager using intuitive short region codes.
+    - Execute commands remotely on a single EC2 instance (`ssm exec`).
+    - Execute commands remotely on multiple EC2 instances based on AWS tags (`ssm exec-tagged`).
+- **authaws**: Streamlined AWS SSO authentication with interactive account/role selection.
+- Smart interactive listing of available instances (for `ssm <region>`) and accounts/roles (for `authaws`).
+- Automatic validation of AWS CLI and required plugins.
+- Enhanced error reporting: Clear feedback for AWS CLI issues and specific handling for scenarios like no instances matching tags during command execution.
+- Support for multiple AWS regions with simple shortcodes.
 - Color-coded output for enhanced readability
 - Time-saving workflows designed by AWS practitioners for real-world use
 
@@ -179,6 +183,18 @@ ssm cac1  # Lists instances in Canada Central
 ssm i-1234abcd              # Connect to instance in default region (Canada Central)
 ssm use1 i-1234abcd         # Connect to instance in US East
 ```
+
+#### Execute Commands Remotely
+Execute commands on a single instance:
+```bash
+ssm exec cac1 i-1234 "systemctl status nginx"
+```
+
+Execute commands on instances matching specific tags:
+```bash
+ssm exec-tagged use1 Role web "df -h"
+```
+This will run `df -h` on all instances in the `us-east-1` region that have a tag with `Key=Role` and `Value=web`. The script provides clear feedback if no instances match the specified tags.
 
 #### Show Help
 ```bash
