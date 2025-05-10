@@ -118,23 +118,23 @@ run_test "Connect with valid region and instance" \
     "$MAIN_SCRIPT use1 i-12345678" \
     "Connecting to instance i-12345678 in us-east-1"
 
-# New tests for run command functionality
-run_test "Run command on instance" \
-    "$MAIN_SCRIPT run cac1 i-12345678 'ls -la'" \
+# New tests for exec command functionality
+run_test "Exec command on instance" \
+    "$MAIN_SCRIPT exec cac1 i-12345678 'ls -la'" \
     "Executing command on instance i-12345678"
 
-run_test "Run command with invalid region" \
-    "$MAIN_SCRIPT run xyz1 i-12345678 'ls -la'" \
+run_test "Exec command with invalid region" \
+    "$MAIN_SCRIPT exec xyz1 i-12345678 'ls -la'" \
     "Invalid region code" \
     1
 
-run_test "Run command with invalid instance ID" \
-    "$MAIN_SCRIPT run cac1 i-123 'ls -la'" \
+run_test "Exec command with invalid instance ID" \
+    "$MAIN_SCRIPT exec cac1 i-123 'ls -la'" \
     "Invalid instance ID format" \
     1
 
-run_test "Run command missing parameters" \
-    "$MAIN_SCRIPT run cac1" \
+run_test "Exec command missing parameters" \
+    "$MAIN_SCRIPT exec cac1" \
     "Missing required parameters" \
     1
 

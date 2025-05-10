@@ -62,18 +62,18 @@ Commands:
   ssm install              # Show installation instructions
   ssm version              # Show version information
   ssm check                # Check system requirements
-  ssm run [options]        # Run a command on an instance
+  ssm exec [options]        # Run a command on an instance
   ssm run-by-tag [options] # Run a command on instances by tag
 
 Run Command Options:
-  ssm run <region> <instance-id> "<command>"
+  ssm exec <region> <instance-id> "<command>"
   ssm run-by-tag <region> <tag-key> <tag-value> "<command>"
 
 Examples:
   ssm cac1                             # List instances in Canada Central
   ssm use1 i-1234                      # Connect to instance in US East
   ssm i-1234                           # Connect to instance in Canada Central
-  ssm run cac1 i-1234 "systemctl status nginx"   # Run command on instance
+  ssm exec cac1 i-1234 "systemctl status nginx"   # Run command on instance
   ssm run-by-tag use1 Role web "df -h" # Run command on instances with tag Role=web
 EOF
 }
@@ -122,6 +122,17 @@ check_requirements() {
             log_info "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
             missing_deps=1
         fi
+    fi
+
+    # Check jq
+    if ! command -v jq >/dev/null 2>&1; then
+        log_error "jq is not installed"
+        log_info "jq is required for robust parsing of AWS command output."
+        log_info "Please install jq. Examples:"
+        log_info "  Ubuntu/Debian: sudo apt-get install jq"
+        log_info "  macOS: brew install jq"
+        log_info "  Other: https://stedolan.github.io/jq/download/"
+        missing_deps=1
     fi
 
     # Check AWS credentials
@@ -180,12 +191,12 @@ validate_instance_id() {
     return 0
 }
 
-# Run command handler
-handle_run_command() {
+# Exec command handler
+handle_exec_command() {
     # Check if we have all required arguments
     if [ $# -lt 3 ]; then
-        log_error "Missing required parameters for run command"
-        echo "Usage: ssm run <region> <instance-id> \"<command>\""
+        log_error "Missing required parameters for exec command"
+        echo "Usage: ssm exec <region> <instance-id> \"<command>\""
         exit 1
     fi
 
@@ -267,9 +278,9 @@ main() {
             usage
             exit 0
             ;;
-        "run")
+        "exec")
             shift
-            handle_run_command "$@"
+            handle_exec_command "$@"
             exit $?
             ;;
         "run-by-tag")

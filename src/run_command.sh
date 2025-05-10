@@ -36,10 +36,11 @@ run_remote_command() {
         --output json)
     
     local command_id
-    command_id=$(echo "$response" | grep -o '"CommandId": "[^"]*"' | cut -d'"' -f4)
+    command_id=$(echo "$response" | jq -r '.Command.CommandId')
     
-    if [[ -z "$command_id" ]]; then
-        echo "Error: Failed to execute command."
+    if [[ -z "$command_id" || "$command_id" == "null" ]]; then
+        echo "Error: Failed to execute command. AWS Response:"
+        echo "$response"
         return 1
     fi
     
@@ -62,10 +63,11 @@ run_remote_command() {
             --region "$region" \
             --output json 2>/dev/null)
         
-        status=$(echo "$command_result" | grep -o '"Status": "[^"]*"' | cut -d'"' -f4)
+        status=$(echo "$command_result" | jq -r '.Status')
         
-        if [[ -z "$status" ]]; then
-            echo "Error: Failed to get command status."
+        if [[ -z "$status" || "$status" == "null" ]]; then
+            echo "Error: Failed to get command status. AWS Response:"
+            echo "$command_result"
             return 1
         fi
         
@@ -77,9 +79,9 @@ run_remote_command() {
             echo ""
             # Display command output
             local std_out
-            std_out=$(echo "$command_result" | grep -o '"StandardOutputContent": "[^"]*"' | cut -d'"' -f4)
+            std_out=$(echo "$command_result" | jq -r '.StandardOutputContent')
             local std_err
-            std_err=$(echo "$command_result" | grep -o '"StandardErrorContent": "[^"]*"' | cut -d'"' -f4)
+            std_err=$(echo "$command_result" | jq -r '.StandardErrorContent')
             
             echo "Status: $status"
             echo "--------- Command Output ---------"
@@ -139,10 +141,11 @@ run_remote_command_by_tag() {
         --output json)
     
     local command_id
-    command_id=$(echo "$response" | grep -o '"CommandId": "[^"]*"' | cut -d'"' -f4)
+    command_id=$(echo "$response" | jq -r '.Command.CommandId')
     
-    if [[ -z "$command_id" ]]; then
-        echo "Error: Failed to execute command."
+    if [[ -z "$command_id" || "$command_id" == "null" ]]; then
+        echo "Error: Failed to execute command. AWS Response:"
+        echo "$response"
         return 1
     fi
     
