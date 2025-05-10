@@ -81,6 +81,7 @@ run_test() {
 
 # Cleanup function
 cleanup() {
+    # shellcheck disable=SC2317
     rm -rf "$MOCK_DIR"
 }
 trap cleanup EXIT
