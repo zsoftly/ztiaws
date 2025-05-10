@@ -60,109 +60,17 @@ cd ztiaws
 
 After running the appropriate command for your shell, you can use the tools by simply typing `ssm` or `authaws` from anywhere.
 
-## 🔧 Installation Options
+For detailed installation instructions, see [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
-### Option 1: Local User Installation (Recommended)
+## 🔄 Updating ZTiAWS
 
-**Bash users:**
+To update ZTiAWS to the latest version, navigate to your cloned repository directory and run:
 ```bash
-git clone https://github.com/zsoftly/ztiaws.git
-cd ztiaws
-chmod +x ssm authaws
-./ssm check
-./authaws check
-echo -e "\n# Add ZTiAWS to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc
-source ~/.bashrc
-```
-
-**Zsh users:**
-```bash
-git clone https://github.com/zsoftly/ztiaws.git
-cd ztiaws
-chmod +x ssm authaws
-./ssm check
-./authaws check
-echo -e "\n# Add ZTiAWS to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc
-source ~/.zshrc
-```
-
-**PowerShell users:**
-```powershell
-git clone https://github.com/zsoftly/ztiaws.git
-cd ztiaws
-# Copy the profile to your PowerShell profile directory
-Copy-Item .\Microsoft.PowerShell_profile.ps1 $PROFILE
-# Reload your profile
-. $PROFILE
-```
-
-This is the recommended approach because:
-- Keeps AWS tooling scoped to your user
-- Maintains better security practices
-- Makes updates easier without requiring sudo/admin privileges
-- Aligns with AWS credentials being stored per-user
-- Follows principle of least privilege
-- Easier to manage different AWS configurations per user
-
-### Option 2: System-wide Installation (Not Recommended)
-```bash
-git clone https://github.com/zsoftly/ztiaws.git
-cd ztiaws
-chmod +x ssm authaws
-./ssm check
-./authaws check
-INSTALL_DIR="$(pwd)"
-sudo ln -s "$INSTALL_DIR/ssm" /usr/local/bin/ssm
-sudo ln -s "$INSTALL_DIR/authaws" /usr/local/bin/authaws
-sudo ln -s "$INSTALL_DIR/src" /usr/local/bin/src
-```
-
-Not recommended because:
-- Any user on the system could run the tool and potentially access AWS resources
-- Doesn't align well with per-user AWS credential management
-- Requires sudo privileges for updates and modifications
-- Can lead to security and audit tracking complications
-- Makes it harder to manage different AWS configurations for different users
-
-## 🔄 Updating from Previous Versions
-
-> **Note:** This repository was previously named "quickssm" and has been renamed to "ZTiAWS" as of March 2025. This note will be removed in June 2025.
-
-If you're updating from the previous repository name (quickssm) or older versions:
-
-### Option 1: Clean Update (Recommended)
-```bash
-# Navigate to your installation directory
-cd /path/to/old/quickssm
-
-# Backup your .env file if you have one
-cp .env .env.backup
-
-# Clone the new repository
-cd ..
-git clone https://github.com/zsoftly/ztiaws.git
-
-# Copy your .env file if needed
-cp /path/to/old/quickssm/.env.backup ztiaws/.env
-
-# Update your path in your shell config file
-# (Replace the old path with the new one)
-```
-
-### Option 2: In-place Migration
-```bash
-# Navigate to your installation directory
-cd /path/to/old/quickssm
-
-# Update your remote URL
-git remote set-url origin https://github.com/zsoftly/ztiaws.git
-
-# Pull the latest changes
 git pull origin main
-
-# Make the scripts executable
+# Ensure scripts remain executable (if needed)
 chmod +x ssm authaws
 ```
+If you are updating from a version prior to March 2025 (when the repository was named "quickssm"), please see [docs/deprecated_update_instructions.md](docs/deprecated_update_instructions.md) for specific instructions.
 
 ## 📘 Usage
 
@@ -241,82 +149,11 @@ This will display your AWS access key, secret key, and session token for the spe
 
 ## 🌎 Supported Regions (for SSM tool)
 
-| Shortcode | AWS Region    | Location     |
-|-----------|---------------|--------------|
-| cac1      | ca-central-1  | Montreal     |
-| caw1      | ca-west-1     | Calgary      |
-| use1      | us-east-1     | N. Virginia  |
-| usw1      | us-west-1     | N. California|
-| euw1      | eu-west-1     | Ireland      |
+For a complete list of regions and their status, see [docs/REGIONS.md](docs/REGIONS.md).
 
-For a complete list of regions and their status, see [REGIONS.md](docs/REGIONS.md).
+For required IAM permissions, see [docs/IAM_PERMISSIONS.md](docs/IAM_PERMISSIONS.md).
 
-## 🔒 IAM Permissions
-
-### For SSM Session Manager:
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "ssm:StartSession",
-                "ssm:TerminateSession",
-                "ssm:ResumeSession",
-                "ec2:DescribeInstances"
-            ],
-            "Resource": "*"
-        }
-    ]
-}
-```
-
-### For AWS SSO Authentication:
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "sso:GetRoleCredentials",
-                "sso:ListAccountRoles",
-                "sso:ListAccounts"
-            ],
-            "Resource": "*"
-        }
-    ]
-}
-```
-
-## ❓ Troubleshooting
-
-### AWS CLI Not Found
-If AWS CLI is not installed, follow the [official AWS CLI installation guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
-
-### Session Manager Plugin Missing
-Run `ssm check` to install the plugin interactively, or follow the [manual installation instructions](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html).
-
-### Missing jq or fzf
-For Ubuntu/Debian: `sudo apt-get install jq fzf`
-For macOS: `brew install jq fzf`
-
-### AWS Credentials Not Configured
-Run `aws configure` to set up your AWS credentials.
-
-### Permission Errors
-Ensure your AWS user/role has the required IAM permissions listed above.
-
-### Shell Configuration
-If the commands aren't available after installation, make sure you've added them to your PATH in the correct shell configuration file:
-- For Bash users: `~/.bashrc`
-- For Zsh users: `~/.zshrc`
-
-You may need to restart your terminal or run `source ~/.bashrc` (or `source ~/.zshrc` for Zsh) for the changes to take effect.
-
-### Script Name Changed
-If you're getting "command not found" for `auth_aws`, note that the script has been renamed to `authaws` in v1.4.0+. Update your scripts and aliases accordingly.
+For troubleshooting common issues, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ## 👥 Contributing
 
@@ -336,33 +173,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🚀 Releasing a New Version
 
-For maintainers who want to create a new release:
-
-```bash
-# Make sure you're on the main branch
-git checkout main
-
-# Pull the latest changes (including merged PRs)
-git pull origin main
-
-# Ensure all changes are committed and the working directory is clean
-git status
-
-# Create an annotated tag
-git tag -a v1.x.x -m "Version 1.x.x: Brief description of changes"
-
-# Push the tag to GitHub
-git push origin v1.x.x
-```
-
-After pushing the tag, go to the GitHub repository and:
-1. Click on "Releases"
-2. Click "Draft a new release"
-3. Select the tag you just pushed
-4. Add release notes
-5. Publish the release
-
-This process ensures that releases are always created from the stable main branch after code has been properly reviewed and merged.
+For maintainers who want to create a new release, please see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 🔐 Security
 

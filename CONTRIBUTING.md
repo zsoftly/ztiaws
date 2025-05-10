@@ -1,6 +1,6 @@
-# Contributing to quickssm
+# Contributing to ZTiAWS
 
-Thank you for your interest in contributing to quickssm! We especially welcome contributions for new AWS regions.
+Thank you for your interest in contributing to ZTiAWS! We especially welcome contributions for new AWS regions.
 
 ## Adding a New Region
 
@@ -99,3 +99,33 @@ Closes #123
 - Provide context and examples
 
 Thank you for contributing!
+
+## 🚀 Releasing a New Version
+
+For maintainers who want to create a new release:
+
+```bash
+# Make sure you're on the main branch
+git checkout main
+
+# Pull the latest changes (including merged PRs)
+git pull origin main
+
+# Ensure all changes are committed and the working directory is clean
+git status
+
+# Create an annotated tag
+git tag -a v1.x.x -m "Version 1.x.x: Brief description of changes"
+
+# Push the tag to GitHub
+git push origin v1.x.x
+```
+
+After pushing the tag, go to the GitHub repository and:
+1. Click on "Releases"
+2. Click "Draft a new release"
+3. Select the tag you just pushed
+4. Add release notes
+5. Publish the release
+
+This process ensures that releases are always created from the stable main branch after code has been properly reviewed and merged.
