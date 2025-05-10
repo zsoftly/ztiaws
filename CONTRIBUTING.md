@@ -102,30 +102,39 @@ Thank you for contributing!
 
 ## 🚀 Releasing a New Version
 
-For maintainers who want to create a new release:
+ZTiAWS now uses an automated release process through GitHub Actions:
 
-```bash
-# Make sure you're on the main branch
-git checkout main
+1. Make sure you're on the main branch
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
 
-# Pull the latest changes (including merged PRs)
-git pull origin main
+2. Ensure all changes are committed and the working directory is clean
+   ```bash
+   git status
+   ```
 
-# Ensure all changes are committed and the working directory is clean
-git status
+3. Update the version numbers in the files:
+   - Update VERSION variable in `ssm` and/or `authaws` scripts
+   - Add a new entry to the top of `CHANGELOG.md`
+   - Update `RELEASE_NOTES.txt` with details for this release
 
-# Create an annotated tag
-git tag -a v1.x.x -m "Version 1.x.x: Brief description of changes"
+4. Commit these version changes
+   ```bash
+   git add ssm authaws CHANGELOG.md RELEASE_NOTES.txt
+   git commit -m "Bump version to vX.Y.Z"
+   ```
 
-# Push the tag to GitHub
-git push origin v1.x.x
-```
+5. Create and push an annotated tag
+   ```bash
+   git tag -a vX.Y.Z -m "Version X.Y.Z: Brief description of changes" 
+   git push origin main vX.Y.Z
+   ```
 
-After pushing the tag, go to the GitHub repository and:
-1. Click on "Releases"
-2. Click "Draft a new release"
-3. Select the tag you just pushed
-4. Add release notes
-5. Publish the release
+6. The GitHub Actions workflow will automatically:
+   - Create a new GitHub release using the tag
+   - Use the content of RELEASE_NOTES.txt as the release description
+   - Validate the scripts using shellcheck
 
-This process ensures that releases are always created from the stable main branch after code has been properly reviewed and merged.
+The automated process ensures that releases are consistent and reduces manual steps needed for creating releases.
