@@ -27,3 +27,18 @@ You may need to restart your terminal or run `source ~/.bashrc` (or `source ~/.z
 
 ### Script Name Changed
 If you're getting "command not found" for `auth_aws`, note that the script has been renamed to `authaws` in v1.4.0+. Update your scripts and aliases accordingly.
+
+### "Failed" Status with `systemctl status` Commands
+When using `ssm exec` with `systemctl status` commands, you may see a "Failed" status even though the command executed successfully. This occurs because `systemctl status` returns exit code `3` when a service is stopped/inactive, which AWS SSM interprets as a failure.
+
+To force a success status regardless of the service state, append `; exit 0` to your command:
+
+```bash
+# Without fix - might show "Failed" for stopped services
+ssm exec cac1 i-1234567890 "systemctl status nginx"
+
+# With fix - always shows "Success" regardless of service state
+ssm exec cac1 i-1234567890 "systemctl status nginx; exit 0"
+```
+
+This pattern is useful for any commands that might return non-zero exit codes when they're actually functioning as expected.

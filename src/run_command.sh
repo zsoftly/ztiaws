@@ -28,6 +28,17 @@ fi
 
 # Execute a command on a remote EC2 instance using SSM Run Command
 run_remote_command() {
+    # Add trap to catch errors
+    trap 'echo -e "\nTRAP: Script exited unexpectedly at line $LINENO in run_remote_command" >&2' ERR
+    
+    # Enable debug mode
+    SSM_DEBUG=${SSM_DEBUG:-false}
+    debug_log() {
+        if [ "$SSM_DEBUG" = true ]; then
+            echo -e "\n[DEBUG] $*" >&2
+        fi
+    }
+    
     local instance_id=$1
     local region=$2
     local command=$3
@@ -37,6 +48,7 @@ run_remote_command() {
     if [[ -z "$instance_id" || -z "$region" || -z "$command" ]]; then
         echo "Error: Missing required parameters."
         echo "Usage: run_remote_command <instance-id> <region> <command> [comment]"
+        trap - ERR  # Remove the trap before returning
         return 1
     fi
 
@@ -47,6 +59,8 @@ run_remote_command() {
     
     echo "Executing command on instance $instance_id in region $region:"
     echo "$command"
+    
+    debug_log "Preparing to send command to AWS SSM"
     
     # Execute the command using AWS SSM Send-Command
     local response
@@ -64,6 +78,8 @@ run_remote_command() {
         --output json 2> "$aws_error_log")
     aws_exit_code=$?
     set -e # Re-enable exit on error
+    
+    debug_log "AWS SSM send-command exit code: $aws_exit_code"
 
     if [ $aws_exit_code -ne 0 ]; then
         log_error "AWS CLI command failed (send-command for single instance) with exit code $aws_exit_code."
@@ -75,86 +91,192 @@ run_remote_command() {
             log_error "No specific error message captured from AWS CLI, but command failed."
         fi
         rm -f "$aws_error_log"
+        trap - ERR  # Remove the trap before returning
         return 1 # Propagate error
     fi
     rm -f "$aws_error_log" # Clean up temp file on success
     
+    debug_log "Parsing command ID from response"
+    
     local command_id
-    command_id=$(echo "$response" | jq -r '.Command.CommandId')
+    # Safely extract the command ID using a temporary file to avoid subshell issues
+    local tmp_file
+    tmp_file=$(mktemp)
+    echo "$response" > "$tmp_file"
+    command_id=$(jq -r '.Command.CommandId' < "$tmp_file")
+    rm -f "$tmp_file"
+    
+    debug_log "Extracted command ID: $command_id"
     
     if [[ -z "$command_id" || "$command_id" == "null" ]]; then
         log_error "Failed to parse CommandId from AWS response (send-command for single instance)."
         log_info "AWS Response: $response"
+        trap - ERR  # Remove the trap before returning
         return 1
     fi
     
     echo "Command ID: $command_id"
     echo "Waiting for command to complete..."
     
-    # Wait for command to complete
-    sleep 2
+    # Wait longer before first check - some commands need setup time
+    debug_log "Initial wait of 3 seconds before checking command status"
+    sleep 3
     
     # Get command result
     local max_retries=30
     local retry_count=0
     local status="Pending"
     
-    while [[ "$status" == "Pending" || "$status" == "InProgress" ]] && (( retry_count < max_retries )); do
-        local command_result
-        command_result=$(aws ssm get-command-invocation \
-            --command-id "$command_id" \
-            --instance-id "$instance_id" \
-            --region "$region" \
-            --output json 2>/dev/null)
+    while true; do
+        debug_log "Polling attempt $((retry_count + 1))/$max_retries"
         
-        status=$(echo "$command_result" | jq -r '.Status')
-        
-        if [[ -z "$status" || "$status" == "null" ]]; then
-            echo "Error: Failed to get command status. AWS Response:"
-            echo "$command_result"
+        if [[ $retry_count -ge $max_retries ]]; then
+            echo ""
+            log_error "Command polling timed out after $max_retries retries."
+            trap - ERR  # Remove the trap before returning
             return 1
         fi
         
+        debug_log "Executing get-command-invocation"
+        
+        # Use files to avoid subshell issues
+        local tmp_result_file
+        tmp_result_file=$(mktemp)
+        local tmp_exit_code_file
+        tmp_exit_code_file=$(mktemp)
+        
+        # Run get-command-invocation and capture full output to file
+        set +e
+        aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "$instance_id" \
+            --region "$region" \
+            --output json > "$tmp_result_file" 2>&1
+        echo $? > "$tmp_exit_code_file"
+        set -e
+        
+        local aws_cli_exit_code
+        aws_cli_exit_code=$(cat "$tmp_exit_code_file")
+        local command_result
+        command_result=$(cat "$tmp_result_file")
+        
+        debug_log "get-command-invocation exit code: $aws_cli_exit_code"
+        
+        if [[ $aws_cli_exit_code -ne 0 ]]; then
+            echo ""
+            log_error "AWS CLI command failed (get-command-invocation) with exit code $aws_cli_exit_code"
+            log_error "Output was: $command_result"
+            rm -f "$tmp_result_file" "$tmp_exit_code_file"
+            trap - ERR  # Remove the trap before returning
+            return 1
+        fi
+        
+        # Safe parsing of JSON using files
+        debug_log "Parsing JSON status from response"
+        set +e
+        status=$(jq -r '.Status' < "$tmp_result_file")
+        local jq_exit_code=$?
+        set -e
+        
+        debug_log "jq exit code: $jq_exit_code, parsed status: $status"
+        
+        if [[ $jq_exit_code -ne 0 ]]; then
+            echo ""
+            log_error "Failed to parse command status with jq (exit code $jq_exit_code)"
+            log_error "Input was: $(cat "$tmp_result_file")"
+            rm -f "$tmp_result_file" "$tmp_exit_code_file"
+            trap - ERR  # Remove the trap before returning
+            return 1
+        fi
+        
+        rm -f "$tmp_result_file" "$tmp_exit_code_file"
+        
+        if [[ -z "$status" || "$status" == "null" ]]; then
+            echo ""
+            log_error "Command status was empty or null"
+            trap - ERR  # Remove the trap before returning
+            return 1
+        fi
+        
+        debug_log "Command status: $status"
+        
+        # Command is still running
         if [[ "$status" == "Pending" || "$status" == "InProgress" ]]; then
             echo -n "."
-            sleep 1
-            ((retry_count++))
-        else
-            echo ""
-            # Display command output
-            local command_result_std_out command_result_std_err
-            command_result_std_out=$(echo "$command_result" | jq -r '.StandardOutputContent')
-            command_result_std_err=$(echo "$command_result" | jq -r '.StandardErrorContent')
-
-            local std_out
-            std_out=$([[ "$command_result_std_out" == "null" ]] && echo "" || echo "$command_result_std_out")
-            
-            local std_err
-            std_err=$([[ "$command_result_std_err" == "null" ]] && echo "" || echo "$command_result_std_err")
-            
-            echo "Status: $status"
-            echo "--------- Command Output ---------"
-            echo -e "${CYAN}$std_out${NC}"
-            
-            if [[ -n "$std_err" ]]; then
-                echo "--------- Command Error ---------"
-                echo -e "${CYAN}$std_err${NC}"
-            fi
-            
-            if [[ "$status" != "Success" ]]; then
-                echo "Command failed with status: $status"
-                return 1
-            fi
-            
-            return 0
+            # This section caused the error - protecting it with set +e
+            set +e
+            sleep 2
+            retry_count=$((retry_count + 1))
+            set -e
+            continue
         fi
+        
+        # Command completed (success or failure)
+        echo ""
+        
+        # Get final results
+        debug_log "Command completed with status: $status. Getting final results."
+        local final_result_file
+        final_result_file=$(mktemp)
+        
+        set +e
+        aws ssm get-command-invocation \
+            --command-id "$command_id" \
+            --instance-id "$instance_id" \
+            --region "$region" \
+            --output json > "$final_result_file" 2>&1
+        local final_aws_exit_code=$?
+        set -e
+        
+        debug_log "Final get-command-invocation exit code: $final_aws_exit_code"
+        
+        if [[ $final_aws_exit_code -ne 0 ]]; then
+            log_error "Failed to get final command result (exit code $final_aws_exit_code)"
+            log_error "Output was: $(cat "$final_result_file")"
+            rm -f "$final_result_file"
+            trap - ERR  # Remove the trap before returning
+            return 1
+        fi
+        
+        # Parse output safely
+        local std_out
+        local std_err
+        local final_status
+        
+        debug_log "Parsing final output"
+        final_status=$(jq -r '.Status' < "$final_result_file")
+        std_out=$(jq -r '.StandardOutputContent' < "$final_result_file")
+        std_err=$(jq -r '.StandardErrorContent' < "$final_result_file")
+        
+        # Handle null values
+        std_out=$([[ "$std_out" == "null" ]] && echo "" || echo "$std_out")
+        std_err=$([[ "$std_err" == "null" ]] && echo "" || echo "$std_err")
+        
+        debug_log "Final status: $final_status"
+        echo "Status: $final_status"
+        echo "--------- Command Output ---------"
+        echo -e "${CYAN}$std_out${NC}"
+            
+        if [[ -n "$std_err" ]]; then
+            echo "--------- Command Error ---------"
+            echo -e "${CYAN}$std_err${NC}"
+        fi
+            
+        rm -f "$final_result_file"
+            
+        if [[ "$final_status" != "Success" ]]; then
+            echo "Command failed with status: $final_status"
+            trap - ERR  # Remove the trap before returning
+            return 1
+        fi
+        
+        # Success - exit the loop
+        debug_log "Command completed successfully"
+        break
     done
     
-    if (( retry_count >= max_retries )); then
-        echo ""
-        echo "Error: Command timed out after $max_retries retries."
-        return 1
-    fi
+    trap - ERR  # Remove the trap before returning
+    return 0
 }
 
 # Execute a command on multiple EC2 instances using tags
