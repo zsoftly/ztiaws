@@ -322,7 +322,7 @@ main() {
                     State: State.Name,
                     OS: PlatformDetails
                 }" \
-                --filters "Name=instance-state-name,Values=running" --output table
+                --output table
             echo -e "\nUsage: ssm $1 <instance-id>"
         else
             if ! validate_instance_id "$1"; then
