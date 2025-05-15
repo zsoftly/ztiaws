@@ -323,7 +323,7 @@ main() {
                     State: State.Name,
                     OS: PlatformDetails
                 }" \
-                --output table
+                --output table 
             echo -e "\nUsage: ssm $1 <instance-id>"
         else
             if ! validate_instance_id "$1"; then
