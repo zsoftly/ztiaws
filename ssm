@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 
 # AWS SSM Session Manager Helper Script
@@ -314,17 +315,15 @@ main() {
         if [[ "$1" =~ ^(apse1|cac1|caw1|usw1|use1|euw1)$ ]]; then
             REGION=$(get_region "$1")
             log_info "Listing instances in $REGION..."
-            
-               
-aws ec2 describe-instances --region "$REGION" \
-  --query "Reservations[*].Instances[*].{
-      Name: Tags[?Key=='Name'].Value | [0],
-      InstanceId: InstanceId,
-      IP: PrivateIpAddress,
-      State: State.Name,
-      OS: PlatformDetails
-  }" \
-  --output table
+            aws ec2 describe-instances --region "$REGION" \
+                --query "Reservations[*].Instances[*].{
+                    Name: Tags[?Key=='Name'].Value | [0],
+                    InstanceId: InstanceId,
+                    IP: PrivateIpAddress,
+                    State: State.Name,
+                    OS: PlatformDetails
+                }" \
+                --output table
             echo -e "\nUsage: ssm $1 <instance-id>"
         else
             if ! validate_instance_id "$1"; then
