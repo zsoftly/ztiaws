@@ -52,7 +52,10 @@ else
     echo "Error: Could not find src/run_command.sh in either ${SCRIPT_DIR}/src/ or /usr/local/bin/src/" >&2
     exit 1
 fi
-
+# Import instance resolver functions
+if [ -f "${SCRIPT_DIR}/src/instance_resolver.sh" ]; then
+    source "${SCRIPT_DIR}/src/instance_resolver.sh"
+fi
 # Function to show usage
 usage() {
     cat << EOF
@@ -193,14 +196,22 @@ install_ssm_plugin() {
 REGION="ca-central-1"
 
 # Validate instance ID format
-validate_instance_id() {
-    if ! [[ $1 =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
-        log_error "Invalid instance ID format. Should be i-xxxxxxxx"
-        return 1
+validate_instance_identifier() {
+    local identifier="$1"
+    
+    # If it looks like an instance ID, validate the format
+    if [[ "$identifier" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
+        return 0
     fi
-    return 0
+    
+    # If it could be an instance name, allow it
+    if is_potential_instance_name "$identifier"; then
+        return 0
+    fi
+    
+    log_error "Invalid instance identifier format. Should be instance ID (i-xxxxxxxx) or instance name"
+    return 1
 }
-
 # Exec command handler
 handle_exec_command() {
     # Check if we have all required arguments
@@ -223,7 +234,7 @@ handle_exec_command() {
     fi
     
     # Validate instance ID
-    if ! validate_instance_id "$instance_id"; then
+    if ! validate_instance_identifier "$instance_id"; then
         exit 1
     fi
     
@@ -325,32 +336,42 @@ main() {
                 --output table
             echo -e "\nUsage: ssm $1 <instance-id>"
         else
-            if ! validate_instance_id "$1"; then
+            if ! validate_instance_identifier "$1"; then
                 exit 1
-            fi
-            log_info "Connecting to instance $1 in $REGION..."
-            aws ssm start-session \
-                --region "$REGION" \
-                --target "$1"
-        fi
-    elif [ $# -eq 2 ]; then
-        REGION=$(get_region "$1")
-        if [ "$REGION" = "invalid" ]; then
-            log_error "Invalid region. Use cac1, caw1, usw1, use1, or euw1"
-            usage
-            exit 1
-        fi
-        if ! validate_instance_id "$2"; then
-            exit 1
-        fi
-        log_info "Connecting to instance $2 in $REGION..."
+      fi
+        log_info "Connecting to instance $1 in $REGION..."
         aws ssm start-session \
             --region "$REGION" \
-            --target "$2"
-    else
+            --target "$1"
+    fi
+elif [ $# -eq 2 ]; then
+    REGION=$(get_region "$1")
+    if [ "$REGION" = "invalid" ]; then
+        log_error "Invalid region. Use cac1, caw1, usw1, use1, or euw1"
         usage
         exit 1
     fi
+    if ! validate_instance_identifier "$2"; then
+        exit 1
+    fi
+    
+    # Resolve instance name to ID if needed
+    local instance_id="$2"
+    if ! [[ "$2" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
+        instance_id=$(resolve_instance_identifier "$2" "$REGION")
+        if [ $? -ne 0 ]; then
+            exit 1
+        fi
+    fi
+
+    log_info "Connecting to instance $instance_id in $REGION..."
+    aws ssm start-session \
+        --region "$REGION" \
+        --target "$instance_id"
+else
+    usage
+    exit 1
+fi
 }
 
 # Run main function
