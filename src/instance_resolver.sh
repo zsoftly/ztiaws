@@ -32,7 +32,7 @@ resolve_instance_identifier() {
     instances=$(aws ec2 describe-instances \
         --region "$region" \
         --filters "Name=tag:Name,Values=$identifier" "Name=instance-state-name,Values=running,stopped" \
-        --query 'Reservations[].Instances[].[InstanceId,Tags[?Key==`Name`].Value|[0]]' \
+        --query "Reservations[].Instances[].[InstanceId,Tags[?Key==\`Name\`].Value|[0]]" \
         --output json)
     
     local count
