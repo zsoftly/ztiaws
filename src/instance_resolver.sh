@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
-# Instance Name Resolution Module for ztiaws SSM tool
 
-# Function to resolve instance identifier (name or ID) to instance ID
 resolve_instance_identifier() {
     local identifier="$1"
     local region="$2"
     
-    # Check if it's already a valid instance ID format
+    # Direct instance ID validation saves API calls for well-formed IDs
     if [[ "$identifier" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
-        # Verify the instance ID exists
         local instance_check
         instance_check=$(aws ec2 describe-instances \
             --region "$region" \
@@ -25,9 +22,9 @@ resolve_instance_identifier() {
         fi
     fi
     
-    # Search by Name tag
     log_info "Searching for instance named: $identifier" >&2
     
+    # Filter by both name tag and instance state to avoid terminated instances
     local instances
     instances=$(aws ec2 describe-instances \
         --region "$region" \
@@ -53,16 +50,15 @@ resolve_instance_identifier() {
     fi
 }
 
-# Function to check if an identifier could be an instance name
 is_potential_instance_name() {
     local identifier="$1"
     
-    # If it matches instance ID pattern, it's not a name
+    # Exclude instance IDs from name validation
     if [[ "$identifier" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
         return 1
     fi
     
-    # If it contains only valid name characters, it could be a name
+    # Allow standard naming conventions for AWS resources
     if [[ "$identifier" =~ ^[a-zA-Z0-9._-]+$ ]]; then
         return 0
     fi
