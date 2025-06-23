@@ -214,34 +214,29 @@ validate_instance_identifier() {
     return 1
 }
 # Exec command handler
-# NEW VERSION with name resolution
 handle_exec_command() {
-    # Check if we have all required arguments
     if [ $# -lt 3 ]; then
         log_error "Missing required parameters for exec command"
-        echo "Usage: ssm exec <region> <instance-identifier> \"<command>\""  # ← Changed text
+        echo "Usage: ssm exec <region> <instance-identifier> \"<command>\""
         exit 1
     fi
 
     local region_code="$1"
-    local instance_identifier="$2"  # ← Changed variable name (could be ID or name)
+    local instance_identifier="$2"
     local command="$3"
 
-    # Convert region code to AWS region name
     local region
     region=$(get_region "$region_code")
-    if ! get_region "$region_code" >/dev/null; then  # ← Fixed shellcheck issue
+    if ! get_region "$region_code" >/dev/null; then
         log_error "Invalid region code: $region_code"
         exit 1
     fi
 
-    # NEW: Validate instance identifier format
     if ! is_valid_instance_identifier "$instance_identifier"; then
         log_error "Invalid instance identifier: $instance_identifier"
         exit 1
     fi
 
-    # NEW: Resolve instance identifier to instance ID
     log_info "Resolving instance identifier: $instance_identifier"
     if ! instance_id=$(resolve_instance_identifier "$instance_identifier" "$region"); then
     
@@ -250,7 +245,6 @@ handle_exec_command() {
 
     log_info "Executing command on instance: $instance_id ($instance_identifier)"
     
-    # Uses the resolved instance ID (same as before)
     run_remote_command "$instance_id" "$region" "$command"
     return $?
 }
