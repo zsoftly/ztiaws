@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # AWS SSM Session Manager Helper Script
-# Version: 1.3.0
+# Version: 1.3.1 (Dynamic Region Support)
 # Repository: https://github.com/ZSoftly/ztiaws
 
 set -e  # Exit on error
@@ -12,346 +12,117 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source utilities (like colors)
 if [ -f "${SCRIPT_DIR}/src/utils.sh" ]; then
-    # shellcheck source=./src/utils.sh
     source "${SCRIPT_DIR}/src/utils.sh"
-elif [ -f "/usr/local/bin/src/utils.sh" ]; then # For system-wide installation
-    # shellcheck source=/dev/null
+elif [ -f "/usr/local/bin/src/utils.sh" ]; then
     source "/usr/local/bin/src/utils.sh"
 else
-    # utils.sh is mandatory
-    echo "[ERROR] src/utils.sh not found. This script requires utils.sh for color definitions and common functions." >&2
-    echo "Please ensure src/utils.sh is present in the script directory or in /usr/local/bin/src/." >&2
+    echo "[ERROR] src/utils.sh not found. Required for colors and functions." >&2
     exit 1
 fi
 
-# Logging functions
-log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
-
 # Import regions from regions.sh
 if [ -f "${SCRIPT_DIR}/src/regions.sh" ]; then
-    # shellcheck source=./src/regions.sh
     source "${SCRIPT_DIR}/src/regions.sh"
 elif [ -f "/usr/local/bin/src/regions.sh" ]; then
-    # shellcheck source=/dev/null
     source "/usr/local/bin/src/regions.sh"
 else
-    echo "Error: Could not find src/regions.sh in either ${SCRIPT_DIR}/src/ or /usr/local/bin/src/" >&2
+    echo "Error: Could not find src/regions.sh" >&2
     exit 1
 fi
 
 # Import run_command functions
 if [ -f "${SCRIPT_DIR}/src/run_command.sh" ]; then
-    # shellcheck source=./src/run_command.sh
     source "${SCRIPT_DIR}/src/run_command.sh"
 elif [ -f "/usr/local/bin/src/run_command.sh" ]; then
-    # shellcheck source=/dev/null
     source "/usr/local/bin/src/run_command.sh"
 else
-    echo "Error: Could not find src/run_command.sh in either ${SCRIPT_DIR}/src/ or /usr/local/bin/src/" >&2
+    echo "Error: Could not find src/run_command.sh" >&2
     exit 1
 fi
 
-# Function to show usage
-usage() {
-    cat << EOF
-AWS SSM Session Manager Helper
-Usage: ssm [region] [instance-id]
-       ssm [instance-id]        # Uses default region (Canada Central)
-
-Supported regions:
-  cac1  - Canada Central (Montreal) [default]
-  apse1 -  Asia Pacific (Seoul)
-  caw1  - Canada West (Calgary)
-  usw1  - US West (N. California)
-  use1  - US East (N. Virginia)
-  euw1  - EU West (Ireland)
-
-Commands:
-  ssm install              # Show installation instructions
-  ssm version              # Show version information
-  ssm check                # Check system requirements
-  ssm exec [options]        # Run a command on an instance
-  ssm exec-tagged [options] # Run a command on instances by tag
-
-Run Command Options:
-  ssm exec <region> <instance-id> "<command>"
-  ssm exec-tagged <region> <tag-key> <tag-value> "<command>"
-
-Examples:
-  ssm cac1                             # List instances in Canada Central
-  ssm use1 i-1234                      # Connect to instance in US East
-  ssm i-1234                           # Connect to instance in Canada Central
-  ssm exec cac1 i-1234 "systemctl status nginx"   # Run command on instance
-  ssm exec-tagged use1 Role web "df -h" # Run command on instances with tag Role=web
-EOF
-}
-
-# Version information
-VERSION="1.3.0"
-show_version() {
-    echo "AWS SSM Helper version: $VERSION"
-}
-
-# Detect OS and package manager
-detect_os() {
-    if [ -f /etc/os-release ]; then
-        # shellcheck source=/dev/null
-        . /etc/os-release
-        OS=$NAME
-        VERSION=$VERSION_ID
-    else
-        OS=$(uname -s)
-        VERSION=$(uname -r)
-    fi
-}
-
-# Check system requirements
-check_requirements() {
-    local missing_deps=0
-
-    # Check AWS CLI
-    if ! command -v aws >/dev/null 2>&1; then
-        log_error "AWS CLI is not installed"
-        log_info "Please install AWS CLI by following the official documentation:"
-        log_info "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
-        log_info "Choose your platform and follow the installation steps provided"
-        missing_deps=1
-    fi
-
-    # Check SSM plugin
-    if ! command -v session-manager-plugin >/dev/null 2>&1; then
-        log_error "AWS Session Manager plugin is not installed"
-        log_info "Would you like to auto-install it? (yes/no): "
-        read -r response
-        if [[ "$response" =~ ^[Yy](es)?$ ]]; then
-            install_ssm_plugin
-        else
-            log_info "Please install the Session Manager plugin by following the official documentation:"
-            log_info "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
-            missing_deps=1
-        fi
-    fi
-
-    # Check jq
-    if ! command -v jq >/dev/null 2>&1; then
-        log_error "jq is not installed"
-        log_info "jq is required for robust parsing of AWS command output."
-        log_info "Please install jq. Examples:"
-        log_info "  Ubuntu/Debian: sudo apt-get install jq"
-        log_info "  macOS: brew install jq"
-        log_info "  Other: https://stedolan.github.io/jq/download/"
-        missing_deps=1
-    fi
-
-    # Check AWS credentials
-    if ! aws sts get-caller-identity >/dev/null 2>&1; then
-        log_error "AWS credentials are not configured or invalid"
-        log_info "Run 'aws configure' to set up your credentials"
-        missing_deps=1
-    fi
-
-    if [ $missing_deps -eq 0 ]; then
-        log_info "All requirements met!"
-    else
-        return 1
-    fi
-}
-
-# Install SSM plugin based on OS
-install_ssm_plugin() {
-    detect_os
-    log_info "Installing SSM plugin for $OS..."
-    
-    case $OS in
-        *"Red Hat"*|*"Fedora"*)
-            sudo curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin" -o "/usr/local/bin/session-manager-plugin"
-            sudo chmod +x /usr/local/bin/session-manager-plugin
-            ;;
-        *"Ubuntu"*|*"Debian"*)
-            curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb"
-            sudo dpkg -i session-manager-plugin.deb
-            rm session-manager-plugin.deb
-            ;;
-        *)
-            log_error "Unsupported OS: $OS"
-            log_info "Please visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
-            exit 1
-            ;;
-    esac
-    
-    if command -v session-manager-plugin >/dev/null 2>&1; then
-        log_info "SSM plugin installed successfully!"
-    else
-        log_error "Failed to install SSM plugin"
-        exit 1
-    fi
-}
+# Logging
+log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Default region
 REGION="ca-central-1"
 
-# Validate instance ID format
 validate_instance_id() {
-    if ! [[ $1 =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
-        log_error "Invalid instance ID format. Should be i-xxxxxxxx"
-        return 1
-    fi
-    return 0
+    [[ $1 =~ ^i-[a-zA-Z0-9]{8,}$ ]]
 }
 
-# Exec command handler
+usage() {
+    cat << EOF
+AWS SSM Session Manager Helper
+Usage: ssm [region] [instance-id]
+       ssm [instance-id]        # Uses default region ($REGION)
+
+Commands:
+  ssm install              # Installation instructions
+  ssm version              # Version info
+  ssm check                # Check system requirements
+  ssm exec <region> <instance-id> "<command>"
+  ssm exec-tagged <region> <tag-key> <tag-value> "<command>"
+EOF
+}
+
+show_version() { echo "AWS SSM Helper version 1.3.1"; }
+
+check_requirements() {
+    command -v aws >/dev/null || { log_error "AWS CLI missing"; exit 1; }
+    command -v session-manager-plugin >/dev/null || { log_error "Session Manager Plugin missing"; exit 1; }
+    command -v jq >/dev/null || { log_error "jq missing"; exit 1; }
+}
+
 handle_exec_command() {
-    # Check if we have all required arguments
-    if [ $# -lt 3 ]; then
-        log_error "Missing required parameters for exec command"
-        echo "Usage: ssm exec <region> <instance-id> \"<command>\""
-        exit 1
-    fi
+    [ $# -ge 3 ] || { log_error "Usage: ssm exec <region> <instance-id> \"<command>\""; exit 1; }
+    local region_code="$1" instance_id="$2" command="$3"
+    local region="$(get_region "$region_code")"
 
-    local region_code="$1"
-    local instance_id="$2"
-    local command="$3"
-    
-    # Convert region code to AWS region name
-    local region
-    region=$(get_region "$region_code")
-    if [ "$region" = "invalid" ]; then
-        log_error "Invalid region code: $region_code"
-        exit 1
-    fi
-    
-    # Validate instance ID
-    if ! validate_instance_id "$instance_id"; then
-        exit 1
-    fi
-    
-    # Run the command
+    [[ "$region" == "invalid" ]] && { log_error "Invalid region code: $region_code"; exit 1; }
+    validate_instance_id "$instance_id" || { log_error "Invalid instance ID"; exit 1; }
     run_remote_command "$instance_id" "$region" "$command"
-    return $?
 }
 
-# Run command by tag handler
 handle_exec_tagged_command() {
-    # Check if we have all required arguments
-    if [ $# -lt 4 ]; then
-        log_error "Missing required parameters for exec-tagged command"
-        echo "Usage: ssm exec-tagged <region> <tag-key> <tag-value> \"<command>\""
-        exit 1
-    fi
+    [ $# -ge 4 ] || { log_error "Usage: ssm exec-tagged <region> <tag-key> <tag-value> \"<command>\""; exit 1; }
+    local region_code="$1" tag_key="$2" tag_value="$3" command="$4"
+    local region="$(get_region "$region_code")"
 
-    local region_code="$1"
-    local tag_key="$2"
-    local tag_value="$3"
-    local command="$4"
-    
-    # Convert region code to AWS region name
-    local region
-    region=$(get_region "$region_code")
-    if [ "$region" = "invalid" ]; then
-        log_error "Invalid region code: $region_code"
-        exit 1
-    fi
-    
-    # Run the command by tag
+    [[ "$region" == "invalid" ]] && { log_error "Invalid region code: $region_code"; exit 1; }
     run_remote_command_tagged "$tag_key" "$tag_value" "$region" "$command"
-    return $?
 }
 
-# Main logic
 main() {
-    # Handle special commands first
     case "${1:-}" in
-        "version")
-            show_version
-            exit 0
-            ;;
-        "install")
-            # Since we have interactive SSM plugin installation, just show AWS CLI instructions
-            log_info "Installation Instructions:"
-            echo
-            log_info "1. AWS CLI Installation:"
-            echo "   Visit: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
-            echo "   Follow the instructions for your platform"
-            echo
-            log_info "2. Session Manager Plugin:"
-            echo "   Run 'ssm check' to install the plugin interactively"
-            echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
-            exit 0
-            ;;
-        "check")
+        version) show_version; exit 0 ;;
+        install) echo "See AWS CLI & Session Manager install guides"; exit 0 ;;
+        check) check_requirements; exit 0 ;;
+        exec) shift; handle_exec_command "$@" ;;
+        exec-tagged) shift; handle_exec_tagged_command "$@" ;;
+        *)
             check_requirements
-            exit 0
-            ;;
-        "help"|"-h"|"--help")
-            usage
-            exit 0
-            ;;
-        "exec")
-            shift
-            handle_exec_command "$@"
-            exit $?
-            ;;
-        "exec-tagged")
-            shift
-            handle_exec_tagged_command "$@"
-            exit $?
-            ;;
-    esac
-
-    # Check requirements before proceeding
-    if ! check_requirements >/dev/null 2>&1; then
-        log_error "System requirements not met. Run 'ssm check' for details"
-        exit 1
-    fi
-
-    # Regular command processing
-    if [ $# -eq 0 ]; then
-        usage
-        exit 1
-    elif [ $# -eq 1 ]; then
-        if [[ "$1" =~ ^(apse1|cac1|caw1|usw1|use1|euw1)$ ]]; then
-            REGION=$(get_region "$1")
-            log_info "Listing instances in $REGION..."
-            aws ec2 describe-instances --region "$REGION" \
-                --query "Reservations[*].Instances[*].{
-                    Name: Tags[?Key=='Name'].Value | [0],
-                    InstanceId: InstanceId,
-                    IP: PrivateIpAddress,
-                    State: State.Name,
-                    OS: PlatformDetails
-                }" \
-                --output table
-            echo -e "\nUsage: ssm $1 <instance-id>"
-        else
-            if ! validate_instance_id "$1"; then
-                exit 1
+            if [ $# -eq 1 ]; then
+                region_resolved="$(get_region "$1")"
+                if [[ "$region_resolved" != "invalid" ]]; then
+                    log_info "Listing instances in $region_resolved..."
+                    aws ec2 describe-instances --region "$region_resolved" --query "Reservations[*].Instances[*].{Name: Tags[?Key=='Name'].Value | [0], InstanceId: InstanceId, IP: PrivateIpAddress, State: State.Name}" --output table
+                elif validate_instance_id "$1"; then
+                    log_info "Connecting to $1 in default region $REGION..."
+                    aws ssm start-session --region "$REGION" --target "$1"
+                else
+                    usage; exit 1
+                fi
+            elif [ $# -eq 2 ]; then
+                region_resolved="$(get_region "$1")"
+                validate_instance_id "$2" || { log_error "Invalid instance ID"; exit 1; }
+                [[ "$region_resolved" == "invalid" ]] && { log_error "Invalid region code"; exit 1; }
+                log_info "Connecting to $2 in $region_resolved..."
+                aws ssm start-session --region "$region_resolved" --target "$2"
+            else
+                usage; exit 1
             fi
-            log_info "Connecting to instance $1 in $REGION..."
-            aws ssm start-session \
-                --region "$REGION" \
-                --target "$1"
-        fi
-    elif [ $# -eq 2 ]; then
-        REGION=$(get_region "$1")
-        if [ "$REGION" = "invalid" ]; then
-            log_error "Invalid region. Use cac1, caw1, usw1, use1, or euw1"
-            usage
-            exit 1
-        fi
-        if ! validate_instance_id "$2"; then
-            exit 1
-        fi
-        log_info "Connecting to instance $2 in $REGION..."
-        aws ssm start-session \
-            --region "$REGION" \
-            --target "$2"
-    else
-        usage
-        exit 1
-    fi
+    esac
 }
 
-# Run main function
 main "$@"
