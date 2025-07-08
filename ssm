@@ -87,7 +87,8 @@ handle_exec_command() {
 handle_exec_tagged_command() {
     [ $# -ge 4 ] || { log_error "Usage: ssm exec-tagged <region> <tag-key> <tag-value> \"<command>\""; exit 1; }
     local region_code="$1" tag_key="$2" tag_value="$3" command="$4"
-    local region="$(get_region "$region_code")"
+     local region
+     region="$(get_region "$region_code")"
 
     [[ "$region" == "invalid" ]] && { log_error "Invalid region code: $region_code"; exit 1; }
     run_remote_command_tagged "$tag_key" "$tag_value" "$region" "$command"
