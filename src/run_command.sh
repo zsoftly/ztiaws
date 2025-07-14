@@ -489,3 +489,36 @@ run_remote_command_tagged() {
     
     return "$overall_status"
 }
+# Perform instance actions: start, stop, reboot
+perform_instance_action() {
+    local action="$1"
+    local region="$2"
+    shift 2
+    local instance_ids=("$@")
+
+    if [[ "${#instance_ids[@]}" -eq 0 ]]; then
+        log_error "No instance IDs provided to perform_instance_action."
+        return 1
+    fi
+
+    case "$action" in
+        start)
+            log_info "Starting instances: ${instance_ids[*]}"
+            aws ec2 start-instances --region "$region" --instance-ids "${instance_ids[@]}"
+            ;;
+        stop)
+            log_info "Stopping instances: ${instance_ids[*]}"
+            aws ec2 stop-instances --region "$region" --instance-ids "${instance_ids[@]}"
+            ;;
+        reboot)
+            log_info "Rebooting instances: ${instance_ids[*]}"
+            aws ec2 reboot-instances --region "$region" --instance-ids "${instance_ids[@]}"
+            ;;
+        *)
+            log_error "Unknown instance action: $action"
+            return 1
+            ;;
+    esac
+}
+
+
