@@ -29,13 +29,13 @@ get_region() {
         # Asia Pacific
         "apse1") echo "ap-southeast-1" ;;    # Asia Pacific (Singapore)
         "apse2") echo "ap-southeast-2" ;;    # Asia Pacific (Sydney)
+        "apse3") echo "ap-southeast-3" ;;    # Asia Pacific (Jakarta)
         "apne1") echo "ap-northeast-1" ;;    # Asia Pacific (Tokyo)
         "apne2") echo "ap-northeast-2" ;;    # Asia Pacific (Seoul)
         "apne3") echo "ap-northeast-3" ;;    # Asia Pacific (Osaka)
         "aps1") echo "ap-south-1" ;;         # Asia Pacific (Mumbai)
-        "apse3") echo "ap-southeast-3" ;;    # Asia Pacific (Jakarta)
         "apme1") echo "me-south-1" ;;        # Middle East (Bahrain)
-        "apse4") echo "ap-east-1" ;;          # Asia Pacific (Hong Kong)
+        "apse4") echo "ap-east-1" ;;         # Asia Pacific (Hong Kong)
         "apne4") echo "ap-northeast-4" ;;    # Asia Pacific (Hyderabad)
 
         # South America
@@ -48,7 +48,7 @@ get_region() {
         "cn-n1") echo "cn-north-1" ;;        # China (Beijing)
         "cn-n2") echo "cn-northwest-1" ;;    # China (Ningxia)
 
-        # AWS Local Zones (Example: Los Angeles, Boston)
+        # AWS Local Zones
         "usw4") echo "us-west-2-lax-1" ;;    # US West Local Zone (Los Angeles)
         "use4") echo "us-east-1-bos-1" ;;    # US East Local Zone (Boston)
         "use5") echo "us-east-1-dca-1" ;;    # US East Local Zone (Washington DC)
@@ -96,4 +96,16 @@ get_region_description() {
         "use6") echo "US East Local Zone (Philadelphia)" ;;
         *) echo "Unknown Region" ;;
     esac
+}
+
+# Optional: list all supported region shortcodes
+list_region_shortcodes() {
+    cat <<EOF
+cac1  caw1  use1  use2  usw1  usw2  usgov1  usgov2
+euw1  euw2  euw3  euc1  eun1  eum1  eub1
+apse1 apse2 apse3 apne1 apne2 apne3 aps1 apme1 apse4 apne4
+sae1  afsa1
+cn-n1 cn-n2
+usw4  use4  use5  use6
+EOF
 }
