@@ -1,5 +1,3 @@
-#!/usr/bin/env bash
-
 # AWS SSM Session Manager Helper Script
 # Version: 1.3.0
 # Repository: https://github.com/ZSoftly/ztiaws
@@ -58,15 +56,7 @@ usage() {
     cat << EOF
 AWS SSM Session Manager Helper
 Usage: ssm [region] [instance-id]
-       ssm [instance-id]        # Uses default region (Canada Central)
-
-Supported regions:
-  cac1  - Canada Central (Montreal) [default]
-  apse1 -  Asia Pacific (Seoul)
-  caw1  - Canada West (Calgary)
-  usw1  - US West (N. California)
-  use1  - US East (N. Virginia)
-  euw1  - EU West (Ireland)
+  ssm [instance-id]        # Uses default region (Canada Central)
 
 Commands:
   ssm install              # Show installation instructions
@@ -74,12 +64,13 @@ Commands:
   ssm check                # Check system requirements
   ssm exec [options]        # Run a command on an instance
   ssm exec-tagged [options] # Run a command on instances by tag
-  ssm start <region> <instance-id>           # Start a stopped instance
-  ssm stop <region> <instance-id>            # Stop a running instance
-  ssm reboot <region> <instance-id>          # Reboot an instance
-  ssm start-tagged <region> <tag> <val>      # Start instances by tag
-  ssm stop-tagged <region> <tag> <val>       # Stop instances by tag
-  ssm reboot-tagged <region> <tag> <val>     # Reboot instances by tag
+  ssm start <region> <instance-id>             # Start a stopped instance
+  ssm stop <region> <instance-id>              # Stop a running instance
+  ssm reboot <region> <instance-id>            # Reboot an instance
+  ssm start-tagged <region> <tag-key> <tag-value>   # Start instances by tag
+  ssm stop-tagged <region> <tag-key> <tag-value>    # Stop instances by tag
+  ssm reboot-tagged <region> <tag-key> <tag-value>  # Reboot instances by tag
+
 
 Run Command Options:
   ssm exec <region> <instance-id> "<command>"
@@ -136,7 +127,7 @@ check_requirements() {
         else
             log_info "Please install the Session Manager plugin by following the official documentation:"
             log_info "https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
-            missing_deps=1
+        missing_deps=1
         fi
     fi
 
@@ -265,76 +256,144 @@ handle_exec_tagged_command() {
     return $?
 }
 
+# Instance ID based actions
+handle_power_action() {
+    if [ $# -ne 3 ]; then
+        log_error "Usage: ssm <start|stop|reboot> <region> <instance-id>"
+        exit 1
+    fi
+
+    local action="$1"
+    local region_code="$2"
+    local instance_id="$3"
+
+    local region
+    region=$(get_region "$region_code")
+    if [ "$region" = "invalid" ]; then
+        log_error "Invalid region code: $region_code"
+        exit 1
+    fi
+
+    validate_instance_id "$instance_id" || exit 1
+
+    perform_instance_action "$action" "$region" "$instance_id"
+}
+
+# Tag-based actions
+handle_power_action_tagged() {
+    if [ $# -ne 4 ]; then
+        log_error "Usage: ssm <start|stop|reboot>-tagged <region> <tag-key> <tag-value>"
+        exit 1
+    fi
+
+    local action="$1"
+    local region_code="$2"
+    local tag_key="$3"
+    local tag_value="$4"
+
+    local region
+    region=$(get_region "$region_code")
+    if [ "$region" = "invalid" ]; then
+        log_error "Invalid region code: $region_code"
+        exit 1
+    fi
+
+    # Fetch instance IDs matching tag
+    local instance_ids
+    instance_ids=$(aws ec2 describe-instances \
+        --region "$region" \
+        --filters "Name=tag:$tag_key,Values=$tag_value" \
+                  "Name=instance-state-name,Values=running,stopped" \
+        --query "Reservations[].Instances[].InstanceId" \
+        --output text)
+
+    if [ -z "$instance_ids" ]; then
+        log_warn "No instances found with tag $tag_key=$tag_value in $region."
+        return 1
+    fi
+
+    # Call action
+    perform_instance_action "$action" "$region" $instance_ids
+}
+
+
+
+
 # Main logic
 main() {
     # Handle special commands first
     case "${1:-}" in
-        "version")
-            show_version
-            exit 0
-            ;;
-        "install")
-            # Since we have interactive SSM plugin installation, just show AWS CLI instructions
-            log_info "Installation Instructions:"
-            echo
-            log_info "1. AWS CLI Installation:"
-            echo "   Visit: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
-            echo "   Follow the instructions for your platform"
-            echo
-            log_info "2. Session Manager Plugin:"
-            echo "   Run 'ssm check' to install the plugin interactively"
-            echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
-            exit 0
-            ;;
-        "check")
-            check_requirements
-            exit 0
-            ;;
-        "help"|"-h"|"--help")
-            usage
-            exit 0
-            ;;
-        "exec")
-            shift
-            handle_exec_command "$@"
-            exit $?
-            ;;
-        "exec-tagged")
-            shift
-            handle_exec_tagged_command "$@"
-            exit $?
-            ;;
-        "start")
-            REGION=$(get_region "$2")
-            start_instance "$3" "$REGION"
-            exit 0
-            ;;
-        "stop")
-            REGION=$(get_region "$2")
-            stop_instance "$3" "$REGION"
-            exit 0
-            ;;
-        "reboot")
-            REGION=$(get_region "$2")
-            reboot_instance "$3" "$REGION"
-            exit 0
-            ;;
-        "start-tagged")
-            REGION=$(get_region "$2")
-            start_instances_by_tag "$3" "$4" "$REGION"
-            exit 0
-            ;;
-        "stop-tagged")
-            REGION=$(get_region "$2")
-            stop_instances_by_tag "$3" "$4" "$REGION"
-            exit 0
-            ;;
-        "reboot-tagged")
-            REGION=$(get_region "$2")
-            reboot_instances_by_tag "$3" "$4" "$REGION"
-            exit 0
-            ;;
-    esac
+    "version")
+        show_version
+        exit 0
+        ;;
+    "install")
+        log_info "Installation Instructions:"
+        echo
+        log_info "1. AWS CLI Installation:"
+        echo "   Visit: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
+        echo "   Follow the instructions for your platform"
+        echo
+        log_info "2. Session Manager Plugin:"
+        echo "   Run 'ssm check' to install the plugin interactively"
+        echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
+        exit 0
+        ;;
+    "check")
+        check_requirements
+        exit 0
+        ;;
+    "help" | "-h" | "--help")
+        usage
+        exit 0
+        ;;
+    "exec")
+        shift
+        handle_exec_command "$@"
+        exit $?
+        ;;
+    "exec-tagged")
+        shift
+        handle_exec_tagged_command "$@"
+        exit $?
+        ;;
+    "start")
+        shift
+        handle_power_action "start" "$@"
+        exit $?
+        ;;
+    "stop")
+        shift
+        handle_power_action "stop" "$@"
+        exit $?
+        ;;
+    "reboot")
+        shift
+        handle_power_action "reboot" "$@"
+        exit $?
+        ;;
+    "start-tagged")
+        shift
+        handle_power_action_tagged "start" "$@"
+        exit $?
+        ;;
+    "stop-tagged")
+        shift
+        handle_power_action_tagged "stop" "$@"
+        exit $?
+        ;;
+    "reboot-tagged")
+        shift
+        handle_power_action_tagged "reboot" "$@"
+        exit $?
+        ;;
+    *)
+        log_error "Unknown command: ${1:-}"
+        usage
+        exit 1
+        ;;
+esac
+
 
     # Check requirements before proceeding
     if ! check_requirements >/dev/null 2>&1; then
@@ -346,9 +405,11 @@ main() {
     if [ $# -eq 0 ]; then
         usage
         exit 1
+
     elif [ $# -eq 1 ]; then
-        if [[ "$1" =~ ^(apse1|cac1|caw1|usw1|use1|euw1)$ ]]; then
-            REGION=$(get_region "$1")
+        region=$(get_region "$1")
+        if [ "$region" != "invalid" ]; then
+            REGION="$region"
             log_info "Listing instances in $REGION..."
             aws ec2 describe-instances --region "$REGION" \
                 --query "Reservations[*].Instances[*].{
@@ -369,24 +430,21 @@ main() {
                 --region "$REGION" \
                 --target "$1"
         fi
+
     elif [ $# -eq 2 ]; then
-        REGION=$(get_region "$1")
-        if [ "$REGION" = "invalid" ]; then
-            log_error "Invalid region. Use cac1, caw1, usw1, use1, or euw1"
+        region=$(get_region "$1")
+        if [ "$region" != "invalid" ]; then
+            REGION="$region"
+            validate_instance_id "$2" || exit 1
+            log_info "Connecting to instance $2 in $REGION..."
+            aws ssm start-session --region "$REGION" --target "$2"
+        else
+            log_error "Invalid region: $1"
             usage
             exit 1
+        
         fi
-        if ! validate_instance_id "$2"; then
-            exit 1
-        fi
-        log_info "Connecting to instance $2 in $REGION..."
-        aws ssm start-session \
-            --region "$REGION" \
-            --target "$2"
-    else
-        usage
-        exit 1
-    fi
+     fi   
 }
 
 # Run main function
