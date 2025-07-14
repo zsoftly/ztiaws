@@ -338,11 +338,11 @@ elif [ $# -eq 2 ]; then
     # Resolve instance name to ID if needed
     local instance_id="$2"
     if ! [[ "$2" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
-        instance_id=$(resolve_instance_identifier "$2" "$REGION")
-        if ! some_command; then
-            exit 1
-        fi
+    instance_id=$(resolve_instance_identifier "$2" "$REGION")
+    if ! [[ "$instance_id" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
+        exit 1
     fi
+fi
 
     log_info "Connecting to instance $instance_id in $REGION..."
     aws ssm start-session \
