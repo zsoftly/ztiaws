@@ -33,11 +33,6 @@ run_remote_command() {
     
     # Enable debug mode
     SSM_DEBUG=${SSM_DEBUG:-false}
-    debug_log() {
-        if [ "$SSM_DEBUG" = true ]; then
-            echo -e "\n[DEBUG] $*" >&2
-        fi
-    }
     
     local instance_id=$1
     local region=$2

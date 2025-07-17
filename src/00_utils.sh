@@ -86,3 +86,12 @@ log_debug() {
     echo -e "${CYAN}[DEBUG]${NC} $1"
     _log_to_file "[DEBUG] $1"
 }
+
+# Debug logging function that respects SSM_DEBUG environment variable
+# This provides compatibility with SSM command runner's debug_log function
+debug_log() {
+    if [ "${SSM_DEBUG:-false}" = true ]; then
+        echo -e "\n${CYAN}[DEBUG]${NC} $*" >&2
+        _log_to_file "[DEBUG] $*"
+    fi
+}
