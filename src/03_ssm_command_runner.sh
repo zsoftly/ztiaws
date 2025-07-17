@@ -23,7 +23,7 @@ else
     # To make it truly standalone-safe, it would need its own exit here.
     echo "[ERROR] src/00_utils.sh not found. 03_ssm_command_runner.sh requires 00_utils.sh." >&2
     echo "This script is typically sourced by 'ssm' or 'authaws', which should handle this error." >&2
-    # Consider adding 'exit 1' here if standalone execution is a primary concern and it shouldn't proceed.
+    exit 1
 fi
 
 # Execute a command on a remote EC2 instance using SSM Run Command
