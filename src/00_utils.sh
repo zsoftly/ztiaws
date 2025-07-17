@@ -38,7 +38,8 @@ init_logging() {
         # Set up log directory and file
         export LOG_DIR="${LOG_DIR:-$HOME/logs}"
         mkdir -p "$LOG_DIR"
-        export LOG_FILE="${LOG_DIR}/${script_name%-*}-$(date +%Y-%m-%d).log"
+        LOG_FILE="${LOG_DIR}/${script_name%-*}-$(date +%Y-%m-%d).log"
+        export LOG_FILE
         
         # Add spacer and start marker to log file
         echo "" >> "$LOG_FILE"
