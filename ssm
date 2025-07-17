@@ -24,6 +24,9 @@ else
     exit 1
 fi
 
+# Initialize logging (console-only by default for SSM, can be enabled with ENABLE_SSM_LOGGING=true env var)
+init_logging "ssm" "${ENABLE_SSM_LOGGING:-false}"
+
 # Import regions from 01_regions.sh
 if [ -f "${SCRIPT_DIR}/src/01_regions.sh" ]; then
     # shellcheck source=./src/01_regions.sh
@@ -51,9 +54,6 @@ fi
 if [ -f "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh" ]; then
     source "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh"
 fi
-
-# Initialize logging (console-only by default for SSM, can be enabled with ENABLE_SSM_LOGGING=true env var)
-init_logging "ssm" "${ENABLE_SSM_LOGGING:-false}"
 
 # Function to show usage
 usage() {
