@@ -11,16 +11,16 @@ set -u  # Exit on undefined variables
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source utilities (like colors)
-if [ -f "${SCRIPT_DIR}/src/utils.sh" ]; then
-    # shellcheck source=./src/utils.sh
-    source "${SCRIPT_DIR}/src/utils.sh"
-elif [ -f "/usr/local/bin/src/utils.sh" ]; then # For system-wide installation
+if [ -f "${SCRIPT_DIR}/src/00_utils.sh" ]; then
+    # shellcheck source=./src/00_utils.sh
+    source "${SCRIPT_DIR}/src/00_utils.sh"
+elif [ -f "/usr/local/bin/src/00_utils.sh" ]; then # For system-wide installation
     # shellcheck source=/dev/null
-    source "/usr/local/bin/src/utils.sh"
+    source "/usr/local/bin/src/00_utils.sh"
 else
-    # utils.sh is mandatory
-    echo "[ERROR] src/utils.sh not found. This script requires utils.sh for color definitions and common functions." >&2
-    echo "Please ensure src/utils.sh is present in the script directory or in /usr/local/bin/src/." >&2
+    # 00_utils.sh is mandatory
+    echo "[ERROR] src/00_utils.sh not found. This script requires 00_utils.sh for color definitions and common functions." >&2
+    echo "Please ensure src/00_utils.sh is present in the script directory or in /usr/local/bin/src/." >&2
     exit 1
 fi
 
@@ -28,42 +28,8 @@ fi
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 ENV_FILE="${SCRIPT_DIR}/.env"
 
-# Setup logging
-SCRIPT_NAME=$(basename "$0")
-LOG_DIR="${LOG_DIR:-$HOME/logs}"
-mkdir -p "$LOG_DIR"
-LOG_FILE="${LOG_DIR}/${SCRIPT_NAME%-*}-$(date +%Y-%m-%d).log"
-
-# Log function with timestamps
-log() {
-  # Fix SC2155: Split declaration and assignment
-  local timestamp
-  timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-  local message="$timestamp - $*"
-  echo "$message" >> "$LOG_FILE"
-}
-
-# Logging functions with colors for terminal and regular logging for file
-log_info() {
-  echo -e "${GREEN}[INFO]${NC} $1"
-  log "[INFO] $1"
-}
-log_warn() {
-  echo -e "${YELLOW}[WARN]${NC} $1"
-  log "[WARN] $1"
-}
-log_error() {
-  echo -e "${RED}[ERROR]${NC} $1"
-  log "[ERROR] $1"
-}
-log_debug() {
-  echo -e "${CYAN}[DEBUG]${NC} $1"
-  log "[DEBUG] $1"
-}
-
-# Add a single line spacer to log file
-echo "" >> "$LOG_FILE"
-log "========== NEW AWS SSO SCRIPT EXECUTION =========="
+# Initialize logging (writes to ~/logs by default)
+init_logging "authaws" true
 
 # Function to create a sample .env file
 create_env_file() {
@@ -436,8 +402,7 @@ main() {
   log_info ""
   log_info "To view your credentials, run:"
   log_info "authaws creds $PROFILE_NAME"
-  log "========== AWS SSO SCRIPT EXECUTION COMPLETED =========="
-  echo "" >> "$LOG_FILE"
+  log_completion "authaws"
 }
 
 # Run main function with all arguments
