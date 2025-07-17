@@ -5,25 +5,25 @@
 
 # Get SCRIPT_DIR and source utilities
 # This assumes SCRIPT_DIR is set by the calling script (ssm or authaws)
-# If run_command.sh is ever called directly in a way that SCRIPT_DIR is not set,
+# If 03_ssm_command_runner.sh is ever called directly in a way that SCRIPT_DIR is not set,
 # this sourcing might fail or need adjustment.
-if [ -n "${SCRIPT_DIR:-}" ] && [ -f "${SCRIPT_DIR}/src/utils.sh" ]; then
+if [ -n "${SCRIPT_DIR:-}" ] && [ -f "${SCRIPT_DIR}/src/00_utils.sh" ]; then
     # This warning is expected as ShellCheck can't follow dynamically constructed file paths
     # shellcheck disable=SC1091
-    source "${SCRIPT_DIR}/src/utils.sh"
-elif [ -f "/usr/local/bin/src/utils.sh" ]; then # For system-wide installation
+    source "${SCRIPT_DIR}/src/00_utils.sh"
+elif [ -f "/usr/local/bin/src/00_utils.sh" ]; then # For system-wide installation
     # shellcheck source=/dev/null
-    source "/usr/local/bin/src/utils.sh"
+    source "/usr/local/bin/src/00_utils.sh"
 else
-    # utils.sh is mandatory for run_command.sh as well, as it uses log_error etc.
+    # 00_utils.sh is mandatory for 03_ssm_command_runner.sh as well, as it uses log_error etc.
     # However, since this script is sourced, echoing directly might be problematic for tests or other consumers.
-    # The primary scripts (ssm, authaws) will catch the absence of utils.sh and exit.
-    # If this script *were* to be run standalone and utils.sh was missing, it would likely fail when log_error is called.
-    # For now, we assume the calling script handles the mandatory nature of utils.sh.
+    # The primary scripts (ssm, authaws) will catch the absence of 00_utils.sh and exit.
+    # If this script *were* to be run standalone and 00_utils.sh was missing, it would likely fail when log_error is called.
+    # For now, we assume the calling script handles the mandatory nature of 00_utils.sh.
     # To make it truly standalone-safe, it would need its own exit here.
-    echo "[ERROR] src/utils.sh not found. run_command.sh requires utils.sh." >&2
+    echo "[ERROR] src/00_utils.sh not found. 03_ssm_command_runner.sh requires 00_utils.sh." >&2
     echo "This script is typically sourced by 'ssm' or 'authaws', which should handle this error." >&2
-    # Consider adding 'exit 1' here if standalone execution is a primary concern and it shouldn't proceed.
+    exit 1
 fi
 
 # Execute a command on a remote EC2 instance using SSM Run Command
@@ -33,11 +33,6 @@ run_remote_command() {
     
     # Enable debug mode
     SSM_DEBUG=${SSM_DEBUG:-false}
-    debug_log() {
-        if [ "$SSM_DEBUG" = true ]; then
-            echo -e "\n[DEBUG] $*" >&2
-        fi
-    }
     
     local instance_id=$1
     local region=$2

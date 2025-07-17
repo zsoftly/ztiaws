@@ -11,51 +11,50 @@ set -u  # Exit on undefined variables
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source utilities (like colors)
-if [ -f "${SCRIPT_DIR}/src/utils.sh" ]; then
-    # shellcheck source=./src/utils.sh
-    source "${SCRIPT_DIR}/src/utils.sh"
-elif [ -f "/usr/local/bin/src/utils.sh" ]; then # For system-wide installation
+if [ -f "${SCRIPT_DIR}/src/00_utils.sh" ]; then
+    # shellcheck source=./src/00_utils.sh
+    source "${SCRIPT_DIR}/src/00_utils.sh"
+elif [ -f "/usr/local/bin/src/00_utils.sh" ]; then # For system-wide installation
     # shellcheck source=/dev/null
-    source "/usr/local/bin/src/utils.sh"
+    source "/usr/local/bin/src/00_utils.sh"
 else
-    # utils.sh is mandatory
-    echo "[ERROR] src/utils.sh not found. This script requires utils.sh for color definitions and common functions." >&2
-    echo "Please ensure src/utils.sh is present in the script directory or in /usr/local/bin/src/." >&2
+    # 00_utils.sh is mandatory
+    echo "[ERROR] src/00_utils.sh not found. This script requires 00_utils.sh for color definitions and common functions." >&2
+    echo "Please ensure src/00_utils.sh is present in the script directory or in /usr/local/bin/src/." >&2
     exit 1
 fi
 
-# Logging functions
-log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+# Initialize logging (console-only by default for SSM, can be enabled with ENABLE_SSM_LOGGING=true env var)
+init_logging "ssm" "${ENABLE_SSM_LOGGING:-false}"
 
-# Import regions from regions.sh
-if [ -f "${SCRIPT_DIR}/src/regions.sh" ]; then
-    # shellcheck source=./src/regions.sh
-    source "${SCRIPT_DIR}/src/regions.sh"
-elif [ -f "/usr/local/bin/src/regions.sh" ]; then
+# Import regions from 01_regions.sh
+if [ -f "${SCRIPT_DIR}/src/01_regions.sh" ]; then
+    # shellcheck source=./src/01_regions.sh
+    source "${SCRIPT_DIR}/src/01_regions.sh"
+elif [ -f "/usr/local/bin/src/01_regions.sh" ]; then
     # shellcheck source=/dev/null
-    source "/usr/local/bin/src/regions.sh"
+    source "/usr/local/bin/src/01_regions.sh"
 else
-    echo "Error: Could not find src/regions.sh in either ${SCRIPT_DIR}/src/ or /usr/local/bin/src/" >&2
+    echo "Error: Could not find src/01_regions.sh in either ${SCRIPT_DIR}/src/ or /usr/local/bin/src/" >&2
     exit 1
 fi
 
 # Import run_command functions
-if [ -f "${SCRIPT_DIR}/src/run_command.sh" ]; then
-    # shellcheck source=./src/run_command.sh
-    source "${SCRIPT_DIR}/src/run_command.sh"
-elif [ -f "/usr/local/bin/src/run_command.sh" ]; then
+if [ -f "${SCRIPT_DIR}/src/03_ssm_command_runner.sh" ]; then
+    # shellcheck source=./src/03_ssm_command_runner.sh
+    source "${SCRIPT_DIR}/src/03_ssm_command_runner.sh"
+elif [ -f "/usr/local/bin/src/03_ssm_command_runner.sh" ]; then
     # shellcheck source=/dev/null
-    source "/usr/local/bin/src/run_command.sh"
+    source "/usr/local/bin/src/03_ssm_command_runner.sh"
 else
-    echo "Error: Could not find src/run_command.sh in either ${SCRIPT_DIR}/src/ or /usr/local/bin/src/" >&2
+    echo "Error: Could not find src/03_ssm_command_runner.sh in either ${SCRIPT_DIR}/src/ or /usr/local/bin/src/" >&2
     exit 1
 fi
 # Import instance resolver functions
-if [ -f "${SCRIPT_DIR}/src/instance_resolver.sh" ]; then
-    source "${SCRIPT_DIR}/src/instance_resolver.sh"
+if [ -f "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh" ]; then
+    source "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh"
 fi
+
 # Function to show usage
 usage() {
     cat << EOF
