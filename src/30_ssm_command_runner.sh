@@ -57,7 +57,7 @@ run_remote_command() {
     local escaped_command
     escaped_command=$(printf '%s' "$command" | sed 's/"/\\"/g')
     
-    echo "Executing command on instance $instance_id in region $region:"
+    log_info "Executing command on instance $instance_id in region $region:"
     echo "$command"
     
     debug_log "Preparing to send command to AWS SSM"
