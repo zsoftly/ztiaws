@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # AWS SSM Session Manager Helper Script
-# Version: 1.3.0
+# Version: 1.4.0
 # Repository: https://github.com/ZSoftly/ztiaws
 
 set -e  # Exit on error
@@ -55,6 +55,23 @@ if [ -f "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh" ]; then
     source "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh"
 fi
 
+<<<<<<< HEAD
+=======
+# Import file transfer functions
+FILE_TRANSFER_AVAILABLE=false
+if [ -f "${SCRIPT_DIR}/src/04_ssm_file_transfer.sh" ]; then
+    # shellcheck source=./src/04_ssm_file_transfer.sh
+    source "${SCRIPT_DIR}/src/04_ssm_file_transfer.sh"
+    FILE_TRANSFER_AVAILABLE=true
+elif [ -f "/usr/local/bin/src/04_ssm_file_transfer.sh" ]; then
+    # shellcheck source=/dev/null
+    source "/usr/local/bin/src/04_ssm_file_transfer.sh"
+    FILE_TRANSFER_AVAILABLE=true
+else
+    log_warn "File transfer module not found. Upload/download commands will not be available."
+fi
+
+>>>>>>> 518bd26 (feat: Add file upload/download capabilities to SSM tool)
 # Function to show usage
 usage() {
     cat << EOF
@@ -76,10 +93,32 @@ Commands:
   ssm check                # Check system requirements
   ssm exec [options]        # Run a command on an instance
   ssm exec-tagged [options] # Run a command on instances by tag
+EOF
+
+    if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
+        cat << EOF
+  ssm upload [options]      # Upload a file to an instance
+  ssm download [options]    # Download a file from an instance
+EOF
+    fi
+
+    cat << EOF
 
 Run Command Options:
   ssm exec <region> <instance-id> "<command>"
   ssm exec-tagged <region> <tag-key> <tag-value> "<command>"
+EOF
+
+    if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
+        cat << EOF
+
+File Transfer Options:
+  ssm upload <region> <instance-id> <local-file> <remote-path>
+  ssm download <region> <instance-id> <remote-file> <local-path>
+EOF
+    fi
+
+    cat << EOF
 
 Examples:
   ssm cac1                             # List instances in Canada Central
@@ -89,12 +128,30 @@ Examples:
   ssm exec cac1 web-server-prod "systemctl status nginx"  # Run command using instance name
   ssm exec-tagged use1 Role web "df -h" # Run command on instances with tag Role=web
 EOF
+
+    if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
+        cat << EOF
+  ssm upload cac1 i-1234 ./config.txt /etc/app/config.txt    # Upload file
+  ssm download cac1 i-1234 /var/log/app.log ./app.log        # Download file
+
+File Transfer Notes:
+  - Files < 1MB: Direct transfer via SSM (faster)
+  - Files ≥ 1MB: Transfer via S3 intermediary (reliable for large files)
+  - S3 bucket is auto-created and files are auto-deleted after 24 hours
+  - Instance must have AWS CLI installed and proper IAM permissions for S3 access (large files only)
+EOF
+    fi
 }
 
 # Version information
-VERSION="1.3.0"
+VERSION="1.4.0"
 show_version() {
     echo "AWS SSM Helper version: $VERSION"
+    if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
+        echo "Features: Session Management, Command Execution, File Transfer"
+    else
+        echo "Features: Session Management, Command Execution"
+    fi
 }
 
 # Detect OS and package manager
@@ -273,6 +330,80 @@ handle_exec_tagged_command() {
     return $?
 }
 
+# Upload command handler
+handle_upload_command() {
+    if [ "$FILE_TRANSFER_AVAILABLE" != true ]; then
+        log_error "File transfer module not available"
+        log_error "Please ensure src/04_ssm_file_transfer.sh is present and properly sourced"
+        exit 1
+    fi
+
+    if [ $# -lt 4 ]; then
+        log_error "Missing required parameters for upload command"
+        echo "Usage: ssm upload <region> <instance-identifier> <local-file> <remote-path>"
+        exit 1
+    fi
+
+    local region_code="$1"
+    local instance_identifier="$2"
+    local local_file="$3"
+    local remote_path="$4"
+
+    local region
+    region=$(get_region "$region_code")
+    if ! get_region "$region_code" >/dev/null; then
+        log_error "Invalid region code: $region_code"
+        exit 1
+    fi
+
+    if ! validate_instance_identifier "$instance_identifier"; then
+        exit 1
+    fi
+
+    log_info "Uploading file: $local_file -> $remote_path"
+    log_info "Target: $instance_identifier in $region"
+    
+    upload_file "$region" "$instance_identifier" "$local_file" "$remote_path"
+    return $?
+}
+
+# Download command handler
+handle_download_command() {
+    if [ "$FILE_TRANSFER_AVAILABLE" != true ]; then
+        log_error "File transfer module not available"
+        log_error "Please ensure src/04_ssm_file_transfer.sh is present and properly sourced"
+        exit 1
+    fi
+
+    if [ $# -lt 4 ]; then
+        log_error "Missing required parameters for download command"
+        echo "Usage: ssm download <region> <instance-identifier> <remote-file> <local-path>"
+        exit 1
+    fi
+
+    local region_code="$1"
+    local instance_identifier="$2"
+    local remote_file="$3"
+    local local_path="$4"
+
+    local region
+    region=$(get_region "$region_code")
+    if ! get_region "$region_code" >/dev/null; then
+        log_error "Invalid region code: $region_code"
+        exit 1
+    fi
+
+    if ! validate_instance_identifier "$instance_identifier"; then
+        exit 1
+    fi
+
+    log_info "Downloading file: $remote_file -> $local_path"
+    log_info "Source: $instance_identifier in $region"
+    
+    download_file "$region" "$instance_identifier" "$remote_file" "$local_path"
+    return $?
+}
+
 # Main logic
 main() {
     # Handle special commands first
@@ -292,6 +423,12 @@ main() {
             log_info "2. Session Manager Plugin:"
             echo "   Run 'ssm check' to install the plugin interactively"
             echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
+            if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
+                echo
+                log_info "3. File Transfer Requirements:"
+                echo "   - For large files (≥1MB): Instances need AWS CLI and S3 access"
+                echo "   - For small files (<1MB): No additional requirements"
+            fi
             exit 0
             ;;
         "check")
@@ -310,6 +447,16 @@ main() {
         "exec-tagged")
             shift
             handle_exec_tagged_command "$@"
+            exit $?
+            ;;
+        "upload")
+            shift
+            handle_upload_command "$@"
+            exit $?
+            ;;
+        "download")
+            shift
+            handle_download_command "$@"
             exit $?
             ;;
     esac
