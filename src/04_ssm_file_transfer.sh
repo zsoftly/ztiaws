@@ -44,8 +44,7 @@ get_s3_bucket_name() {
     local region="$1"
     local account_id
     
-    account_id=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
-    if [ $? -ne 0 ]; then
+    if ! account_id=$(aws sts get-caller-identity --query Account --output text 2>/dev/null); then
         log_error "Failed to get AWS account ID"
         return 1
     fi
@@ -70,19 +69,11 @@ ensure_s3_bucket() {
     
     # Create bucket with appropriate configuration
     if [ "$region" = "us-east-1" ]; then
-        aws s3api create-bucket \
+        if aws s3api create-bucket \
             --bucket "$bucket_name" \
-            --region "$region" >/dev/null 2>&1
-    else
-        aws s3api create-bucket \
-            --bucket "$bucket_name" \
-            --region "$region" \
-            --create-bucket-configuration LocationConstraint="$region" >/dev/null 2>&1
-    fi
-    
-    if [ $? -eq 0 ]; then
-        # Set bucket lifecycle to auto-delete files after 1 day
-        cat > /tmp/lifecycle-config.json << EOL
+            --region "$region" >/dev/null 2>&1; then
+            # Set bucket lifecycle to auto-delete files after 1 day
+            cat > /tmp/lifecycle-config.json << EOL
 {
     "Rules": [
         {
@@ -95,18 +86,51 @@ ensure_s3_bucket() {
     ]
 }
 EOL
-        
-        aws s3api put-bucket-lifecycle-configuration \
-            --bucket "$bucket_name" \
-            --lifecycle-configuration file:///tmp/lifecycle-config.json >/dev/null 2>&1
-        
-        rm -f /tmp/lifecycle-config.json
-        
-        log_info "S3 bucket created successfully: $bucket_name"
-        return 0
+            
+            aws s3api put-bucket-lifecycle-configuration \
+                --bucket "$bucket_name" \
+                --lifecycle-configuration file:///tmp/lifecycle-config.json >/dev/null 2>&1
+            
+            rm -f /tmp/lifecycle-config.json
+            
+            log_info "S3 bucket created successfully: $bucket_name"
+            return 0
+        else
+            log_error "Failed to create S3 bucket: $bucket_name"
+            return 1
+        fi
     else
-        log_error "Failed to create S3 bucket: $bucket_name"
-        return 1
+        if aws s3api create-bucket \
+            --bucket "$bucket_name" \
+            --region "$region" \
+            --create-bucket-configuration LocationConstraint="$region" >/dev/null 2>&1; then
+            # Set bucket lifecycle to auto-delete files after 1 day
+            cat > /tmp/lifecycle-config.json << EOL
+{
+    "Rules": [
+        {
+            "ID": "SSMFileTransferCleanup",
+            "Status": "Enabled",
+            "Expiration": {
+                "Days": 1
+            }
+        }
+    ]
+}
+EOL
+            
+            aws s3api put-bucket-lifecycle-configuration \
+                --bucket "$bucket_name" \
+                --lifecycle-configuration file:///tmp/lifecycle-config.json >/dev/null 2>&1
+            
+            rm -f /tmp/lifecycle-config.json
+            
+            log_info "S3 bucket created successfully: $bucket_name"
+            return 0
+        else
+            log_error "Failed to create S3 bucket: $bucket_name"
+            return 1
+        fi
     fi
 }
 
@@ -121,8 +145,7 @@ upload_file_small() {
     
     # Encode file to base64
     local base64_content
-    base64_content=$(base64 < "$local_file" | tr -d '\n')
-    if [ $? -ne 0 ]; then
+    if ! base64_content=$(base64 < "$local_file" | tr -d '\n'); then
         log_error "Failed to encode file to base64"
         return 1
     fi
@@ -141,7 +164,7 @@ upload_file_small() {
         --query "Command.CommandId" \
         --output text)
     
-    if [ $? -ne 0 ] || [ -z "$command_id" ]; then
+    if [ -z "$command_id" ]; then
         log_error "Failed to initiate file upload command"
         return 1
     fi
@@ -174,7 +197,7 @@ download_file_small() {
         --query "Command.CommandId" \
         --output text)
     
-    if [ $? -ne 0 ] || [ -z "$command_id" ]; then
+    if [ -z "$command_id" ]; then
         log_error "Failed to initiate file download command"
         return 1
     fi
@@ -186,14 +209,12 @@ download_file_small() {
     
     # Get command output
     local output
-    output=$(aws ssm get-command-invocation \
+    if ! output=$(aws ssm get-command-invocation \
         --region "$region" \
         --command-id "$command_id" \
         --instance-id "$instance_id" \
         --query "StandardOutputContent" \
-        --output text)
-    
-    if [ $? -ne 0 ]; then
+        --output text); then
         log_error "Failed to get command output"
         return 1
     fi
@@ -225,8 +246,7 @@ upload_file_large() {
     
     # Get S3 bucket name
     local bucket_name
-    bucket_name=$(get_s3_bucket_name "$region")
-    if [ $? -ne 0 ]; then
+    if ! bucket_name=$(get_s3_bucket_name "$region"); then
         return 1
     fi
     
@@ -236,7 +256,8 @@ upload_file_large() {
     fi
     
     # Generate unique S3 key
-    local s3_key="uploads/$(date +%s)-$(basename "$local_file")"
+    local s3_key
+    s3_key="uploads/$(date +%s)-$(basename "$local_file")"
     
     log_info "Uploading to S3: s3://$bucket_name/$s3_key"
     
@@ -260,7 +281,7 @@ upload_file_large() {
         --query "Command.CommandId" \
         --output text)
     
-    if [ $? -ne 0 ] || [ -z "$command_id" ]; then
+    if [ -z "$command_id" ]; then
         log_error "Failed to initiate S3 download command on instance"
         # Clean up S3 object
         aws s3 rm "s3://$bucket_name/$s3_key" --region "$region" >/dev/null 2>&1
@@ -289,8 +310,7 @@ download_file_large() {
     
     # Get S3 bucket name
     local bucket_name
-    bucket_name=$(get_s3_bucket_name "$region")
-    if [ $? -ne 0 ]; then
+    if ! bucket_name=$(get_s3_bucket_name "$region"); then
         return 1
     fi
     
@@ -300,7 +320,8 @@ download_file_large() {
     fi
     
     # Generate unique S3 key
-    local s3_key="downloads/$(date +%s)-$(basename "$remote_path")"
+    local s3_key
+    s3_key="downloads/$(date +%s)-$(basename "$remote_path")"
     
     # Create upload command for instance
     local upload_command="if [ -f \"$remote_path\" ]; then aws s3 cp \"$remote_path\" s3://$bucket_name/$s3_key --region $region; else echo 'FILE_NOT_FOUND'; fi"
@@ -316,7 +337,7 @@ download_file_large() {
         --query "Command.CommandId" \
         --output text)
     
-    if [ $? -ne 0 ] || [ -z "$command_id" ]; then
+    if [ -z "$command_id" ]; then
         log_error "Failed to initiate S3 upload command on instance"
         return 1
     fi
@@ -437,7 +458,7 @@ upload_file() {
     # Get file size
     local file_size
     file_size=$(get_file_size "$local_file")
-    if [ $? -ne 0 ] || [ -z "$file_size" ]; then
+    if [ -z "$file_size" ]; then
         log_error "Failed to get file size"
         return 1
     fi
@@ -492,7 +513,7 @@ download_file() {
         --query "Command.CommandId" \
         --output text)
     
-    if [ $? -ne 0 ] || [ -z "$command_id" ]; then
+    if [ -z "$command_id" ]; then
         log_error "Failed to check remote file size"
         return 1
     fi
