@@ -55,6 +55,11 @@ if [ -f "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh" ]; then
     source "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh"
 fi
 
+# Import S3 browser functions
+if [ -f "${SCRIPT_DIR}/src/04_s3_browser.sh" ]; then
+    source "${SCRIPT_DIR}/src/04_s3_browser.sh"
+fi
+
 # Function to show usage
 usage() {
     cat << EOF
@@ -305,6 +310,11 @@ main() {
         "exec")
             shift
             handle_exec_command "$@"
+            exit $?
+            ;;
+        "s3")
+            shift
+            handle_s3_command "$@"
             exit $?
             ;;
         "exec-tagged")
