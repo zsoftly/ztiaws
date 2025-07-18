@@ -55,8 +55,6 @@ if [ -f "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh" ]; then
     source "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh"
 fi
 
-<<<<<<< HEAD
-=======
 # Import file transfer functions
 FILE_TRANSFER_AVAILABLE=false
 if [ -f "${SCRIPT_DIR}/src/04_ssm_file_transfer.sh" ]; then
@@ -71,7 +69,6 @@ else
     log_warn "File transfer module not found. Upload/download commands will not be available."
 fi
 
->>>>>>> 518bd26 (feat: Add file upload/download capabilities to SSM tool)
 # Function to show usage
 usage() {
     cat << EOF
