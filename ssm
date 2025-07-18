@@ -325,7 +325,7 @@ main() {
                 log_info "2. Session Manager Plugin: Run 'ssm check' or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
                 exit 0
                 ;;
-            -*|--*)
+            --*|--*)
                 # Handle unknown options
                 log_error "Unknown option: $1"
                 usage
