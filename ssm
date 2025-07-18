@@ -275,116 +275,95 @@ handle_exec_tagged_command() {
 
 # Main logic
 main() {
-    # Handle special commands first
-    case "${1:-}" in
-        "version")
-            show_version
-            exit 0
-            ;;
-        "install")
-            # Since we have interactive SSM plugin installation, just show AWS CLI instructions
-            log_info "Installation Instructions:"
-            echo
-            log_info "1. AWS CLI Installation:"
-            echo "   Visit: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
-            echo "   Follow the instructions for your platform"
-            echo
-            log_info "2. Session Manager Plugin:"
-            echo "   Run 'ssm check' to install the plugin interactively"
-            echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
-            exit 0
-            ;;
-        "check")
-            check_requirements
-            exit 0
-            ;;
-        "help"|"-h"|"--help")
-            usage
-            exit 0
-            ;;
-        "exec")
-            shift
-            handle_exec_command "$@"
-            exit $?
-            ;;
-        "exec-tagged")
-            shift
-            handle_exec_tagged_command "$@"
-            exit $?
-            ;;
-    esac
+    REGION="ca-central-1"
+    INSTANCE_ID=""
 
-    # Check requirements before proceeding
-    if ! check_requirements >/dev/null 2>&1; then
-        log_error "System requirements not met. Run 'ssm check' for details"
-        exit 1
-    fi
-
-    # Regular command processing
-    if [ $# -eq 0 ]; then
-        usage
-        exit 1
-    elif [ $# -eq 1 ]; then
-        if [[ "$1" =~ ^(apse1|cac1|caw1|usw1|use1|euw1)$ ]]; then
-            REGION=$(get_region "$1")
-            log_info "Listing instances in $REGION..."
-            aws ec2 describe-instances --region "$REGION" \
-                --query "Reservations[*].Instances[*].{
-                    Name: Tags[?Key=='Name'].Value | [0],
-                    InstanceId: InstanceId,
-                    IP: PrivateIpAddress,
-                    State: State.Name,
-                    OS: PlatformDetails
-                }" \
-                --output table
-            echo -e "\nUsage: ssm $1 <instance-id>"
-        else
-            if ! validate_instance_identifier "$1"; then
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --region|-r)
+                REGION=$(get_region "$2")
+                shift 2
+                ;;
+            --instance|-i)
+                INSTANCE_ID="$2"
+                shift 2
+                ;;
+            --check|check)
+                check_requirements
+                exit 0
+                ;;
+            version|--version)
+                show_version
+                exit 0
+                ;;
+            help|--help|-h)
+                usage
+                exit 0
+                ;;
+            exec)
+                shift
+                handle_exec_command "$@"
+                exit $?
+                ;;
+            exec-tagged)
+                shift
+                handle_exec_tagged_command "$@"
+                exit $?
+                ;;
+            install)
+                log_info "Installation Instructions:"
+                log_info "1. AWS CLI Installation: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
+                log_info "2. Session Manager Plugin: Run 'ssm check' or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
+                exit 0
+                ;;
+            -*|--*)
+                log_error "Unknown option: $1"
+                usage
                 exit 1
-            fi
-            
-            # Resolve instance name to ID if needed
-            local instance_id="$1"
-            if ! [[ "$1" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
-                instance_id=$(resolve_instance_identifier "$1" "$REGION")
-                if ! [[ "$instance_id" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
+                ;;
+            *)
+                if [[ "$1" =~ ^(apse1|cac1|caw1|usw1|use1|euw1)$ ]]; then
+                    REGION=$(get_region "$1")
+                elif [[ "$1" =~ ^i-[a-zA-Z0-9]{8,}$ ]] || is_potential_instance_name "$1"; then
+                    INSTANCE_ID="$1"
+                else
+                    log_error "Invalid argument: $1"
+                    usage
                     exit 1
                 fi
-            fi
-            
-            log_info "Connecting to instance $instance_id in $REGION..."
-            aws ssm start-session \
-                --region "$REGION" \
-                --target "$instance_id"
-        fi
-elif [ $# -eq 2 ]; then
-    REGION=$(get_region "$1")
-    if [ "$REGION" = "invalid" ]; then
-        log_error "Invalid region. Use cac1, caw1, usw1, use1, or euw1"
-        usage
-        exit 1
-    fi
-    if ! validate_instance_identifier "$2"; then
-        exit 1
-    fi
-    
-    # Resolve instance name to ID if needed
-    local instance_id="$2"
-    if ! [[ "$2" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
-    instance_id=$(resolve_instance_identifier "$2" "$REGION")
-    if ! [[ "$instance_id" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
-        exit 1
-    fi
-fi
+                shift
+                ;;
+        esac
+    done
 
-    log_info "Connecting to instance $instance_id in $REGION..."
-    aws ssm start-session \
-        --region "$REGION" \
-        --target "$instance_id"
-else
-    usage
-    exit 1
-fi
+    if [[ -z "$INSTANCE_ID" ]]; then
+        log_info "Listing instances in $REGION..."
+        aws ec2 describe-instances --region "$REGION" \
+            --query "Reservations[*].Instances[*].{\
+                Name: Tags[?Key=='Name'].Value | [0],\
+                InstanceId: InstanceId,\
+                IP: PrivateIpAddress,\
+                State: State.Name,\
+                OS: PlatformDetails\
+            }" \
+            --output table
+        exit 0
+    fi
+
+    if ! validate_instance_identifier "$INSTANCE_ID"; then
+        exit 1
+    fi
+
+    if ! [[ "$INSTANCE_ID" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
+        INSTANCE_ID=$(resolve_instance_identifier "$INSTANCE_ID" "$REGION")
+        if ! [[ "$INSTANCE_ID" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
+            log_error "Could not resolve instance identifier: $INSTANCE_ID"
+            exit 1
+        fi
+    fi
+
+    log_info "Connecting to instance $INSTANCE_ID in $REGION..."
+    aws ssm start-session --region "$REGION" --target "$INSTANCE_ID"
 }
 
 # Run main function
