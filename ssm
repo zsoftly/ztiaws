@@ -274,10 +274,13 @@ handle_exec_tagged_command() {
 }
 
 # Main logic
+# Main logic handler for the script
 main() {
+    # Set default region
     REGION="ca-central-1"
     INSTANCE_ID=""
 
+    # Parse arguments using flexible syntax
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --region|-r)
@@ -289,39 +292,47 @@ main() {
                 shift 2
                 ;;
             --check|check)
+                # Run system check
                 check_requirements
                 exit 0
                 ;;
             version|--version)
+                # Show script version
                 show_version
                 exit 0
                 ;;
             help|--help|-h)
+                # Show usage help
                 usage
                 exit 0
                 ;;
             exec)
+                # Execute remote command
                 shift
                 handle_exec_command "$@"
                 exit $?
                 ;;
             exec-tagged)
+                # Execute command on tagged instances
                 shift
                 handle_exec_tagged_command "$@"
                 exit $?
                 ;;
             install)
+                # Print install help
                 log_info "Installation Instructions:"
                 log_info "1. AWS CLI Installation: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
                 log_info "2. Session Manager Plugin: Run 'ssm check' or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
                 exit 0
                 ;;
             -*|--*)
+                # Handle unknown options
                 log_error "Unknown option: $1"
                 usage
                 exit 1
                 ;;
             *)
+                # Allow positional region or instance ID
                 if [[ "$1" =~ ^(apse1|cac1|caw1|usw1|use1|euw1)$ ]]; then
                     REGION=$(get_region "$1")
                 elif [[ "$1" =~ ^i-[a-zA-Z0-9]{8,}$ ]] || is_potential_instance_name "$1"; then
@@ -336,6 +347,7 @@ main() {
         esac
     done
 
+    # If no instance ID provided, list available instances in region
     if [[ -z "$INSTANCE_ID" ]]; then
         log_info "Listing instances in $REGION..."
         aws ec2 describe-instances --region "$REGION" \
@@ -350,10 +362,12 @@ main() {
         exit 0
     fi
 
+    # Validate the instance identifier
     if ! validate_instance_identifier "$INSTANCE_ID"; then
         exit 1
     fi
 
+    # Resolve instance name to ID if not in instance ID format
     if ! [[ "$INSTANCE_ID" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
         INSTANCE_ID=$(resolve_instance_identifier "$INSTANCE_ID" "$REGION")
         if ! [[ "$INSTANCE_ID" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
@@ -362,6 +376,7 @@ main() {
         fi
     fi
 
+    # Start the session
     log_info "Connecting to instance $INSTANCE_ID in $REGION..."
     aws ssm start-session --region "$REGION" --target "$INSTANCE_ID"
 }
