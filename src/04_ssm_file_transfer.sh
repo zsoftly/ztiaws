@@ -27,6 +27,23 @@ validate_local_file() {
 }
 
 # Get file size in bytes
+create_lifecycle_config() {
+    local config_file="$1"
+    
+    cat > "$config_file" << 'EOF'
+{
+    "Rules": [
+        {
+            "ID": "SSMFileTransferCleanup",
+            "Status": "Enabled",
+            "Expiration": {
+                "Days": 1
+            }
+        }
+    ]
+}
+EOF
+}
 get_file_size() {
     local file_path="$1"
     
@@ -73,25 +90,16 @@ ensure_s3_bucket() {
             --bucket "$bucket_name" \
             --region "$region" >/dev/null 2>&1; then
             # Set bucket lifecycle to auto-delete files after 1 day
-            cat > /tmp/lifecycle-config.json << EOL
-{
-    "Rules": [
-        {
-            "ID": "SSMFileTransferCleanup",
-            "Status": "Enabled",
-            "Expiration": {
-                "Days": 1
-            }
-        }
-    ]
-}
-EOL
+            local lifecycle_config_file
+            lifecycle_config_file=$(mktemp)
+            
+            create_lifecycle_config "$lifecycle_config_file"
             
             aws s3api put-bucket-lifecycle-configuration \
                 --bucket "$bucket_name" \
-                --lifecycle-configuration file:///tmp/lifecycle-config.json >/dev/null 2>&1
+                --lifecycle-configuration "file://$lifecycle_config_file" >/dev/null 2>&1
             
-            rm -f /tmp/lifecycle-config.json
+            rm -f "$lifecycle_config_file"
             
             log_info "S3 bucket created successfully: $bucket_name"
             return 0
@@ -105,25 +113,16 @@ EOL
             --region "$region" \
             --create-bucket-configuration LocationConstraint="$region" >/dev/null 2>&1; then
             # Set bucket lifecycle to auto-delete files after 1 day
-            cat > /tmp/lifecycle-config.json << EOL
-{
-    "Rules": [
-        {
-            "ID": "SSMFileTransferCleanup",
-            "Status": "Enabled",
-            "Expiration": {
-                "Days": 1
-            }
-        }
-    ]
-}
-EOL
+            local lifecycle_config_file
+            lifecycle_config_file=$(mktemp)
+            
+            create_lifecycle_config "$lifecycle_config_file"
             
             aws s3api put-bucket-lifecycle-configuration \
                 --bucket "$bucket_name" \
-                --lifecycle-configuration file:///tmp/lifecycle-config.json >/dev/null 2>&1
+                --lifecycle-configuration "file://$lifecycle_config_file" >/dev/null 2>&1
             
-            rm -f /tmp/lifecycle-config.json
+            rm -f "$lifecycle_config_file"
             
             log_info "S3 bucket created successfully: $bucket_name"
             return 0
@@ -151,7 +150,9 @@ upload_file_small() {
     fi
     
     # Create the upload command
-    local upload_command="mkdir -p \"\$(dirname \"$remote_path\")\" && echo '$base64_content' | base64 -d > \"$remote_path\""
+    local escaped_remote_path
+    escaped_remote_path=$(printf '%q' "$remote_path")
+    local upload_command="mkdir -p \"\$(dirname $escaped_remote_path)\" && echo '$base64_content' | base64 -d > $escaped_remote_path"
     
     # Execute via SSM
     local command_id
@@ -184,7 +185,9 @@ download_file_small() {
     log_info "Downloading small file via base64 encoding..."
     
     # Create the download command
-    local download_command="if [ -f \"$remote_path\" ]; then base64 \"$remote_path\"; else echo 'FILE_NOT_FOUND'; fi"
+    local escaped_remote_path
+    escaped_remote_path=$(printf '%q' "$remote_path")
+    local download_command="if [ -f $escaped_remote_path ]; then base64 $escaped_remote_path; else echo 'FILE_NOT_FOUND'; fi"
     
     # Execute via SSM
     local command_id
@@ -268,7 +271,9 @@ upload_file_large() {
     fi
     
     # Create download command for instance
-    local download_command="mkdir -p \"\$(dirname \"$remote_path\")\" && aws s3 cp s3://$bucket_name/$s3_key \"$remote_path\" --region $region && aws s3 rm s3://$bucket_name/$s3_key --region $region"
+    local escaped_remote_path
+    escaped_remote_path=$(printf '%q' "$remote_path")
+    local download_command="mkdir -p \"\$(dirname $escaped_remote_path)\" && aws s3 cp s3://$bucket_name/$s3_key $escaped_remote_path --region $region && aws s3 rm s3://$bucket_name/$s3_key --region $region"
     
     # Execute download on instance
     local command_id
@@ -324,7 +329,9 @@ download_file_large() {
     s3_key="downloads/$(date +%s)-$(basename "$remote_path")"
     
     # Create upload command for instance
-    local upload_command="if [ -f \"$remote_path\" ]; then aws s3 cp \"$remote_path\" s3://$bucket_name/$s3_key --region $region; else echo 'FILE_NOT_FOUND'; fi"
+local escaped_remote_path
+    escaped_remote_path=$(printf '%q' "$remote_path")
+    local upload_command="if [ -f $escaped_remote_path ]; then aws s3 cp $escaped_remote_path s3://$bucket_name/$s3_key --region $region; else echo 'FILE_NOT_FOUND'; fi"
     
     # Execute upload on instance
     local command_id
@@ -501,7 +508,9 @@ download_file() {
     # First, try to get remote file size to determine transfer method
     log_info "Checking remote file size..."
     
-    local size_command="if [ -f \"$remote_path\" ]; then stat -c%s \"$remote_path\" 2>/dev/null || stat -f%z \"$remote_path\" 2>/dev/null; else echo 'FILE_NOT_FOUND'; fi"
+    local escaped_remote_path
+    escaped_remote_path=$(printf '%q' "$remote_path")
+    local size_command="if [ -f $escaped_remote_path ]; then stat -c%s $escaped_remote_path 2>/dev/null || stat -f%z $escaped_remote_path 2>/dev/null; else echo 'FILE_NOT_FOUND'; fi"
     
     local command_id
     command_id=$(aws ssm send-command \
