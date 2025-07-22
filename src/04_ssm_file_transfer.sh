@@ -27,6 +27,35 @@ validate_local_file() {
 }
 
 # Get file size in bytes
+get_file_size() {
+    local file_path="$1"
+    
+    # Try Linux format first, then macOS format as fallback
+    stat -c%s "$file_path" 2>/dev/null || stat -f%z "$file_path" 2>/dev/null
+}
+
+# Generate cross-platform command to get remote file size
+get_remote_file_size_command() {
+    local escaped_remote_path="$1"
+    
+    # Try Linux stat format first, then macOS format as fallback
+    echo "if [ -f $escaped_remote_path ]; then stat -c%s $escaped_remote_path 2>/dev/null || stat -f%z $escaped_remote_path 2>/dev/null; else echo 'FILE_NOT_FOUND'; fi"
+}
+
+# Generate unique S3 bucket name for this AWS account
+get_s3_bucket_name() {
+    local region="$1"
+    local account_id
+    
+    if ! account_id=$(aws sts get-caller-identity --query Account --output text 2>/dev/null); then
+        log_error "Failed to get AWS account ID"
+        return 1
+    fi
+    
+    echo "${S3_BUCKET_PREFIX}-${account_id}-${region}"
+}
+
+# Create lifecycle configuration for S3 bucket auto-cleanup
 create_lifecycle_config() {
     local config_file="$1"
     
@@ -44,29 +73,23 @@ create_lifecycle_config() {
 }
 EOF
 }
-get_file_size() {
-    local file_path="$1"
-    
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
-        stat -f%z "$file_path" 2>/dev/null
-    else
-        # Linux
-        stat -c%s "$file_path" 2>/dev/null
-    fi
-}
 
-# Generate unique S3 bucket name for this AWS account
-get_s3_bucket_name() {
-    local region="$1"
-    local account_id
+# Create S3 bucket encryption configuration
+create_encryption_config() {
+    local config_file="$1"
     
-    if ! account_id=$(aws sts get-caller-identity --query Account --output text 2>/dev/null); then
-        log_error "Failed to get AWS account ID"
-        return 1
-    fi
-    
-    echo "${S3_BUCKET_PREFIX}-${account_id}-${region}"
+    cat > "$config_file" << 'EOF'
+{
+    "Rules": [
+        {
+            "ApplyServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+            },
+            "BucketKeyEnabled": true
+        }
+    ]
+}
+EOF
 }
 
 # Create S3 bucket if it doesn't exist
@@ -79,57 +102,101 @@ ensure_s3_bucket() {
     # Check if bucket exists
     if aws s3api head-bucket --bucket "$bucket_name" --region "$region" >/dev/null 2>&1; then
         log_info "S3 bucket already exists: $bucket_name"
+        
+        # Check if encryption is already enabled
+        if ! aws s3api get-bucket-encryption --bucket "$bucket_name" --region "$region" >/dev/null 2>&1; then
+            log_info "Encryption not enabled on existing bucket, enabling now..."
+            
+            local encryption_config_file
+            encryption_config_file=$(mktemp)
+            create_encryption_config "$encryption_config_file"
+            
+            if aws s3api put-bucket-encryption \
+                --bucket "$bucket_name" \
+                --server-side-encryption-configuration "file://$encryption_config_file" \
+                --region "$region" >/dev/null 2>&1; then
+                log_info "Successfully enabled encryption on existing bucket"
+            else
+                log_warn "Failed to enable encryption on existing bucket"
+            fi
+            
+            rm -f "$encryption_config_file"
+        else
+            log_info "Encryption already enabled on existing bucket"
+        fi
+        
         return 0
     fi
     
     log_info "Creating S3 bucket: $bucket_name"
     
     # Create bucket with appropriate configuration
+    local create_bucket_success=false
+    
     if [ "$region" = "us-east-1" ]; then
         if aws s3api create-bucket \
             --bucket "$bucket_name" \
             --region "$region" >/dev/null 2>&1; then
-            # Set bucket lifecycle to auto-delete files after 1 day
-            local lifecycle_config_file
-            lifecycle_config_file=$(mktemp)
-            
-            create_lifecycle_config "$lifecycle_config_file"
-            
-            aws s3api put-bucket-lifecycle-configuration \
-                --bucket "$bucket_name" \
-                --lifecycle-configuration "file://$lifecycle_config_file" >/dev/null 2>&1
-            
-            rm -f "$lifecycle_config_file"
-            
-            log_info "S3 bucket created successfully: $bucket_name"
-            return 0
-        else
-            log_error "Failed to create S3 bucket: $bucket_name"
-            return 1
+            create_bucket_success=true
         fi
     else
         if aws s3api create-bucket \
             --bucket "$bucket_name" \
             --region "$region" \
             --create-bucket-configuration LocationConstraint="$region" >/dev/null 2>&1; then
-            # Set bucket lifecycle to auto-delete files after 1 day
-            local lifecycle_config_file
-            lifecycle_config_file=$(mktemp)
-            
-            create_lifecycle_config "$lifecycle_config_file"
-            
-            aws s3api put-bucket-lifecycle-configuration \
-                --bucket "$bucket_name" \
-                --lifecycle-configuration "file://$lifecycle_config_file" >/dev/null 2>&1
-            
-            rm -f "$lifecycle_config_file"
-            
-            log_info "S3 bucket created successfully: $bucket_name"
-            return 0
-        else
-            log_error "Failed to create S3 bucket: $bucket_name"
-            return 1
+            create_bucket_success=true
         fi
+    fi
+    
+    if [ "$create_bucket_success" = true ]; then
+        # Enable server-side encryption
+        local encryption_config_file
+        encryption_config_file=$(mktemp)
+        create_encryption_config "$encryption_config_file"
+        
+        if ! aws s3api put-bucket-encryption \
+            --bucket "$bucket_name" \
+            --server-side-encryption-configuration "file://$encryption_config_file" \
+            --region "$region" >/dev/null 2>&1; then
+            log_warn "Failed to enable bucket encryption, but continuing..."
+        else
+            log_info "Enabled AES256 encryption on bucket"
+        fi
+        
+        rm -f "$encryption_config_file"
+        
+        # Set bucket lifecycle to auto-delete files after 1 day
+        local lifecycle_config_file
+        lifecycle_config_file=$(mktemp)
+        create_lifecycle_config "$lifecycle_config_file"
+        
+        if ! aws s3api put-bucket-lifecycle-configuration \
+            --bucket "$bucket_name" \
+            --lifecycle-configuration "file://$lifecycle_config_file" \
+            --region "$region" >/dev/null 2>&1; then
+            log_warn "Failed to set bucket lifecycle, but continuing..."
+        else
+            log_info "Set bucket lifecycle to auto-delete files after 1 day"
+        fi
+        
+        rm -f "$lifecycle_config_file"
+        
+        # Block public access
+        if ! aws s3api put-public-access-block \
+            --bucket "$bucket_name" \
+            --public-access-block-configuration \
+                "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true" \
+            --region "$region" >/dev/null 2>&1; then
+            log_warn "Failed to block public access, but continuing..."
+        else
+            log_info "Blocked all public access to bucket"
+        fi
+        
+        log_info "S3 bucket created successfully: $bucket_name"
+        return 0
+    else
+        log_error "Failed to create S3 bucket: $bucket_name"
+        return 1
     fi
 }
 
@@ -264,8 +331,10 @@ upload_file_large() {
     
     log_info "Uploading to S3: s3://$bucket_name/$s3_key"
     
-    # Upload to S3
-    if ! aws s3 cp "$local_file" "s3://$bucket_name/$s3_key" --region "$region"; then
+    # Upload to S3 with server-side encryption
+    if ! aws s3 cp "$local_file" "s3://$bucket_name/$s3_key" \
+        --region "$region" \
+        --sse AES256; then
         log_error "Failed to upload file to S3"
         return 1
     fi
@@ -329,9 +398,9 @@ download_file_large() {
     s3_key="downloads/$(date +%s)-$(basename "$remote_path")"
     
     # Create upload command for instance
-local escaped_remote_path
+    local escaped_remote_path
     escaped_remote_path=$(printf '%q' "$remote_path")
-    local upload_command="if [ -f $escaped_remote_path ]; then aws s3 cp $escaped_remote_path s3://$bucket_name/$s3_key --region $region; else echo 'FILE_NOT_FOUND'; fi"
+    local upload_command="if [ -f $escaped_remote_path ]; then aws s3 cp $escaped_remote_path s3://$bucket_name/$s3_key --region $region --sse AES256; else echo 'FILE_NOT_FOUND'; fi"
     
     # Execute upload on instance
     local command_id
@@ -510,7 +579,8 @@ download_file() {
     
     local escaped_remote_path
     escaped_remote_path=$(printf '%q' "$remote_path")
-    local size_command="if [ -f $escaped_remote_path ]; then stat -c%s $escaped_remote_path 2>/dev/null || stat -f%z $escaped_remote_path 2>/dev/null; else echo 'FILE_NOT_FOUND'; fi"
+    local size_command
+    size_command=$(get_remote_file_size_command "$escaped_remote_path")
     
     local command_id
     command_id=$(aws ssm send-command \
@@ -547,7 +617,7 @@ download_file() {
     fi
     
     local file_size
-    file_size=$(echo "$size_output" | tr -d '\n' | grep -o '[0-9]*')
+    file_size=$(echo "$size_output" | tr -d '\n' | grep -o '[0-9][0-9]*')
     
     if [ -z "$file_size" ] || [ "$file_size" -eq 0 ]; then
         log_error "Could not determine remote file size or file is empty"

@@ -280,7 +280,7 @@ handle_exec_command() {
 
     local region
     region=$(get_region "$region_code")
-    if ! get_region "$region_code" >/dev/null; then
+    if [ "$region" = "invalid" ]; then
         log_error "Invalid region code: $region_code"
         exit 1
     fi
@@ -316,7 +316,7 @@ handle_exec_tagged_command() {
 
     local region
     region=$(get_region "$region_code")
-    if ! get_region "$region_code" >/dev/null; then
+    if [ "$region" = "invalid" ]; then
         log_error "Invalid region code: $region_code"
         exit 1
     fi
@@ -348,7 +348,7 @@ handle_upload_command() {
 
     local region
     region=$(get_region "$region_code")
-    if ! get_region "$region_code" >/dev/null; then
+    if [ "$region" = "invalid" ]; then
         log_error "Invalid region code: $region_code"
         exit 1
     fi
@@ -385,7 +385,7 @@ handle_download_command() {
 
     local region
     region=$(get_region "$region_code")
-    if ! get_region "$region_code" >/dev/null; then
+    if [ "$region" = "invalid" ]; then
         log_error "Invalid region code: $region_code"
         exit 1
     fi
