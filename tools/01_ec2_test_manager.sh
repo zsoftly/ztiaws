@@ -20,10 +20,27 @@ fi
 init_logging "ec2-manager" "${ENABLE_EC2_MANAGER_LOGGING:-false}"
 
 # Configuration
-AMI_ID="ami-08379337a6fc559cd"
+# AMI ID for the EC2 instances. Default is Amazon Linux 2023 in ca-central-1 (ami-08379337a6fc559cd).
+# Override by setting the AMI_ID environment variable.
+# WARNING: This AMI ID is region-specific and may become outdated. Verify availability before use.
+# To find the latest Amazon Linux 2023 AMI ID for your region, use:
+# aws ec2 describe-images --owners amazon --filters "Name=name,Values=al2023-ami-*" --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text
+AMI_ID="${AMI_ID:-ami-08379337a6fc559cd}"
+
 INSTANCE_TYPE="t2.micro"
-SUBNET_ID="subnet-0248e681d3349e41c"
-SECURITY_GROUP="sg-0a932ab2ea0066022"
+
+# Subnet ID for EC2 instances. Default is for ca-central-1 region.
+# REQUIRED: Override by setting the SUBNET_ID environment variable for your environment.
+# To find available subnets in your region, use:
+# aws ec2 describe-subnets --query 'Subnets[*].[SubnetId,VpcId,AvailabilityZone,CidrBlock]' --output table
+SUBNET_ID="${SUBNET_ID:-subnet-0248e681d3349e41c}"
+
+# Security Group ID for EC2 instances. Default is for ca-central-1 region.
+# REQUIRED: Override by setting the SECURITY_GROUP environment variable for your environment.
+# To find available security groups in your VPC, use:
+# aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId,GroupName,Description,VpcId]' --output table
+SECURITY_GROUP="${SECURITY_GROUP:-sg-0a932ab2ea0066022}"
+
 IAM_ROLE_NAME="EC2-SSM-Role"
 IAM_INSTANCE_PROFILE="EC2-SSM-InstanceProfile"
 INSTANCE_FILE="ec2-instances.txt"
@@ -48,12 +65,33 @@ Options:
   -c, --count NUMBER       Number of instances to create (default: 1)
   -o, --owner NAME         Set owner tag (required for create, used as name prefix)
   -n, --name-prefix NAME   Instance name suffix (default: web-server)
+  -a, --ami-id AMI_ID      AMI ID to use (default: $AMI_ID)
+  -s, --subnet-id SUBNET   Subnet ID to use (default: $SUBNET_ID)
+  -g, --security-group SG  Security Group ID to use (default: $SECURITY_GROUP)
   -h, --help              Show this help
+
+Environment Variables:
+  AMI_ID           Override default AMI ID
+  SUBNET_ID        Override default subnet ID (REQUIRED for different environments)
+  SECURITY_GROUP   Override default security group ID (REQUIRED for different environments)
 
 Examples:
   $0 create --count 3 --owner John    # Creates: John-web-server-1, John-web-server-2, John-web-server-3
+  $0 create --owner Alice --subnet-id subnet-123abc --security-group sg-456def
+  SUBNET_ID=subnet-123abc SECURITY_GROUP=sg-456def $0 create --owner Bob
   $0 verify
   $0 delete
+
+Finding AWS Resources:
+  # Find latest Amazon Linux 2023 AMI:
+  aws ec2 describe-images --owners amazon --filters "Name=name,Values=al2023-ami-*" \\
+    --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text
+  
+  # List available subnets:
+  aws ec2 describe-subnets --query 'Subnets[*].[SubnetId,VpcId,AvailabilityZone,CidrBlock]' --output table
+  
+  # List security groups:
+  aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId,GroupName,Description,VpcId]' --output table
 EOF
 }
 
@@ -62,6 +100,37 @@ check_prereq() {
     command -v aws >/dev/null || { log_error "AWS CLI not found"; exit 1; }
     command -v jq >/dev/null || { log_error "jq not found"; exit 1; }
     aws sts get-caller-identity >/dev/null 2>&1 || { log_error "AWS credentials invalid"; exit 1; }
+}
+
+# Validate AWS resources exist and are accessible
+validate_aws_resources() {
+    log_info "Validating AWS resources..."
+    
+    # Check if AMI exists and is available
+    if ! aws ec2 describe-images --image-ids "$AMI_ID" --query 'Images[0].State' --output text 2>/dev/null | grep -q "available"; then
+        log_error "AMI $AMI_ID is not available or doesn't exist in this region"
+        log_info "To find the latest Amazon Linux 2023 AMI, run:"
+        log_info "aws ec2 describe-images --owners amazon --filters \"Name=name,Values=al2023-ami-*\" --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text"
+        exit 1
+    fi
+    
+    # Check if subnet exists
+    if ! aws ec2 describe-subnets --subnet-ids "$SUBNET_ID" >/dev/null 2>&1; then
+        log_error "Subnet $SUBNET_ID doesn't exist or is not accessible"
+        log_info "To list available subnets, run:"
+        log_info "aws ec2 describe-subnets --query 'Subnets[*].[SubnetId,VpcId,AvailabilityZone,CidrBlock]' --output table"
+        exit 1
+    fi
+    
+    # Check if security group exists
+    if ! aws ec2 describe-security-groups --group-ids "$SECURITY_GROUP" >/dev/null 2>&1; then
+        log_error "Security group $SECURITY_GROUP doesn't exist or is not accessible"
+        log_info "To list available security groups, run:"
+        log_info "aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId,GroupName,Description,VpcId]' --output table"
+        exit 1
+    fi
+    
+    log_info "AWS resources validated successfully"
 }
 
 # Ensure IAM resources exist (cached check)
@@ -104,6 +173,22 @@ ensure_iam() {
 # Create instances efficiently
 create_instances() {
     [[ -n "$OWNER" ]] || { log_error "Owner required (use -o/--owner)"; exit 1; }
+    
+    # Validate required AWS resources configuration
+    if [[ "$SUBNET_ID" == "subnet-0248e681d3349e41c" ]]; then
+        log_warn "Using default subnet ID for ca-central-1. For other regions, set SUBNET_ID environment variable or use --subnet-id option."
+    fi
+    
+    if [[ "$SECURITY_GROUP" == "sg-0a932ab2ea0066022" ]]; then
+        log_warn "Using default security group for ca-central-1. For other regions, set SECURITY_GROUP environment variable or use --security-group option."
+    fi
+    
+    if [[ "$AMI_ID" == "ami-08379337a6fc559cd" ]]; then
+        log_warn "Using default AMI ID for Amazon Linux 2023 in ca-central-1. This may become outdated. Consider updating or using --ami-id option."
+    fi
+    
+    # Validate AWS resources before proceeding
+    validate_aws_resources
     
     ensure_iam
     log_info "Creating $COUNT instance(s)..."
@@ -221,6 +306,18 @@ parse_args() {
                 shift 2 ;;
             -n|--name-prefix)
                 NAME_PREFIX="$2"
+                shift 2 ;;
+            -a|--ami-id)
+                AMI_ID="$2"
+                [[ "$AMI_ID" =~ ^ami-[0-9a-f]{8,17}$ ]] || { log_error "Invalid AMI ID format: $AMI_ID"; exit 1; }
+                shift 2 ;;
+            -s|--subnet-id)
+                SUBNET_ID="$2"
+                [[ "$SUBNET_ID" =~ ^subnet-[0-9a-f]{8,17}$ ]] || { log_error "Invalid subnet ID format: $SUBNET_ID"; exit 1; }
+                shift 2 ;;
+            -g|--security-group)
+                SECURITY_GROUP="$2"
+                [[ "$SECURITY_GROUP" =~ ^sg-[0-9a-f]{8,17}$ ]] || { log_error "Invalid security group ID format: $SECURITY_GROUP"; exit 1; }
                 shift 2 ;;
             -h|--help)
                 show_help; exit 0 ;;

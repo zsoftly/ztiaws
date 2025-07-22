@@ -617,7 +617,7 @@ download_file() {
     fi
     
     local file_size
-    file_size=$(echo "$size_output" | tr -d '\n' | grep -o '[0-9]\+')
+    file_size=$(echo "$size_output" | tr -d '\n' | grep -o '[0-9][0-9]*')
     
     if [ -z "$file_size" ] || [ "$file_size" -eq 0 ]; then
         log_error "Could not determine remote file size or file is empty"
