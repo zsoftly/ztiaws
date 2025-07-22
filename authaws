@@ -59,34 +59,48 @@ EOL
 show_help() {
   cat << 'EOL'
 AWS SSO Authentication Helper
-Usage: authaws [profile-name]
-       authaws              # Uses default profile from .env file
 
-Commands:
-  authaws help       # Show this help message
-  authaws version    # Show version information
-  authaws check      # Check system requirements
-  authaws creds      # Show decoded credentials for a profile
+USAGE:
+  authaws [PROFILE]                    # Positional syntax (current)
+  authaws --profile PROFILE           # Flag syntax (new)
 
-Setup:
+COMMANDS:
+  authaws help, --help, -h            # Show this help message
+  authaws version, --version          # Show version information  
+  authaws check, --check              # Check system requirements
+  authaws creds [PROFILE]             # Show credentials (positional)
+  authaws --creds --profile PROFILE   # Show credentials (flag)
+
+SETUP:
   Before first use, create a .env file in the script directory with:
   SSO_START_URL="https://your-sso-url.awsapps.com/start"
   SSO_REGION="your-region"
   DEFAULT_PROFILE="your-default-profile"
 
-Examples:
-  authaws                # Login with default profile
-  authaws dev-profile    # Login with specific profile
-  authaws check          # Verify dependencies
-  authaws creds [profile]  # Show credentials for a profile
-EOL
-  exit 0
-}
+EXAMPLES:
+  # Authentication (both styles work identically)
+  authaws dev-profile                  # Quick login (current style)
+  authaws --profile dev-profile        # Self-documenting (new style)
+  
+  # System checks
+  authaws check                        # Check dependencies
+  authaws --check                      # Check dependencies (flag style)
+  
+  # Credential management
+  authaws creds                        # Show default profile credentials
+  authaws creds dev-profile            # Show specific profile credentials
+  authaws --creds --profile dev-profile # Show credentials (flag style)
 
-# Show version information
-VERSION="1.4.1"
-show_version() {
-  echo "AWS SSO Authentication Helper version: $VERSION"
+FLAGS:
+  -p, --profile PROFILE               # Specify AWS SSO profile name
+  -h, --help                          # Show this help message
+  --check                             # Check system requirements
+  --creds                             # Display profile credentials
+  --version                           # Show version information
+
+Both positional and flag syntaxes are fully supported and produce identical results.
+Choose the style that works best for your workflow and team preferences.
+EOL
   exit 0
 }
 
@@ -195,14 +209,75 @@ show_credentials() {
   return 0
 }
 
+parse_parameters() {
+  local profile=""
+  local command=""
+  
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      --profile|-p)
+        if [[ -z "$2" || "$2" == --* ]]; then
+          log_error "Error: --profile requires a profile name"
+          exit 1
+        fi
+        profile="$2"
+        shift 2
+        ;;
+      --check)
+        command="check"
+        shift
+        ;;
+      --creds)
+        command="creds"
+        shift
+        ;;
+      --help|-h)
+        command="help"
+        shift
+        ;;
+      --version)
+        command="version"
+        shift
+        ;;
+      # Handle old-style commands
+      check|creds|help|version)
+        command="$1"
+        shift
+        ;;
+      # Handle unknown flags
+      --*)
+        log_error "Unknown option: $1"
+        log_info "Run 'authaws help' for usage information"
+        exit 1
+        ;;
+      # Handle positional arguments (profile names)
+      *)
+        if [[ -z "$profile" ]]; then
+          profile="$1"
+        else
+          log_error "Multiple profile names specified: '$profile' and '$1'"
+          exit 1
+        fi
+        shift
+        ;;
+    esac
+  done
+  
+  # Set global variables for use in main function
+  PARSED_COMMAND="$command"
+  PARSED_PROFILE="$profile"
+}
+
 # Main function
 main() {
+    parse_parameters "$@"
+
   # Handle special commands first
-  case "${1:-}" in
-    "help"|"-h"|"--help")
+  case "$PARSED_COMMAND" in
+    "help")
       show_help
       ;;
-    "version")
+    "version") 
       show_version
       ;;
     "check")
@@ -215,24 +290,23 @@ main() {
       exit 0
       ;;
     "creds")
-      if [[ $# -lt 2 ]]; then
-        # If no profile specified, try to use the current AWS_PROFILE or the default profile
-        local cred_profile="${AWS_PROFILE:-}"
+      # Handle credentials display
+      local cred_profile="$PARSED_PROFILE"
+      if [[ -z "$cred_profile" ]]; then
+        # Try current AWS_PROFILE or default from .env
+        cred_profile="${AWS_PROFILE:-}"
         if [[ -z "$cred_profile" ]]; then
           if [[ -f "${ENV_FILE}" ]]; then
-            # shellcheck source=/dev/null
             source "${ENV_FILE}"
             cred_profile="$DEFAULT_PROFILE"
           else
             log_error "No profile specified and no default profile found"
-            log_info "Usage: $0 creds [profile-name]"
+            log_info "Usage: $0 creds [profile-name] or $0 --creds --profile [profile-name]"
             exit 1
           fi
         fi
-        show_credentials "$cred_profile"
-      else
-        show_credentials "$2"
       fi
+      show_credentials "$cred_profile"
       exit $?
       ;;
   esac
@@ -265,18 +339,18 @@ main() {
   done
 
   # Set profile name from argument or use default
-  if [[ $# -eq 0 ]]; then
+  if [[ -n "$PARSED_PROFILE" ]]; then
+    PROFILE_NAME="$PARSED_PROFILE"
+    log_info "Using specified profile: $PROFILE_NAME"
+  else
     log_info "No profile specified. Using default: $DEFAULT_PROFILE"
-    # Fix SC2162: Add -r flag to read
     read -r -p "Proceed with default profile? (y/n): " proceed
     if [[ $proceed =~ ^[Yy]$ ]]; then
       PROFILE_NAME="$DEFAULT_PROFILE"
     else
-      log_info "Please run: $0 <profile-name>"
+      log_info "Please run: $0 <profile-name> or $0 --profile <profile-name>"
       exit 1
     fi
-  else
-    PROFILE_NAME="$1"
   fi
 
   # Configure the profile
