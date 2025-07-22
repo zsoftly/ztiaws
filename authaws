@@ -234,7 +234,7 @@ parse_parameters() {
   local profile=""
   local command=""
   local region=""
-  local export_format=""
+  # local export_format=""
   
   while [[ $# -gt 0 ]]; do
     case $1 in
@@ -323,6 +323,8 @@ parse_parameters() {
         # Try to get from environment or .env as fallback
         profile="${AWS_PROFILE:-}"
         if [[ -z "$profile" && -f "${ENV_FILE}" ]]; then
+          # shellcheck source=.env
+            # shellcheck disable=SC1091
           source "${ENV_FILE}"
           profile="$DEFAULT_PROFILE"
         fi
@@ -348,7 +350,7 @@ parse_parameters() {
   PARSED_COMMAND="$command"
   PARSED_PROFILE="$profile"
   PARSED_REGION="$region"
-  PARSED_EXPORT_FORMAT="$export_format"
+  # PARSED_EXPORT_FORMAT="$export_format"
 }
 
 # Main function
@@ -399,7 +401,8 @@ main() {
 
   # Check for .env file and load it
   if [[ -f "${ENV_FILE}" ]]; then
-    # shellcheck source=/dev/null
+    # shellcheck source=.env
+    # shellcheck disable=SC1091
     source "${ENV_FILE}"
   else
     log_warn "No .env file found in the script directory."
