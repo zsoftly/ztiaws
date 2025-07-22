@@ -234,7 +234,7 @@ parse_parameters() {
   local profile=""
   local command=""
   local region=""
-  # local export_format=""
+  local export_format=""
   
   while [[ $# -gt 0 ]]; do
     case $1 in
