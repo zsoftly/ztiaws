@@ -296,7 +296,9 @@ main() {
         # Try current AWS_PROFILE or default from .env
         cred_profile="${AWS_PROFILE:-}"
         if [[ -z "$cred_profile" ]]; then
+          # Check for .env file and load it
           if [[ -f "${ENV_FILE}" ]]; then
+            # shellcheck source=.env
             source "${ENV_FILE}"
             cred_profile="$DEFAULT_PROFILE"
           else
