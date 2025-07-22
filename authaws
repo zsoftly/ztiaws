@@ -299,6 +299,7 @@ main() {
           # Check for .env file and load it
           if [[ -f "${ENV_FILE}" ]]; then
             # shellcheck source=.env
+            # shellcheck disable=SC1091
             source "${ENV_FILE}"
             cred_profile="$DEFAULT_PROFILE"
           else
