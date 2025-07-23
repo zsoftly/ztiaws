@@ -2,12 +2,25 @@
 
 # AWS SSM File Transfer Module
 # Handles file upload/download operations via SSM
+# This module is sourced by the main ssm script
 
 # File size threshold for choosing transfer method (1MB)
 FILE_SIZE_THRESHOLD=$((1024 * 1024))
 
 # S3 bucket for large file transfers (will be created if needed)
 S3_BUCKET_PREFIX="ztiaws-ssm-file-transfer"
+
+# Set up cleanup trap for emergency situations
+cleanup_on_exit() {
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        debug_log "Script exiting with error code $exit_code, performing emergency cleanup"
+        emergency_cleanup_s3_permissions "${AWS_DEFAULT_REGION:-us-east-1}" >/dev/null 2>&1 || true
+    fi
+}
+
+# Set trap for cleanup on script exit
+trap cleanup_on_exit EXIT INT TERM
 
 # Validate file exists and is readable
 validate_local_file() {
@@ -235,6 +248,218 @@ download_file_small() {
     fi
 }
 
+# Get instance profile role name for an EC2 instance
+get_instance_profile_role() {
+    local instance_id="$1"
+    local region="$2"
+
+    debug_log "Getting instance profile role for instance: $instance_id"
+    
+    # Get instance profile name
+    local instance_profile_name
+    instance_profile_name=$(aws ec2 describe-instances \
+        --region "$region" \
+        --instance-ids "$instance_id" \
+        --query 'Reservations[0].Instances[0].IamInstanceProfile.Arn' \
+        --output text 2>/dev/null | awk -F'/' '{print $2}')
+
+    if [[ -z "$instance_profile_name" || "$instance_profile_name" == "None" ]]; then
+        log_error "No IAM instance profile found for instance $instance_id"
+        return 1
+    fi
+
+    # Get role name from instance profile
+    local role_name
+    role_name=$(aws iam get-instance-profile \
+        --instance-profile-name "$instance_profile_name" \
+        --query 'InstanceProfile.Roles[0].RoleName' \
+        --output text 2>/dev/null)
+
+    if [[ -z "$role_name" || "$role_name" == "None" ]]; then
+        log_error "No role found in instance profile $instance_profile_name"
+        return 1
+    fi
+
+    echo "$role_name"
+    return 0
+}
+
+# Create S3 policy for the specific bucket
+create_s3_policy_document() {
+    local bucket_name="$1"
+    local policy_file="$2"
+
+    cat > "$policy_file" << EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": "arn:aws:s3:::${bucket_name}/*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket"
+            ],
+            "Resource": "arn:aws:s3:::${bucket_name}"
+        }
+    ]
+}
+EOF
+}
+
+# Attach S3 permissions to instance profile role (background operation)
+attach_s3_permissions() {
+    local instance_id="$1"
+    local region="$2"
+    local bucket_name="$3"
+
+    debug_log "Attaching S3 permissions for bucket: $bucket_name"
+
+    # Get the role name
+    local role_name
+    if ! role_name=$(get_instance_profile_role "$instance_id" "$region"); then
+        return 1
+    fi
+
+    debug_log "Found role: $role_name"
+
+    # Create unique policy name
+    local policy_name="ZTIaws-SSM-S3-Access-$(date +%s)-$$"
+    
+    # Create policy document
+    local policy_file
+    policy_file=$(mktemp)
+    create_s3_policy_document "$bucket_name" "$policy_file"
+
+    # Create and attach the policy
+    local policy_arn
+    if policy_arn=$(aws iam create-policy \
+        --policy-name "$policy_name" \
+        --policy-document "file://$policy_file" \
+        --description "Temporary S3 access for ztiaws SSM file transfer" \
+        --query 'Policy.Arn' \
+        --output text 2>/dev/null); then
+        
+        debug_log "Created policy: $policy_arn"
+        
+        # Attach policy to role
+        if aws iam attach-role-policy \
+            --role-name "$role_name" \
+            --policy-arn "$policy_arn" >/dev/null 2>&1; then
+            
+            debug_log "Attached policy to role: $role_name"
+            # Store policy ARN in a temp file for later cleanup
+            echo "$policy_arn" > "/tmp/ztiaws-s3-policy-${instance_id}-$$"
+            rm -f "$policy_file"
+            return 0
+        else
+            log_error "Failed to attach policy to role"
+            # Clean up policy if attachment failed
+            aws iam delete-policy --policy-arn "$policy_arn" >/dev/null 2>&1
+            rm -f "$policy_file"
+            return 1
+        fi
+    else
+        log_error "Failed to create S3 policy"
+        rm -f "$policy_file"
+        return 1
+    fi
+}
+
+# Remove S3 permissions from instance profile role (cleanup operation)
+remove_s3_permissions() {
+    local instance_id="$1"
+    local region="$2"
+
+    debug_log "Removing S3 permissions for instance: $instance_id"
+
+    # Get policy ARN from temp file
+    local policy_file="/tmp/ztiaws-s3-policy-${instance_id}-$$"
+    if [[ ! -f "$policy_file" ]]; then
+        debug_log "No policy file found for cleanup: $policy_file"
+        return 0
+    fi
+
+    local policy_arn
+    policy_arn=$(cat "$policy_file")
+    rm -f "$policy_file"
+
+    if [[ -z "$policy_arn" ]]; then
+        debug_log "No policy ARN found for cleanup"
+        return 0
+    fi
+
+    # Get the role name
+    local role_name
+    if ! role_name=$(get_instance_profile_role "$instance_id" "$region"); then
+        debug_log "Could not get role name for cleanup, but continuing with policy deletion"
+    else
+        # Detach policy from role
+        if aws iam detach-role-policy \
+            --role-name "$role_name" \
+            --policy-arn "$policy_arn" >/dev/null 2>&1; then
+            debug_log "Detached policy from role: $role_name"
+        else
+            log_warn "Failed to detach policy from role (may already be detached)"
+        fi
+    fi
+
+    # Delete the policy
+    if aws iam delete-policy --policy-arn "$policy_arn" >/dev/null 2>&1; then
+        debug_log "Deleted policy: $policy_arn"
+    else
+        log_warn "Failed to delete policy (may already be deleted): $policy_arn"
+    fi
+
+    return 0
+}
+
+# Background function to manage S3 permissions
+manage_s3_permissions() {
+    local action="$1"  # "attach" or "remove"
+    local instance_id="$2"
+    local region="$3"
+    local bucket_name="$4"
+
+    case "$action" in
+        "attach")
+            attach_s3_permissions "$instance_id" "$region" "$bucket_name" &
+            local attach_pid=$!
+            debug_log "Started S3 permissions attachment in background (PID: $attach_pid)"
+            
+            # Wait for the background process to complete
+            if wait $attach_pid; then
+                debug_log "S3 permissions attached successfully"
+                return 0
+            else
+                log_error "Failed to attach S3 permissions"
+                return 1
+            fi
+            ;;
+        "remove")
+            remove_s3_permissions "$instance_id" "$region" &
+            local remove_pid=$!
+            debug_log "Started S3 permissions removal in background (PID: $remove_pid)"
+            
+            # Don't wait for removal to complete - let it run in background
+            disown $remove_pid 2>/dev/null || true
+            debug_log "S3 permissions removal running in background"
+            return 0
+            ;;
+        *)
+            log_error "Invalid action for manage_s3_permissions: $action"
+            return 1
+            ;;
+    esac
+}
+
 # Upload large file via S3 intermediary
 upload_file_large() {
     local local_file="$1"
@@ -255,6 +480,22 @@ upload_file_large() {
         return 1
     fi
 
+    # Attach S3 permissions to instance role (background operation)
+    log_info "Configuring S3 permissions for instance..."
+    
+    # First validate IAM setup
+    if ! validate_instance_iam_setup "$instance_id" "$region"; then
+        return 1
+    fi
+    
+    if ! manage_s3_permissions "attach" "$instance_id" "$region" "$bucket_name"; then
+        log_error "Failed to configure S3 permissions. The instance may need proper IAM role setup."
+        return 1
+    fi
+
+    # Add a small delay to allow IAM changes to propagate
+    sleep 2
+
     # Generate unique S3 key
     local s3_key
     s3_key="uploads/$(date +%s)-$(basename "$local_file")"
@@ -264,6 +505,8 @@ upload_file_large() {
     # Upload to S3
     if ! aws s3 cp "$local_file" "s3://$bucket_name/$s3_key" --region "$region"; then
         log_error "Failed to upload file to S3"
+        # Clean up permissions in background
+        manage_s3_permissions "remove" "$instance_id" "$region" "$bucket_name" >/dev/null 2>&1
         return 1
     fi
 
@@ -284,18 +527,22 @@ upload_file_large() {
 
     if [ -z "$command_id" ]; then
         log_error "Failed to initiate S3 download command on instance"
-        # Clean up S3 object
+        # Clean up S3 object and permissions
         aws s3 rm "s3://$bucket_name/$s3_key" --region "$region" >/dev/null 2>&1
+        manage_s3_permissions "remove" "$instance_id" "$region" "$bucket_name" >/dev/null 2>&1
         return 1
     fi
 
     # Wait for command completion
     if wait_for_command_completion "$command_id" "$instance_id" "$region"; then
         log_info "Large file uploaded successfully via S3"
+        # Clean up permissions in background after successful transfer
+        manage_s3_permissions "remove" "$instance_id" "$region" "$bucket_name" >/dev/null 2>&1
         return 0
     else
-        # Clean up S3 object if command failed
+        # Clean up S3 object and permissions if command failed
         aws s3 rm "s3://$bucket_name/$s3_key" --region "$region" >/dev/null 2>&1
+        manage_s3_permissions "remove" "$instance_id" "$region" "$bucket_name" >/dev/null 2>&1
         return 1
     fi
 }
@@ -320,6 +567,22 @@ download_file_large() {
         return 1
     fi
 
+    # Attach S3 permissions to instance role (background operation)
+    log_info "Configuring S3 permissions for instance..."
+    
+    # First validate IAM setup
+    if ! validate_instance_iam_setup "$instance_id" "$region"; then
+        return 1
+    fi
+    
+    if ! manage_s3_permissions "attach" "$instance_id" "$region" "$bucket_name"; then
+        log_error "Failed to configure S3 permissions. The instance may need proper IAM role setup."
+        return 1
+    fi
+
+    # Add a small delay to allow IAM changes to propagate
+    sleep 2
+
     # Generate unique S3 key
     local s3_key
     s3_key="downloads/$(date +%s)-$(basename "$remote_path")"
@@ -340,11 +603,15 @@ download_file_large() {
 
     if [ -z "$command_id" ]; then
         log_error "Failed to initiate S3 upload command on instance"
+        # Clean up permissions
+        manage_s3_permissions "remove" "$instance_id" "$region" "$bucket_name" >/dev/null 2>&1
         return 1
     fi
 
     # Wait for command completion
     if ! wait_for_command_completion "$command_id" "$instance_id" "$region"; then
+        # Clean up permissions
+        manage_s3_permissions "remove" "$instance_id" "$region" "$bucket_name" >/dev/null 2>&1
         return 1
     fi
 
@@ -359,6 +626,8 @@ download_file_large() {
 
     if echo "$output" | grep -q "FILE_NOT_FOUND"; then
         log_error "Remote file not found: $remote_path"
+        # Clean up permissions
+        manage_s3_permissions "remove" "$instance_id" "$region" "$bucket_name" >/dev/null 2>&1
         return 1
     fi
 
@@ -366,14 +635,16 @@ download_file_large() {
     log_info "Downloading from S3: s3://$bucket_name/$s3_key"
 
     if aws s3 cp "s3://$bucket_name/$s3_key" "$local_file" --region "$region"; then
-        # Clean up S3 object
+        # Clean up S3 object and permissions
         aws s3 rm "s3://$bucket_name/$s3_key" --region "$region" >/dev/null 2>&1
+        manage_s3_permissions "remove" "$instance_id" "$region" "$bucket_name" >/dev/null 2>&1
         log_info "Large file downloaded successfully via S3"
         return 0
     else
         log_error "Failed to download file from S3"
-        # Clean up S3 object
+        # Clean up S3 object and permissions
         aws s3 rm "s3://$bucket_name/$s3_key" --region "$region" >/dev/null 2>&1
+        manage_s3_permissions "remove" "$instance_id" "$region" "$bucket_name" >/dev/null 2>&1
         return 1
     fi
 }
@@ -556,4 +827,113 @@ download_file() {
         log_info "Using S3 intermediary transfer (file ≥ 1MB)"
         download_file_large "$remote_path" "$local_file" "$instance_id" "$region"
     fi
+}
+
+# Function to handle multiple instances with S3 permissions (for tagged operations)
+manage_multiple_instance_s3_permissions() {
+    local action="$1"  # "attach" or "remove"
+    local region="$2"
+    local bucket_name="$3"
+    shift 3
+    local instance_ids=("$@")
+
+    local success_count=0
+    local failed_instances=()
+
+    for instance_id in "${instance_ids[@]}"; do
+        if manage_s3_permissions "$action" "$instance_id" "$region" "$bucket_name"; then
+            ((success_count++))
+            debug_log "S3 permissions $action successful for instance: $instance_id"
+        else
+            failed_instances+=("$instance_id")
+            log_warn "Failed to $action S3 permissions for instance: $instance_id"
+        fi
+    done
+
+    if [ ${#failed_instances[@]} -gt 0 ]; then
+        log_warn "Failed to $action S3 permissions for ${#failed_instances[@]} instances: ${failed_instances[*]}"
+        return 1
+    fi
+
+    log_info "Successfully ${action}ed S3 permissions for $success_count instances"
+    return 0
+}
+
+# Cleanup function for emergency cleanup of all temporary policies
+emergency_cleanup_s3_permissions() {
+    local region="$1"
+    
+    log_info "Performing emergency cleanup of temporary S3 policies..."
+    
+    # Find all temporary policy files
+    local policy_files
+    policy_files=$(find /tmp -name "ztiaws-s3-policy-*" -type f 2>/dev/null || true)
+    
+    if [[ -z "$policy_files" ]]; then
+        debug_log "No temporary policy files found for cleanup"
+        return 0
+    fi
+    
+    local cleanup_count=0
+    while IFS= read -r policy_file; do
+        if [[ -f "$policy_file" ]]; then
+            local policy_arn
+            policy_arn=$(cat "$policy_file" 2>/dev/null)
+            
+            if [[ -n "$policy_arn" ]]; then
+                # Extract instance ID from filename
+                local instance_id
+                instance_id=$(basename "$policy_file" | sed 's/ztiaws-s3-policy-\(.*\)-[0-9]*/\1/')
+                
+                if [[ -n "$instance_id" ]]; then
+                    remove_s3_permissions "$instance_id" "$region" >/dev/null 2>&1
+                    ((cleanup_count++))
+                fi
+            fi
+            
+            rm -f "$policy_file"
+        fi
+    done <<< "$policy_files"
+    
+    if [ $cleanup_count -gt 0 ]; then
+        log_info "Emergency cleanup completed for $cleanup_count policy files"
+    else
+        debug_log "No policies required cleanup"
+    fi
+    
+    return 0
+}
+
+# Function to validate that instance has required IAM setup for S3 operations
+validate_instance_iam_setup() {
+    local instance_id="$1"
+    local region="$2"
+    
+    debug_log "Validating IAM setup for instance: $instance_id"
+    
+    # Check if instance has IAM instance profile
+    local instance_profile_arn
+    instance_profile_arn=$(aws ec2 describe-instances \
+        --region "$region" \
+        --instance-ids "$instance_id" \
+        --query 'Reservations[0].Instances[0].IamInstanceProfile.Arn' \
+        --output text 2>/dev/null)
+
+    if [[ -z "$instance_profile_arn" || "$instance_profile_arn" == "None" ]]; then
+        log_error "Instance $instance_id does not have an IAM instance profile attached"
+        log_error "Please attach an IAM instance profile with appropriate permissions to the instance"
+        return 1
+    fi
+    
+    debug_log "Instance has IAM instance profile: $instance_profile_arn"
+    
+    # Get role name and validate it exists
+    local role_name
+    if ! role_name=$(get_instance_profile_role "$instance_id" "$region"); then
+        log_error "Failed to get IAM role for instance $instance_id"
+        return 1
+    fi
+    
+    debug_log "IAM validation successful for instance: $instance_id (role: $role_name)"
+    return 0
 }
