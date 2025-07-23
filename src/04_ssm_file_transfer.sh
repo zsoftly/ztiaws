@@ -27,6 +27,12 @@ CURRENT_REGION=""
 # Configuration for IAM propagation wait time
 IAM_PROPAGATION_DELAY="${IAM_PROPAGATION_DELAY:-5}"  # Default 5 seconds
 
+# Timeout configuration constants
+STALE_LOCK_TIMEOUT_SECONDS=300     # 5 minutes - timeout for stale lock detection
+COMMAND_COMPLETION_TIMEOUT=300     # 5 minutes - max wait for SSM command completion
+IAM_LOCK_ACQUISITION_TIMEOUT=30    # 30 seconds - max wait for IAM lock acquisition
+REGISTRY_CLEANUP_AGE_THRESHOLD=86400  # 24 hours - age threshold for registry entry cleanup
+
 # Lock directory for preventing concurrent policy operations on the same instance
 LOCK_DIR="/tmp/ztiaws-locks"
 
@@ -69,9 +75,56 @@ init_temp_directory() {
     return 0
 }
 
-# Add a policy to the registry
-# Format: instance_id|region|policy_arn|policy_file|timestamp
-add_policy_to_registry() {
+# Helper function to acquire registry lock with retry logic
+acquire_registry_lock() {
+    local registry_lock="${ZTIAWS_TEMP_DIR}/.registry.lock"
+    local attempts=0
+    local max_attempts=10
+    
+    while [ $attempts -lt $max_attempts ]; do
+        if mkdir "$registry_lock" 2>/dev/null; then
+            echo "$registry_lock"
+            return 0
+        fi
+        sleep 0.1
+        attempts=$((attempts + 1))
+    done
+    
+    return 1
+}
+
+# Helper function to release registry lock
+release_registry_lock() {
+    local registry_lock="$1"
+    
+    if [[ -n "$registry_lock" && -d "$registry_lock" ]]; then
+        rmdir "$registry_lock" 2>/dev/null || true
+    fi
+}
+
+# Helper function to perform atomic registry operations with locking
+with_registry_lock() {
+    local operation_function="$1"
+    shift
+    local operation_args=("$@")
+    
+    init_temp_directory || return 1
+    
+    local registry_lock
+    if registry_lock=$(acquire_registry_lock); then
+        # Execute the operation function with its arguments
+        "$operation_function" "${operation_args[@]}"
+        local result=$?
+        release_registry_lock "$registry_lock"
+        return $result
+    else
+        log_warn "Failed to acquire registry lock for operation: $operation_function"
+        return 1
+    fi
+}
+
+# Internal operation function for adding policy to registry
+_add_policy_operation() {
     local instance_id="$1"
     local region="$2"
     local policy_arn="$3"
@@ -79,69 +132,41 @@ add_policy_to_registry() {
     local timestamp
     timestamp=$(date +%s)
     
-    init_temp_directory || return 1
+    echo "${instance_id}|${region}|${policy_arn}|${policy_file}|${timestamp}" >> "$POLICY_REGISTRY_FILE"
+    debug_log "Added policy to registry: $policy_arn for instance $instance_id"
+    return 0
+}
+
+# Add a policy to the registry
+# Format: instance_id|region|policy_arn|policy_file|timestamp
+add_policy_to_registry() {
+    local instance_id="$1"
+    local region="$2"
+    local policy_arn="$3"
+    local policy_file="$4"
     
-    # Use a lock file to prevent concurrent registry modifications
-    local registry_lock="${ZTIAWS_TEMP_DIR}/.registry.lock"
-    local lock_acquired=false
-    local attempts=0
-    local max_attempts=10
+    with_registry_lock "_add_policy_operation" "$instance_id" "$region" "$policy_arn" "$policy_file"
+}
+
+# Internal operation function for removing policies from registry
+_remove_policies_operation() {
+    local instance_id="$1"
     
-    while [ $attempts -lt $max_attempts ]; do
-        if mkdir "$registry_lock" 2>/dev/null; then
-            lock_acquired=true
-            break
-        fi
-        sleep 0.1
-        attempts=$((attempts + 1))
-    done
-    
-    if [[ "$lock_acquired" == "true" ]]; then
-        echo "${instance_id}|${region}|${policy_arn}|${policy_file}|${timestamp}" >> "$POLICY_REGISTRY_FILE"
-        rmdir "$registry_lock" 2>/dev/null || true
-        debug_log "Added policy to registry: $policy_arn for instance $instance_id"
-        return 0
-    else
-        log_warn "Failed to acquire registry lock for adding policy"
-        return 1
+    # Create a temporary file with entries not matching the instance_id
+    local temp_registry="${ZTIAWS_TEMP_DIR}/.registry.tmp"
+    if [[ -f "$POLICY_REGISTRY_FILE" ]]; then
+        grep -v "^${instance_id}|" "$POLICY_REGISTRY_FILE" > "$temp_registry" 2>/dev/null || true
+        mv "$temp_registry" "$POLICY_REGISTRY_FILE"
     fi
+    debug_log "Removed policies from registry for instance: $instance_id"
+    return 0
 }
 
 # Remove policies from registry for a specific instance
 remove_policies_from_registry() {
     local instance_id="$1"
     
-    init_temp_directory || return 1
-    
-    # Use a lock file to prevent concurrent registry modifications
-    local registry_lock="${ZTIAWS_TEMP_DIR}/.registry.lock"
-    local lock_acquired=false
-    local attempts=0
-    local max_attempts=10
-    
-    while [ $attempts -lt $max_attempts ]; do
-        if mkdir "$registry_lock" 2>/dev/null; then
-            lock_acquired=true
-            break
-        fi
-        sleep 0.1
-        attempts=$((attempts + 1))
-    done
-    
-    if [[ "$lock_acquired" == "true" ]]; then
-        # Create a temporary file with entries not matching the instance_id
-        local temp_registry="${ZTIAWS_TEMP_DIR}/.registry.tmp"
-        if [[ -f "$POLICY_REGISTRY_FILE" ]]; then
-            grep -v "^${instance_id}|" "$POLICY_REGISTRY_FILE" > "$temp_registry" 2>/dev/null || true
-            mv "$temp_registry" "$POLICY_REGISTRY_FILE"
-        fi
-        rmdir "$registry_lock" 2>/dev/null || true
-        debug_log "Removed policies from registry for instance: $instance_id"
-        return 0
-    else
-        log_warn "Failed to acquire registry lock for removing policies"
-        return 1
-    fi
+    with_registry_lock "_remove_policies_operation" "$instance_id"
 }
 
 # Get policies for a specific instance from registry
@@ -153,66 +178,49 @@ get_policies_for_instance() {
     fi
 }
 
-# Clean up stale registry entries (older than 24 hours)
-cleanup_stale_registry_entries() {
-    init_temp_directory || return 1
-    
-    local registry_lock="${ZTIAWS_TEMP_DIR}/.registry.lock"
-    local lock_acquired=false
-    local attempts=0
-    local max_attempts=10
-    
-    while [ $attempts -lt $max_attempts ]; do
-        if mkdir "$registry_lock" 2>/dev/null; then
-            lock_acquired=true
-            break
-        fi
-        sleep 0.1
-        attempts=$((attempts + 1))
-    done
-    
-    if [[ "$lock_acquired" == "true" ]]; then
-        if [[ -f "$POLICY_REGISTRY_FILE" ]]; then
-            local current_time
-            current_time=$(date +%s)
-            local temp_registry="${ZTIAWS_TEMP_DIR}/.registry.tmp"
-            local cleaned_entries=0
+# Internal operation function for cleaning up stale registry entries
+_cleanup_stale_entries_operation() {
+    if [[ -f "$POLICY_REGISTRY_FILE" ]]; then
+        local current_time
+        current_time=$(date +%s)
+        local temp_registry="${ZTIAWS_TEMP_DIR}/.registry.tmp"
+        local cleaned_entries=0
+        
+        while IFS='|' read -r instance_id region policy_arn policy_file timestamp; do
+            # Skip empty lines
+            [[ -z "$instance_id" ]] && continue
             
-            while IFS='|' read -r instance_id region policy_arn policy_file timestamp; do
-                # Skip empty lines
-                [[ -z "$instance_id" ]] && continue
-                
-                # Check if entry is older than 24 hours (86400 seconds)
-                local age=$((current_time - timestamp))
-                if [ $age -gt 86400 ]; then
-                    debug_log "Removing stale registry entry for instance $instance_id (age: ${age}s)"
-                    # Clean up associated policy file if it exists
-                    [[ -f "$policy_file" ]] && rm -f "$policy_file"
-                    ((cleaned_entries++))
-                else
-                    # Keep this entry
-                    echo "${instance_id}|${region}|${policy_arn}|${policy_file}|${timestamp}" >> "$temp_registry"
-                fi
-            done < "$POLICY_REGISTRY_FILE"
-            
-            # Replace registry with cleaned version
-            if [[ -f "$temp_registry" ]]; then
-                mv "$temp_registry" "$POLICY_REGISTRY_FILE"
+            # Check if entry is older than configured age threshold
+            local age=$((current_time - timestamp))
+            if [ $age -gt "$REGISTRY_CLEANUP_AGE_THRESHOLD" ]; then
+                debug_log "Removing stale registry entry for instance $instance_id (age: ${age}s)"
+                # Clean up associated policy file if it exists
+                [[ -f "$policy_file" ]] && rm -f "$policy_file"
+                ((cleaned_entries++))
             else
-                # No entries left, create empty registry
-                : > "$POLICY_REGISTRY_FILE"
+                # Keep this entry
+                echo "${instance_id}|${region}|${policy_arn}|${policy_file}|${timestamp}" >> "$temp_registry"
             fi
-            
-            if [ $cleaned_entries -gt 0 ]; then
-                debug_log "Cleaned up $cleaned_entries stale registry entries"
-            fi
+        done < "$POLICY_REGISTRY_FILE"
+        
+        # Replace registry with cleaned version
+        if [[ -f "$temp_registry" ]]; then
+            mv "$temp_registry" "$POLICY_REGISTRY_FILE"
+        else
+            # No entries left, create empty registry
+            : > "$POLICY_REGISTRY_FILE"
         fi
-        rmdir "$registry_lock" 2>/dev/null || true
-        return 0
-    else
-        log_warn "Failed to acquire registry lock for cleanup"
-        return 1
+        
+        if [ $cleaned_entries -gt 0 ]; then
+            debug_log "Cleaned up $cleaned_entries stale registry entries"
+        fi
     fi
+    return 0
+}
+
+# Clean up stale registry entries (older than configured age threshold)
+cleanup_stale_registry_entries() {
+    with_registry_lock "_cleanup_stale_entries_operation"
 }
 
 # Create a secure temporary file for storing policy ARNs
@@ -236,7 +244,7 @@ create_secure_temp_file() {
 acquire_instance_lock() {
     local instance_id="$1"
     local lock_file="${LOCK_DIR}/iam-${instance_id}.lock"
-    local max_wait=30  # Maximum wait time for lock acquisition
+    local max_wait="$IAM_LOCK_ACQUISITION_TIMEOUT"  # Maximum wait time for lock acquisition
     local wait_interval=1
     local elapsed=0
     
@@ -257,7 +265,7 @@ acquire_instance_lock() {
         sleep $wait_interval
         elapsed=$((elapsed + wait_interval))
         
-        # Check if lock is stale (older than 5 minutes)
+        # Check if lock is stale (older than configured timeout)
         if [ -d "$lock_file" ]; then
             local lock_age
             if lock_age=$(stat -c %Y "$lock_file" 2>/dev/null); then
@@ -265,7 +273,7 @@ acquire_instance_lock() {
                 current_time=$(date +%s)
                 local age_seconds=$((current_time - lock_age))
                 
-                if [ $age_seconds -gt 300 ]; then  # 5 minutes
+                if [ $age_seconds -gt "$STALE_LOCK_TIMEOUT_SECONDS" ]; then
                     debug_log "Removing stale lock for instance: $instance_id (age: ${age_seconds}s)"
                     rmdir "$lock_file" 2>/dev/null || true
                 fi
@@ -598,10 +606,11 @@ upload_file_small() {
         return 1
     fi
 
-    # Create the upload command with proper directory creation
+    # Create the upload command with proper directory creation and shell escaping
     local remote_dir
     remote_dir=$(dirname "$remote_path")
-    local upload_command="mkdir -p '$remote_dir' && echo '$base64_content' | base64 -d > '$remote_path'"
+    local upload_command
+    upload_command="mkdir -p $(printf '%q' "$remote_dir") && echo $(printf '%q' "$base64_content") | base64 -d > $(printf '%q' "$remote_path")"
     
     # Execute via SSM
     local command_id
@@ -992,10 +1001,11 @@ upload_file_large() {
         return 1
     fi
 
-    # Create download command for instance
+    # Create download command for instance with proper shell escaping
     local remote_dir
     remote_dir=$(dirname "$remote_path")
-    local download_command="mkdir -p '$remote_dir' && aws s3 cp s3://$bucket_name/$s3_key '$remote_path' --region $region && aws s3 rm s3://$bucket_name/$s3_key --region $region"
+    local download_command
+    download_command="mkdir -p $(printf '%q' "$remote_dir") && aws s3 cp s3://$(printf '%q' "$bucket_name")/$(printf '%q' "$s3_key") $(printf '%q' "$remote_path") --region $(printf '%q' "$region") && aws s3 rm s3://$(printf '%q' "$bucket_name")/$(printf '%q' "$s3_key") --region $(printf '%q' "$region")"
 
     # Execute download on instance
     local command_id
@@ -1140,7 +1150,7 @@ wait_for_command_completion() {
     local command_id="$1"
     local instance_id="$2"
     local region="$3"
-    local max_wait=300  # 5 minutes max wait
+    local max_wait="$COMMAND_COMPLETION_TIMEOUT"  # Max wait for command completion
     local wait_interval=2
     local elapsed=0
 
@@ -1470,7 +1480,7 @@ emergency_cleanup_s3_permissions() {
         fi
     fi
     
-    # Clean up stale lock files (older than 5 minutes)
+    # Clean up stale lock files (older than configured timeout)
     if [[ -d "$LOCK_DIR" ]]; then
         debug_log "Cleaning up stale lock files..."
         local lock_cleanup_count=0
@@ -1488,7 +1498,7 @@ emergency_cleanup_s3_permissions() {
                     current_time=$(date +%s)
                     local age_seconds=$((current_time - lock_age))
                     
-                    if [ $age_seconds -gt 300 ]; then  # 5 minutes
+                    if [ $age_seconds -gt "$STALE_LOCK_TIMEOUT_SECONDS" ]; then
                         debug_log "Removing stale lock: $(basename "$lock_file") (age: ${age_seconds}s)"
                         rmdir "$lock_file" 2>/dev/null || true
                         ((lock_cleanup_count++))
