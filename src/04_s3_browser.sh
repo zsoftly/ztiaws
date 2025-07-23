@@ -94,7 +94,6 @@ s3_get_object() {
     log_info "Downloading $object_key from bucket $bucket_name..."
     
     if aws s3 cp "s3://$bucket_name/$object_key" "./$local_file"; then
-        local file_size
         log_info "✅ Downloaded $object_key as $local_file"
     else
         log_error "Failed to download $object_key"
@@ -121,7 +120,6 @@ s3_put_object() {
         return 1
     fi
     
-    local file_size
     log_info "Uploading $local_file to bucket $bucket_name..."
     
     if aws s3 cp "$local_file" "s3://$bucket_name/"; then
