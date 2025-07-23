@@ -52,13 +52,9 @@ validate_region_code() {
     # Get the region using the existing function
     local aws_region
     if aws_region=$(get_region "$region_code" 2>/dev/null) && [[ -n "$aws_region" ]]; then
-        # Assign to result variable using nameref if supported, otherwise use eval
+        # Assign to result variable using printf -v (safe variable assignment)
         if [[ -n "$result_var" ]]; then
-            if declare -p "$result_var" >/dev/null 2>&1; then
-                printf -v "$result_var" "%s" "$aws_region"
-            else
-                eval "$result_var=\"$aws_region\""
-            fi
+            printf -v "$result_var" "%s" "$aws_region"
         fi
         return 0
     else
