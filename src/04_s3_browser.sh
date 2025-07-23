@@ -67,7 +67,7 @@ s3_list_objects() {
     
     object_count=$(aws s3 ls "s3://$bucket_name" --recursive | wc -l)
     if [ "$object_count" -eq 0 ]; then
-        log_warning "Bucket is empty"
+        log_warn "Bucket is empty"
     else
         echo
         log_info "Found $object_count object(s) in bucket"
