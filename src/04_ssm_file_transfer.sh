@@ -7,7 +7,7 @@
 FILE_SIZE_THRESHOLD=$((1024 * 1024))
 
 # S3 bucket for large file transfers (will be created if needed)
-S3_BUCKET_PREFIX="ssm-file-transfer"
+S3_BUCKET_PREFIX="ztiaws-ssm-file-transfer"
 
 # Validate file exists and is readable
 validate_local_file() {
