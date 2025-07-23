@@ -39,9 +39,12 @@ POLICY_REGISTRY_FILE="${ZTIAWS_TEMP_DIR}/policy-registry"
 # Generate a unique identifier for policy names and temp files
 # Combines timestamp, hostname, and random number for uniqueness
 generate_unique_id() {
-    local timestamp=$(date +%s)
-    local hostname=$(hostname -s 2>/dev/null || echo "unknown")
-    local random=$(od -An -N2 -tu2 < /dev/urandom | tr -d ' ')
+    local timestamp
+    local hostname
+    local random
+    timestamp=$(date +%s)
+    hostname=$(hostname -s 2>/dev/null || echo "unknown")
+    random=$(od -An -N2 -tu2 < /dev/urandom | tr -d ' ')
     echo "${timestamp}-${hostname}-${random}"
 }
 
@@ -73,7 +76,8 @@ add_policy_to_registry() {
     local region="$2"
     local policy_arn="$3"
     local policy_file="$4"
-    local timestamp=$(date +%s)
+    local timestamp
+    timestamp=$(date +%s)
     
     init_temp_directory || return 1
     
@@ -169,7 +173,8 @@ cleanup_stale_registry_entries() {
     
     if [[ "$lock_acquired" == "true" ]]; then
         if [[ -f "$POLICY_REGISTRY_FILE" ]]; then
-            local current_time=$(date +%s)
+            local current_time
+            current_time=$(date +%s)
             local temp_registry="${ZTIAWS_TEMP_DIR}/.registry.tmp"
             local cleaned_entries=0
             
@@ -256,7 +261,8 @@ acquire_instance_lock() {
         if [ -d "$lock_file" ]; then
             local lock_age
             if lock_age=$(stat -c %Y "$lock_file" 2>/dev/null); then
-                local current_time=$(date +%s)
+                local current_time
+                current_time=$(date +%s)
                 local age_seconds=$((current_time - lock_age))
                 
                 if [ $age_seconds -gt 300 ]; then  # 5 minutes
@@ -330,13 +336,29 @@ init_temp_directory >/dev/null 2>&1 || true
 # Function to set the current region (can be called by main script)
 # This is optional - the region will be set automatically when upload_file/download_file are called
 set_file_transfer_region() {
-    local region="$1"
-    if [[ -n "$region" ]]; then
-        CURRENT_REGION="$region"
-        debug_log "File transfer module region set to: $region"
-    else
+    local region_code="$1"
+    
+    if [[ -z "$region_code" ]]; then
         log_warn "set_file_transfer_region called with empty region"
+        return 1
     fi
+    
+    # Validate region code if the validation function is available
+    if command -v validate_region_code >/dev/null 2>&1; then
+        local validated_region
+        if ! validate_region_code "$region_code" validated_region; then
+            log_error "Invalid region code: $region_code"
+            return 1
+        fi
+        CURRENT_REGION="$validated_region"
+        debug_log "File transfer module region set to: $validated_region (from code: $region_code)"
+    else
+        # Fallback: assume it's already a valid AWS region name
+        CURRENT_REGION="$region_code"
+        debug_log "File transfer module region set to: $region_code (validation not available)"
+    fi
+    
+    return 0
 }
 
 # Validate file exists and is readable
@@ -357,23 +379,6 @@ validate_local_file() {
 }
 
 # Get file size in bytes
-create_lifecycle_config() {
-    local config_file="$1"
-
-    cat > "$config_file" << 'EOF'
-{
-    "Rules": [
-        {
-            "ID": "SSMFileTransferCleanup",
-            "Status": "Enabled",
-            "Expiration": {
-                "Days": 1
-            }
-        }
-    ]
-}
-EOF
-}
 get_file_size() {
     local file_path="$1"
 
@@ -399,6 +404,118 @@ get_s3_bucket_name() {
     echo "${S3_BUCKET_PREFIX}-${account_id}-${region}"
 }
 
+# Create lifecycle configuration for S3 bucket auto-cleanup
+create_lifecycle_config() {
+    local config_file="$1"
+
+    if [[ -z "$config_file" ]]; then
+        log_error "create_lifecycle_config: config file path is required"
+        return 1
+    fi
+
+    # Create comprehensive lifecycle configuration
+    cat > "$config_file" << 'EOF'
+{
+    "Rules": [
+        {
+            "ID": "SSMFileTransferCleanup",
+            "Status": "Enabled",
+            "Filter": {
+                "Prefix": ""
+            },
+            "Expiration": {
+                "Days": 1
+            },
+            "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 1
+            }
+        }
+    ]
+}
+EOF
+
+    # Validate that the file was created and contains valid JSON
+    if [[ ! -f "$config_file" ]]; then
+        log_error "Failed to create lifecycle configuration file: $config_file"
+        return 1
+    fi
+
+    # Basic JSON validation using python if available, or jq if available
+    if command -v python3 >/dev/null 2>&1; then
+        if ! python3 -m json.tool "$config_file" >/dev/null 2>&1; then
+            log_error "Invalid JSON in lifecycle configuration file"
+            rm -f "$config_file"
+            return 1
+        fi
+    elif command -v jq >/dev/null 2>&1; then
+        if ! jq . "$config_file" >/dev/null 2>&1; then
+            log_error "Invalid JSON in lifecycle configuration file"
+            rm -f "$config_file"
+            return 1
+        fi
+    fi
+
+    debug_log "Lifecycle configuration file created successfully: $config_file"
+    return 0
+}
+
+# Apply lifecycle configuration to ensure auto-cleanup
+apply_lifecycle_config() {
+    local bucket_name="$1"
+    local region="$2"
+    
+    debug_log "Applying lifecycle configuration to bucket: $bucket_name"
+    
+    # Create lifecycle configuration file
+    local lifecycle_config_file
+    lifecycle_config_file=$(mktemp)
+    
+    create_lifecycle_config "$lifecycle_config_file"
+    
+    # Apply lifecycle configuration with proper error handling
+    if aws s3api put-bucket-lifecycle-configuration \
+        --bucket "$bucket_name" \
+        --region "$region" \
+        --lifecycle-configuration "file://$lifecycle_config_file" 2>/dev/null; then
+        debug_log "Lifecycle configuration applied successfully to bucket: $bucket_name"
+        rm -f "$lifecycle_config_file"
+        return 0
+    else
+        log_warn "Failed to apply lifecycle configuration to bucket: $bucket_name"
+        rm -f "$lifecycle_config_file"
+        return 1
+    fi
+}
+
+# Verify lifecycle configuration is active
+verify_lifecycle_config() {
+    local bucket_name="$1"
+    local region="$2"
+    
+    debug_log "Verifying lifecycle configuration for bucket: $bucket_name"
+    
+    # Check if lifecycle configuration exists and is enabled
+    local lifecycle_status
+    # shellcheck disable=SC2016
+    if lifecycle_status=$(aws s3api get-bucket-lifecycle-configuration \
+        --bucket "$bucket_name" \
+        --region "$region" \
+        --query 'Rules[?ID==`SSMFileTransferCleanup`].Status' \
+        --output text 2>/dev/null); then
+        
+        if [[ "$lifecycle_status" == "Enabled" ]]; then
+            debug_log "Lifecycle configuration verified as enabled for bucket: $bucket_name"
+            return 0
+        else
+            log_warn "Lifecycle configuration exists but is not enabled for bucket: $bucket_name"
+            return 1
+        fi
+    else
+        debug_log "No lifecycle configuration found for bucket: $bucket_name"
+        return 1
+    fi
+}
+
 # Create S3 bucket if it doesn't exist
 ensure_s3_bucket() {
     local bucket_name="$1"
@@ -406,61 +523,63 @@ ensure_s3_bucket() {
 
     log_info "Checking S3 bucket: $bucket_name"
 
+    local bucket_created=false
+
     # Check if bucket exists
     if aws s3api head-bucket --bucket "$bucket_name" --region "$region" >/dev/null 2>&1; then
         log_info "S3 bucket already exists: $bucket_name"
-        return 0
+    else
+        log_info "Creating S3 bucket: $bucket_name"
+
+        # Create bucket with appropriate configuration
+        if [ "$region" = "us-east-1" ]; then
+            if aws s3api create-bucket \
+                --bucket "$bucket_name" \
+                --region "$region" >/dev/null 2>&1; then
+                bucket_created=true
+            else
+                log_error "Failed to create S3 bucket: $bucket_name"
+                return 1
+            fi
+        else
+            if aws s3api create-bucket \
+                --bucket "$bucket_name" \
+                --region "$region" \
+                --create-bucket-configuration LocationConstraint="$region" >/dev/null 2>&1; then
+                bucket_created=true
+            else
+                log_error "Failed to create S3 bucket: $bucket_name"
+                return 1
+            fi
+        fi
     fi
 
-    log_info "Creating S3 bucket: $bucket_name"
-
-    # Create bucket with appropriate configuration
-    if [ "$region" = "us-east-1" ]; then
-        if aws s3api create-bucket \
-            --bucket "$bucket_name" \
-            --region "$region" >/dev/null 2>&1; then
-            # Set bucket lifecycle to auto-delete files after 1 day
-            local lifecycle_config_file
-            lifecycle_config_file=$(mktemp)
-
-            create_lifecycle_config "$lifecycle_config_file"
-
-            aws s3api put-bucket-lifecycle-configuration \
-                --bucket "$bucket_name" \
-                --lifecycle-configuration "file://$lifecycle_config_file" >/dev/null 2>&1
-
-            rm -f "$lifecycle_config_file"
-
-            log_info "S3 bucket created successfully: $bucket_name"
-            return 0
-        else
-            log_error "Failed to create S3 bucket: $bucket_name"
-            return 1
+    # Ensure lifecycle configuration is applied (for both existing and new buckets)
+    if ! verify_lifecycle_config "$bucket_name" "$region"; then
+        log_info "Applying lifecycle configuration for auto-cleanup..."
+        if ! apply_lifecycle_config "$bucket_name" "$region"; then
+            if [[ "$bucket_created" == "true" ]]; then
+                log_error "Failed to apply lifecycle configuration to newly created bucket"
+                # Clean up the bucket we just created since it's not properly configured
+                aws s3api delete-bucket --bucket "$bucket_name" --region "$region" >/dev/null 2>&1
+                return 1
+            else
+                log_warn "Failed to apply lifecycle configuration to existing bucket (continuing anyway)"
+                # For existing buckets, we'll continue even if lifecycle config fails
+                # as the bucket may have other lifecycle rules or permissions issues
+            fi
         fi
     else
-        if aws s3api create-bucket \
-            --bucket "$bucket_name" \
-            --region "$region" \
-            --create-bucket-configuration LocationConstraint="$region" >/dev/null 2>&1; then
-            # Set bucket lifecycle to auto-delete files after 1 day
-            local lifecycle_config_file
-            lifecycle_config_file=$(mktemp)
-
-            create_lifecycle_config "$lifecycle_config_file"
-
-            aws s3api put-bucket-lifecycle-configuration \
-                --bucket "$bucket_name" \
-                --lifecycle-configuration "file://$lifecycle_config_file" >/dev/null 2>&1
-
-            rm -f "$lifecycle_config_file"
-
-            log_info "S3 bucket created successfully: $bucket_name"
-            return 0
-        else
-            log_error "Failed to create S3 bucket: $bucket_name"
-            return 1
-        fi
+        debug_log "Lifecycle configuration already properly configured for bucket: $bucket_name"
     fi
+
+    if [[ "$bucket_created" == "true" ]]; then
+        log_info "S3 bucket created successfully with lifecycle configuration: $bucket_name"
+    else
+        log_info "S3 bucket verified and configured: $bucket_name"
+    fi
+    
+    return 0
 }
 
 # Upload small file via base64 encoding
@@ -480,7 +599,8 @@ upload_file_small() {
     fi
 
     # Create the upload command with proper directory creation
-    local remote_dir=$(dirname "$remote_path")
+    local remote_dir
+    remote_dir=$(dirname "$remote_path")
     local upload_command="mkdir -p '$remote_dir' && echo '$base64_content' | base64 -d > '$remote_path'"
     
     # Execute via SSM
@@ -873,7 +993,8 @@ upload_file_large() {
     fi
 
     # Create download command for instance
-    local remote_dir=$(dirname "$remote_path")
+    local remote_dir
+    remote_dir=$(dirname "$remote_path")
     local download_command="mkdir -p '$remote_dir' && aws s3 cp s3://$bucket_name/$s3_key '$remote_path' --region $region && aws s3 rm s3://$bucket_name/$s3_key --region $region"
 
     # Execute download on instance
@@ -1081,6 +1202,12 @@ upload_file() {
     local local_file="$3"
     local remote_path="$4"
 
+    # Basic validation - ensure region is provided
+    if [[ -z "$region" ]]; then
+        log_error "Region parameter is required for file upload"
+        return 1
+    fi
+
     # Set current region for cleanup purposes
     CURRENT_REGION="$region"
 
@@ -1121,6 +1248,12 @@ download_file() {
     local instance_identifier="$2"
     local remote_path="$3"
     local local_file="$4"
+
+    # Basic validation - ensure region is provided
+    if [[ -z "$region" ]]; then
+        log_error "Region parameter is required for file download"
+        return 1
+    fi
 
     # Set current region for cleanup purposes
     CURRENT_REGION="$region"
@@ -1342,11 +1475,17 @@ emergency_cleanup_s3_permissions() {
         debug_log "Cleaning up stale lock files..."
         local lock_cleanup_count=0
         
-        find "$LOCK_DIR" -name "iam-*.lock" -type d 2>/dev/null | while read -r lock_file; do
+        # Store the results of the find command in an array
+        local lock_files
+        mapfile -t lock_files < <(find "$LOCK_DIR" -name "iam-*.lock" -type d 2>/dev/null)
+        
+        # Iterate over the array
+        for lock_file in "${lock_files[@]}"; do
             if [[ -d "$lock_file" ]]; then
                 local lock_age
                 if lock_age=$(stat -c %Y "$lock_file" 2>/dev/null); then
-                    local current_time=$(date +%s)
+                    local current_time
+                    current_time=$(date +%s)
                     local age_seconds=$((current_time - lock_age))
                     
                     if [ $age_seconds -gt 300 ]; then  # 5 minutes
@@ -1357,6 +1496,10 @@ emergency_cleanup_s3_permissions() {
                 fi
             fi
         done
+        
+        if [ $lock_cleanup_count -gt 0 ]; then
+            debug_log "Cleaned up $lock_cleanup_count stale lock files"
+        fi
         
         # Try to remove lock directory if empty
         rmdir "$LOCK_DIR" 2>/dev/null || true

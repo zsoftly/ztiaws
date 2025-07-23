@@ -32,9 +32,38 @@ get_region() {
         # South America
         "sae1") echo "sa-east-1" ;;     # São Paulo
 
-        # Default
-        *) echo "invalid" ;;
+        # Default - return empty for invalid regions (used by validate_region_code)
+        *) return 1 ;;
     esac
+}
+
+# Validate region code and return the AWS region name
+# Returns 0 on success, 1 on failure
+# Usage: if validate_region_code "use1" region_var; then ... fi
+validate_region_code() {
+    local region_code="$1"
+    local result_var="$2"
+    
+    # Check if region code is provided
+    if [[ -z "$region_code" ]]; then
+        return 1
+    fi
+    
+    # Get the region using the existing function
+    local aws_region
+    if aws_region=$(get_region "$region_code" 2>/dev/null) && [[ -n "$aws_region" ]]; then
+        # Assign to result variable using nameref if supported, otherwise use eval
+        if [[ -n "$result_var" ]]; then
+            if declare -p "$result_var" >/dev/null 2>&1; then
+                printf -v "$result_var" "%s" "$aws_region"
+            else
+                eval "$result_var=\"$aws_region\""
+            fi
+        fi
+        return 0
+    else
+        return 1
+    fi
 }
 
 # Get region description
