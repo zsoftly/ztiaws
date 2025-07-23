@@ -130,7 +130,6 @@ parse_parameters() {
   PARSED_PROFILE="$profile"
   PARSED_REGION="$region"
   PARSED_EXPORT_FORMAT="$export_format"
-  : "${PARSED_EXPORT_FORMAT}"
 }
 
 # Display help information
