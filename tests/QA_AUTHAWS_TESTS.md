@@ -90,4 +90,89 @@ When adding new features, developers must:
 ```bash
 # Add new test commands when implementing features
 # Example: ./authaws new-command profile-name
+
+# Test all help variations
+./authaws help                    # Original syntax
+./authaws --help                  # New flag syntax
+./authaws -h                      # Short flag syntax
+
+# Test all version variations
+./authaws version                 # Original syntax
+./authaws --version               # New flag syntax
+./authaws -v                      # Short flag syntax
+
+# Test check variations
+./authaws check                   # Original syntax
+./authaws --check                 # New flag syntax
+
+# Test profile authentication with both syntaxes
+./authaws dev-profile             # Original positional syntax
+./authaws --profile dev-profile   # New flag syntax
+./authaws -p dev-profile          # Short flag syntax
+
+# Test default profile handling
+./authaws                         # Should use default from .env
+./authaws --profile              # Should show error (missing profile name)
+./authaws -p                     # Should show error (missing profile name)
+
+# Test credential display variations
+./authaws creds                   # Original syntax (default profile)
+./authaws creds dev-profile       # Original syntax (specific profile)
+./authaws --creds --profile dev-profile  # New flag syntax
+./authaws --creds                 # Should use default/current profile
+./authaws --creds --profile       # Should show error (missing profile)
+
+# Test region override functionality
+./authaws --profile dev-profile --region us-west-2    # Override region
+./authaws -p dev-profile -r eu-west-1                 # Short flags
+./authaws --region us-east-1 --profile test-profile   # Flag order shouldn't matter
+./authaws --region                                     # Should show error (missing region)
+./authaws -r                                          # Should show error (missing region)
+
+# Test invalid flag usage
+./authaws --unknown-flag          # Should show error and suggest help
+./authaws --profile               # Missing profile name
+./authaws --region                # Missing region name
+./authaws --check --profile test  # Profile ignored with warning
+./authaws --help --profile test   # Profile ignored with warning
+./authaws --version --profile test # Profile ignored with warning
+
+# Test conflicting commands
+./authaws check version         # Should show error about multiple commands
+./authaws help creds              # Should show error about multiple commands
+./authaws check creds         # Should show error about multiple commands
+
+# Test that old and new syntaxes produce identical results
+./authaws dev-profile             # Old syntax
+./authaws --profile dev-profile   # New syntax
+# Both should produce identical profile configuration
+
+./authaws creds dev-profile       # Old syntax
+./authaws --creds --profile dev-profile  # New syntax
+# Both should show identical credential output
+
+# Test interaction with AWS_PROFILE environment variable
+export AWS_PROFILE=test-profile
+./authaws creds                   # Should use test-profile
+./authaws --creds                 # Should use test-profile
+unset AWS_PROFILE
+
+# Test with no AWS_PROFILE and no default in .env
+./authaws creds                   # Should show appropriate error
+./authaws --creds                 # Should show appropriate error
+
+# Test parameter parsing with various combinations
+./authaws --profile test --region us-east-1 --export
+./authaws -p test -r us-west-2
+./authaws --creds --profile test
+./authaws --check
+./authaws help
+./authaws --help
+./authaws version
+./authaws -v
+
+# Test that AWS CLI integration still works with flag syntax
+./authaws --profile test-profile
+export AWS_PROFILE=test-profile
+aws sts get-caller-identity       # Should work with the authenticated profile
 ```
