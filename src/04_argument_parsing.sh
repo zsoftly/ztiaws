@@ -129,8 +129,7 @@ parse_parameters() {
   PARSED_COMMAND="$command"
   PARSED_PROFILE="$profile"
   PARSED_REGION="$region"
-  PARSED_EXPORT_FORMAT="$export_format"
-  : "${PARSED_EXPORT_FORMAT}"
+  export PARSED_EXPORT_FORMAT="$export_format"
 }
 
 # Display help information
