@@ -95,9 +95,7 @@ s3_get_object() {
     
     if aws s3 cp "s3://$bucket_name/$object_key" "./$local_file"; then
         local file_size
-        file_size=$(ls -lh "$local_file" | awk '{print $5}')
         log_info "✅ Downloaded $object_key as $local_file"
-        log_info "File size: $file_size"
     else
         log_error "Failed to download $object_key"
         return 1
@@ -124,8 +122,7 @@ s3_put_object() {
     fi
     
     local file_size
-    file_size=$(ls -lh "$local_file" | awk '{print $5}')
-    log_info "Uploading $local_file ($file_size) to bucket $bucket_name..."
+    log_info "Uploading $local_file to bucket $bucket_name..."
     
     if aws s3 cp "$local_file" "s3://$bucket_name/"; then
         log_info "✅ Uploaded $local_file successfully"
