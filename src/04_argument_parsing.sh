@@ -129,7 +129,8 @@ parse_parameters() {
   PARSED_COMMAND="$command"
   PARSED_PROFILE="$profile"
   PARSED_REGION="$region"
-  export PARSED_EXPORT_FORMAT="$export_format"
+  # shellcheck disable=SC2034
+  PARSED_EXPORT_FORMAT="$export_format"
 }
 
 # Display help information
