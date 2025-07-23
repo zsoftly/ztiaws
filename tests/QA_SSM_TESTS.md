@@ -89,6 +89,9 @@ dd if=/dev/zero of=test_large.txt bs=1M count=2  # Creates 2MB file
 ./ssm upload cac1 i-1234567890abcdef0                  # Missing file paths
 ./ssm download cac1                                    # Missing parameters
 ./ssm download cac1 i-1234567890abcdef0                # Missing file paths
+
+# IAM error handling (basic validation)
+./ssm upload cac1 instance-without-iam test_small.txt /tmp/test.txt        # Should fail with clear IAM error
 ```
 
 ## Error Cases
@@ -113,6 +116,7 @@ dd if=/dev/zero of=test_large.txt bs=1M count=2  # Creates 2MB file
 - [ ] File transfer with instance names works (NEW)
 - [ ] File transfer to nested directories works (NEW)
 - [ ] File transfer error handling works (NEW)
+- [ ] IAM error handling works (basic validation)
 - [ ] S3 bucket auto-creation works (NEW)
 - [ ] S3 file auto-cleanup works (24hr lifecycle) (NEW)
 - [ ] Error handling is clear
@@ -201,6 +205,13 @@ done
 # Note: This is a long-running test - document S3 objects created during testing
 ./ssm upload cac1 web-server test_large_2mb.txt /tmp/lifecycle_test.txt
 # Check S3 console after 25 hours to verify automatic cleanup
+
+# Test concurrent file transfers (core functionality)
+echo "Concurrent test 1" > test_concurrent1.txt
+echo "Concurrent test 2" > test_concurrent2.txt
+(./ssm upload cac1 web-server test_concurrent1.txt /tmp/concurrent1.txt &
+ ./ssm upload cac1 web-server test_concurrent2.txt /tmp/concurrent2.txt &
+ wait)
 ```
 
 ## New Features (Developers add here)
@@ -228,10 +239,11 @@ After running file transfer tests, clean up test files:
 rm -f test_small.txt test_large.txt downloaded_*.txt regression_downloaded.txt
 rm -f test_tiny.txt test_medium.txt test_boundary.txt test_large_2mb.txt test_large_10mb.txt
 rm -f test_rapid_*.txt "downloaded with spaces.txt"
+rm -f test_concurrent*.txt
 
 # Clean up remote test files (optional - they don't consume much space)
-./ssm exec cac1 i-1234567890abcdef0 'rm -f /tmp/test_*.txt /tmp/regression_test.txt /tmp/rapid_*.txt /tmp/perf_test.txt /tmp/lifecycle_test.txt'
-./ssm exec cac1 web-server 'rm -f /tmp/test_*.txt /tmp/regression_test.txt /tmp/rapid_*.txt /tmp/perf_test.txt /tmp/lifecycle_test.txt'
+./ssm exec cac1 i-1234567890abcdef0 'rm -f /tmp/test_*.txt /tmp/regression_test.txt /tmp/rapid_*.txt /tmp/perf_test.txt /tmp/lifecycle_test.txt /tmp/concurrent*.txt'
+./ssm exec cac1 web-server 'rm -f /tmp/test_*.txt /tmp/regression_test.txt /tmp/rapid_*.txt /tmp/perf_test.txt /tmp/lifecycle_test.txt /tmp/concurrent*.txt'
 ./ssm exec cac1 web-server 'rm -rf "/tmp/path with spaces" /tmp/very/deep/nested/directory /opt/restricted'
 
 # Clean up test instances (if using ec2 test manager script)

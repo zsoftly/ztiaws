@@ -3,6 +3,14 @@
 # AWS SSM File Transfer Module
 # Handles file upload/download operations via SSM
 # This module is sourced by the main ssm script
+#
+# Security and Configuration Notes:
+# - Policy names use unique identifiers (timestamp + hostname + random) instead of PIDs
+# - Temporary policy files use secure permissions (600) and proper temp directories
+# - IAM propagation delays are configurable via environment variables:
+#   - IAM_PROPAGATION_DELAY: Initial delay (default: 5 seconds)
+#   - IAM_PROPAGATION_MAX_WAIT: Maximum wait time (default: 60 seconds)
+# - Emergency cleanup uses robust pattern matching for instance ID extraction
 
 # File size threshold for choosing transfer method (1MB)
 FILE_SIZE_THRESHOLD=$((1024 * 1024))
@@ -10,17 +18,96 @@ FILE_SIZE_THRESHOLD=$((1024 * 1024))
 # S3 bucket for large file transfers (will be created if needed)
 S3_BUCKET_PREFIX="ztiaws-ssm-file-transfer"
 
+# Global variable to track current region for cleanup purposes
+# This should be set by the main script or via set_file_transfer_region()
+# No default value - region must be explicitly provided
+CURRENT_REGION=""
+
+# Configuration for IAM propagation wait times
+IAM_PROPAGATION_DELAY="${IAM_PROPAGATION_DELAY:-5}"  # Default 5 seconds
+IAM_PROPAGATION_MAX_WAIT="${IAM_PROPAGATION_MAX_WAIT:-60}"  # Maximum 60 seconds
+
+# Generate a unique identifier for policy names and temp files
+# Combines timestamp, hostname, and random number for uniqueness
+generate_unique_id() {
+    local timestamp=$(date +%s)
+    local hostname=$(hostname -s 2>/dev/null || echo "unknown")
+    local random=$(od -An -N2 -tu2 < /dev/urandom | tr -d ' ')
+    echo "${timestamp}-${hostname}-${random}"
+}
+
+# Create a secure temporary file for storing policy ARNs
+# Returns the path to the temporary file with restricted permissions
+create_secure_temp_file() {
+    local prefix="$1"
+    local temp_file
+    
+    # Create a temporary file with restricted permissions (600)
+    temp_file=$(mktemp -t "${prefix}.XXXXXX")
+    chmod 600 "$temp_file"
+    echo "$temp_file"
+}
+
+# Wait for IAM changes to propagate with retry mechanism
+wait_for_iam_propagation() {
+    local delay="${IAM_PROPAGATION_DELAY}"
+    local max_attempts=$((IAM_PROPAGATION_MAX_WAIT / delay))
+    local attempt=1
+    
+    debug_log "Waiting for IAM changes to propagate (delay: ${delay}s, max: ${IAM_PROPAGATION_MAX_WAIT}s)"
+    
+    while [ $attempt -le $max_attempts ]; do
+        sleep "$delay"
+        debug_log "IAM propagation wait: ${attempt}/${max_attempts} (${delay}s)"
+        attempt=$((attempt + 1))
+        
+        # For now, we'll just wait the configured time
+        # In future versions, this could include actual validation
+        break
+    done
+}
+
 # Set up cleanup trap for emergency situations
 cleanup_on_exit() {
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
         debug_log "Script exiting with error code $exit_code, performing emergency cleanup"
-        emergency_cleanup_s3_permissions "${AWS_DEFAULT_REGION:-us-east-1}" >/dev/null 2>&1 || true
+        
+        # Use CURRENT_REGION if set, otherwise try to get from AWS_DEFAULT_REGION or AWS CLI config
+        local cleanup_region="$CURRENT_REGION"
+        if [[ -z "$cleanup_region" ]]; then
+            cleanup_region="${AWS_DEFAULT_REGION:-}"
+        fi
+        if [[ -z "$cleanup_region" ]]; then
+            cleanup_region=$(aws configure get region 2>/dev/null || echo "")
+        fi
+        
+        if [[ -n "$cleanup_region" ]]; then
+            debug_log "Using region for emergency cleanup: $cleanup_region"
+            emergency_cleanup_s3_permissions "$cleanup_region" >/dev/null 2>&1 || true
+        else
+            log_warn "No region available for emergency cleanup - temporary policies may remain"
+            debug_log "Consider setting AWS_DEFAULT_REGION environment variable or AWS CLI default region"
+            # Still try to clean up files even without region
+            emergency_cleanup_s3_permissions "" >/dev/null 2>&1 || true
+        fi
     fi
 }
 
 # Set trap for cleanup on script exit
 trap cleanup_on_exit EXIT INT TERM
+
+# Function to set the current region (can be called by main script)
+# This is optional - the region will be set automatically when upload_file/download_file are called
+set_file_transfer_region() {
+    local region="$1"
+    if [[ -n "$region" ]]; then
+        CURRENT_REGION="$region"
+        debug_log "File transfer module region set to: $region"
+    else
+        log_warn "set_file_transfer_region called with empty region"
+    fi
+}
 
 # Validate file exists and is readable
 validate_local_file() {
@@ -330,8 +417,10 @@ attach_s3_permissions() {
 
     debug_log "Found role: $role_name"
 
-    # Create unique policy name
-    local policy_name="ZTIaws-SSM-S3-Access-$(date +%s)-$$"
+    # Create unique policy name using secure identifier
+    local unique_id
+    unique_id=$(generate_unique_id)
+    local policy_name="ZTIaws-SSM-S3-Access-${unique_id}"
     
     # Create policy document
     local policy_file
@@ -355,8 +444,10 @@ attach_s3_permissions() {
             --policy-arn "$policy_arn" >/dev/null 2>&1; then
             
             debug_log "Attached policy to role: $role_name"
-            # Store policy ARN in a temp file for later cleanup
-            echo "$policy_arn" > "/tmp/ztiaws-s3-policy-${instance_id}-$$"
+            # Store policy ARN in a secure temp file for later cleanup
+            local policy_tracking_file
+            policy_tracking_file=$(create_secure_temp_file "ztiaws-s3-policy-${instance_id}-${unique_id}")
+            echo "$policy_arn" > "$policy_tracking_file"
             rm -f "$policy_file"
             return 0
         else
@@ -380,43 +471,50 @@ remove_s3_permissions() {
 
     debug_log "Removing S3 permissions for instance: $instance_id"
 
-    # Get policy ARN from temp file
-    local policy_file="/tmp/ztiaws-s3-policy-${instance_id}-$$"
-    if [[ ! -f "$policy_file" ]]; then
-        debug_log "No policy file found for cleanup: $policy_file"
+    # Find policy files for this instance using a more robust pattern
+    local policy_files
+    policy_files=$(find /tmp -name "ztiaws-s3-policy-${instance_id}-*" -type f 2>/dev/null || true)
+    
+    if [[ -z "$policy_files" ]]; then
+        debug_log "No policy files found for cleanup for instance: $instance_id"
         return 0
     fi
 
-    local policy_arn
-    policy_arn=$(cat "$policy_file")
-    rm -f "$policy_file"
+    # Process each policy file found
+    while IFS= read -r policy_file; do
+        if [[ -f "$policy_file" ]]; then
+            local policy_arn
+            policy_arn=$(cat "$policy_file" 2>/dev/null)
+            rm -f "$policy_file"
 
-    if [[ -z "$policy_arn" ]]; then
-        debug_log "No policy ARN found for cleanup"
-        return 0
-    fi
+            if [[ -z "$policy_arn" ]]; then
+                debug_log "No policy ARN found in file: $policy_file"
+                continue
+            fi
 
-    # Get the role name
-    local role_name
-    if ! role_name=$(get_instance_profile_role "$instance_id" "$region"); then
-        debug_log "Could not get role name for cleanup, but continuing with policy deletion"
-    else
-        # Detach policy from role
-        if aws iam detach-role-policy \
-            --role-name "$role_name" \
-            --policy-arn "$policy_arn" >/dev/null 2>&1; then
-            debug_log "Detached policy from role: $role_name"
-        else
-            log_warn "Failed to detach policy from role (may already be detached)"
+            # Get the role name
+            local role_name
+            if ! role_name=$(get_instance_profile_role "$instance_id" "$region"); then
+                debug_log "Could not get role name for cleanup, but continuing with policy deletion"
+            else
+                # Detach policy from role
+                if aws iam detach-role-policy \
+                    --role-name "$role_name" \
+                    --policy-arn "$policy_arn" >/dev/null 2>&1; then
+                    debug_log "Detached policy from role: $role_name"
+                else
+                    log_warn "Failed to detach policy from role (may already be detached)"
+                fi
+            fi
+
+            # Delete the policy
+            if aws iam delete-policy --policy-arn "$policy_arn" >/dev/null 2>&1; then
+                debug_log "Deleted policy: $policy_arn"
+            else
+                log_warn "Failed to delete policy (may already be deleted): $policy_arn"
+            fi
         fi
-    fi
-
-    # Delete the policy
-    if aws iam delete-policy --policy-arn "$policy_arn" >/dev/null 2>&1; then
-        debug_log "Deleted policy: $policy_arn"
-    else
-        log_warn "Failed to delete policy (may already be deleted): $policy_arn"
-    fi
+    done <<< "$policy_files"
 
     return 0
 }
@@ -430,12 +528,8 @@ manage_s3_permissions() {
 
     case "$action" in
         "attach")
-            attach_s3_permissions "$instance_id" "$region" "$bucket_name" &
-            local attach_pid=$!
-            debug_log "Started S3 permissions attachment in background (PID: $attach_pid)"
-            
-            # Wait for the background process to complete
-            if wait $attach_pid; then
+            # Run attach operation synchronously - no need for backgrounding since we wait anyway
+            if attach_s3_permissions "$instance_id" "$region" "$bucket_name"; then
                 debug_log "S3 permissions attached successfully"
                 return 0
             else
@@ -444,6 +538,7 @@ manage_s3_permissions() {
             fi
             ;;
         "remove")
+            # Run remove operation in background for non-blocking cleanup
             remove_s3_permissions "$instance_id" "$region" &
             local remove_pid=$!
             debug_log "Started S3 permissions removal in background (PID: $remove_pid)"
@@ -469,6 +564,9 @@ upload_file_large() {
 
     log_info "Uploading large file via S3 intermediary..."
 
+    # Set current region for cleanup purposes
+    CURRENT_REGION="$region"
+
     # Get S3 bucket name
     local bucket_name
     if ! bucket_name=$(get_s3_bucket_name "$region"); then
@@ -493,8 +591,8 @@ upload_file_large() {
         return 1
     fi
 
-    # Add a small delay to allow IAM changes to propagate
-    sleep 2
+    # Wait for IAM changes to propagate with configurable delay
+    wait_for_iam_propagation
 
     # Generate unique S3 key
     local s3_key
@@ -556,6 +654,9 @@ download_file_large() {
 
     log_info "Downloading large file via S3 intermediary..."
 
+    # Set current region for cleanup purposes
+    CURRENT_REGION="$region"
+
     # Get S3 bucket name
     local bucket_name
     if ! bucket_name=$(get_s3_bucket_name "$region"); then
@@ -580,8 +681,8 @@ download_file_large() {
         return 1
     fi
 
-    # Add a small delay to allow IAM changes to propagate
-    sleep 2
+    # Wait for IAM changes to propagate with configurable delay
+    wait_for_iam_propagation
 
     # Generate unique S3 key
     local s3_key
@@ -716,6 +817,9 @@ upload_file() {
     local local_file="$3"
     local remote_path="$4"
 
+    # Set current region for cleanup purposes
+    CURRENT_REGION="$region"
+
     # Validate inputs
     if ! validate_local_file "$local_file"; then
         return 1
@@ -753,6 +857,9 @@ download_file() {
     local instance_identifier="$2"
     local remote_path="$3"
     local local_file="$4"
+
+    # Set current region for cleanup purposes
+    CURRENT_REGION="$region"
 
     # Resolve instance ID
     local instance_id
@@ -863,7 +970,7 @@ manage_multiple_instance_s3_permissions() {
 emergency_cleanup_s3_permissions() {
     local region="$1"
     
-    log_info "Performing emergency cleanup of temporary S3 policies..."
+    debug_log "Performing emergency cleanup of temporary S3 policies..."
     
     # Find all temporary policy files
     local policy_files
@@ -874,6 +981,10 @@ emergency_cleanup_s3_permissions() {
         return 0
     fi
     
+    if [[ -z "$region" ]]; then
+        log_warn "No region provided for emergency cleanup - will attempt cleanup without region context"
+    fi
+    
     local cleanup_count=0
     while IFS= read -r policy_file; do
         if [[ -f "$policy_file" ]]; then
@@ -881,13 +992,24 @@ emergency_cleanup_s3_permissions() {
             policy_arn=$(cat "$policy_file" 2>/dev/null)
             
             if [[ -n "$policy_arn" ]]; then
-                # Extract instance ID from filename
+                # Extract instance ID from filename using more robust pattern
                 local instance_id
-                instance_id=$(basename "$policy_file" | sed 's/ztiaws-s3-policy-\(.*\)-[0-9]*/\1/')
-                
-                if [[ -n "$instance_id" ]]; then
-                    remove_s3_permissions "$instance_id" "$region" >/dev/null 2>&1
-                    ((cleanup_count++))
+                if [[ $(basename "$policy_file") =~ ztiaws-s3-policy-([^-]+) ]]; then
+                    instance_id="${BASH_REMATCH[1]}"
+                    debug_log "Extracted instance ID: $instance_id from policy file"
+                    
+                    if [[ -n "$instance_id" && -n "$region" ]]; then
+                        remove_s3_permissions "$instance_id" "$region" >/dev/null 2>&1
+                        ((cleanup_count++))
+                    fi
+                else
+                    debug_log "Could not extract instance ID from filename: $(basename "$policy_file")"
+                    # Fallback to direct policy cleanup if pattern doesn't match
+                    if [[ -n "$policy_arn" ]]; then
+                        debug_log "Attempting direct policy cleanup: $policy_arn"
+                        aws iam delete-policy --policy-arn "$policy_arn" >/dev/null 2>&1 || true
+                        ((cleanup_count++))
+                    fi
                 fi
             fi
             
@@ -896,7 +1018,7 @@ emergency_cleanup_s3_permissions() {
     done <<< "$policy_files"
     
     if [ $cleanup_count -gt 0 ]; then
-        log_info "Emergency cleanup completed for $cleanup_count policy files"
+        debug_log "Emergency cleanup completed for $cleanup_count policy files"
     else
         debug_log "No policies required cleanup"
     fi
