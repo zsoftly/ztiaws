@@ -1,12 +1,17 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"ztictl/internal/config"
 	"ztictl/internal/logging"
+	"ztictl/internal/splash"
 )
 
 const (
@@ -15,9 +20,10 @@ const (
 )
 
 var (
-	configFile string
-	debug      bool
-	logger     *logging.Logger
+	configFile  string
+	debug       bool
+	showSplash  bool
+	logger      *logging.Logger
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -37,6 +43,55 @@ Features:
 - Port forwarding through SSM tunnels
 - Multi-region support`,
 	Version: Version,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Skip splash for help and version commands
+		if cmd.Name() == "help" || cmd.Name() == "version" || cmd.Parent() == nil {
+			return
+		}
+		
+		// Force splash screen if --show-splash flag is used
+		var showedSplash bool
+		var err error
+		
+		if showSplash {
+			// Force splash screen by temporarily removing version file
+			homeDir, _ := os.UserHomeDir()
+			versionFile := filepath.Join(homeDir, ".ztictl_version")
+			tempFile := versionFile + ".backup"
+			
+			// Backup existing version file if it exists
+			if _, err := os.Stat(versionFile); err == nil {
+				os.Rename(versionFile, tempFile)
+			}
+			
+			// Show splash as first run
+			showedSplash, err = splash.ShowSplash(Version)
+			
+			// Restore version file
+			if _, err := os.Stat(tempFile); err == nil {
+				os.Rename(tempFile, versionFile)
+			}
+		} else {
+			// Normal splash behavior
+			showedSplash, err = splash.ShowSplash(Version)
+		}
+		
+		if err != nil {
+			logger.Debug("Failed to show splash screen", "error", err)
+			return // Don't exit, just continue
+		}
+		
+		// If this is the first run, show helpful message instead of automatic setup
+		if showedSplash {
+			cfg := config.Get()
+			if cfg != nil && cfg.SSO.StartURL == "" {
+				fmt.Println("\n🚀 Welcome to ztictl!")
+				fmt.Println("To get started, run: ztictl config init")
+				fmt.Println("Then authenticate with: ztictl auth login")
+				fmt.Println()
+			}
+		}
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -51,6 +106,7 @@ func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file (default is $HOME/.ztictl.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug output")
+	rootCmd.PersistentFlags().BoolVar(&showSplash, "show-splash", false, "force display of welcome splash screen")
 
 	// Bind flags to viper
 	viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug"))
@@ -101,4 +157,132 @@ func initConfig() {
 // GetLogger returns the global logger instance
 func GetLogger() *logging.Logger {
 	return logger
+}
+
+// runInteractiveSetup runs the interactive configuration setup for first-time users
+func runInteractiveSetup() error {
+	logger.Info("Starting interactive setup...")
+	
+	// Determine config file path
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("unable to find home directory: %w", err)
+	}
+	
+	configPath := filepath.Join(home, ".ztictl.yaml")
+	
+	// Run interactive configuration
+	if err := runInteractiveConfig(configPath); err != nil {
+		return err
+	}
+	
+	return nil
+}
+
+// runInteractiveConfig prompts the user for configuration values
+func runInteractiveConfig(configPath string) error {
+	reader := bufio.NewReader(os.Stdin)
+	
+	fmt.Println("\n🔧 Interactive Configuration Setup")
+	fmt.Println("==================================")
+	fmt.Println("Let's configure ztictl with your AWS SSO settings.\n")
+	
+	// Get SSO Start URL
+	fmt.Print("Enter your AWS SSO start URL (e.g., https://yourcompany.awsapps.com/start): ")
+	startURL, _ := reader.ReadString('\n')
+	startURL = strings.TrimSpace(startURL)
+	
+	if startURL == "" {
+		return fmt.Errorf("SSO start URL cannot be empty")
+	}
+	
+	// Get SSO Region
+	fmt.Print("Enter your AWS SSO region (e.g., us-east-1) [us-east-1]: ")
+	ssoRegion, _ := reader.ReadString('\n')
+	ssoRegion = strings.TrimSpace(ssoRegion)
+	if ssoRegion == "" {
+		ssoRegion = "us-east-1"
+	}
+	
+	// Get Default Region
+	fmt.Print("Enter your default AWS region (e.g., us-east-1) [us-east-1]: ")
+	defaultRegion, _ := reader.ReadString('\n')
+	defaultRegion = strings.TrimSpace(defaultRegion)
+	if defaultRegion == "" {
+		defaultRegion = "us-east-1"
+	}
+	
+	// Get Profile Name
+	fmt.Print("Enter a profile name [default-sso-profile]: ")
+	profileName, _ := reader.ReadString('\n')
+	profileName = strings.TrimSpace(profileName)
+	if profileName == "" {
+		profileName = "default-sso-profile"
+	}
+	
+	// Get home directory for Windows-compatible paths
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("unable to get home directory: %w", err)
+	}
+	
+	// Use platform-appropriate log directory
+	logDir := filepath.Join(home, "logs")
+	
+	// Use platform-appropriate temp directory
+	tempDir := os.TempDir()
+	
+	// Create configuration
+	configContent := fmt.Sprintf(`# ztictl Configuration File
+# This file contains configuration for AWS SSO and ztictl behavior
+
+# AWS SSO Configuration
+sso:
+  start_url: "%s"
+  region: "%s"
+  default_profile: "%s"
+
+# Default AWS region for operations
+default_region: "%s"
+
+# Logging configuration
+logging:
+  directory: "%s"
+  file_logging: true
+  level: "info"
+
+# System configuration
+system:
+  session_manager_plugin_path: ""  # Auto-detected if empty
+  temp_directory: "%s"
+  
+# Region shortcuts for convenience
+region_shortcuts:
+  cac1: "ca-central-1"
+  use1: "us-east-1" 
+  use2: "us-east-2"
+  usw1: "us-west-1"
+  usw2: "us-west-2"
+  euw1: "eu-west-1"
+  euw2: "eu-west-2"
+  euc1: "eu-central-1"
+  apne1: "ap-northeast-1"
+  apne2: "ap-northeast-2"
+  apse1: "ap-southeast-1"
+  apse2: "ap-southeast-2"
+  aps1: "ap-south-1"
+`, startURL, ssoRegion, profileName, defaultRegion, logDir, tempDir)
+	
+	// Write configuration file
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		return fmt.Errorf("failed to write configuration file: %w", err)
+	}
+	
+	fmt.Printf("\n✅ Configuration saved to: %s\n", configPath)
+	fmt.Println("\nNext steps:")
+	fmt.Println("1. Run 'ztictl config check' to verify system requirements")
+	fmt.Println("2. Run 'ztictl auth login' to authenticate with AWS SSO")
+	fmt.Println("3. Run 'ztictl ssm list' to see your EC2 instances")
+	
+	return nil
 }

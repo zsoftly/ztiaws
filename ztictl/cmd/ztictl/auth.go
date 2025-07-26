@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"ztictl/internal/auth"
@@ -28,7 +30,8 @@ var authLoginCmd = &cobra.Command{
 	Use:   "login [profile]",
 	Short: "Login to AWS SSO",
 	Long: `Login to AWS SSO with interactive account and role selection.
-If no profile is specified, uses the default profile from configuration.`,
+It is recommended to always specify a profile name to avoid confusion.
+If no profile is specified, you will be prompted to confirm using the default profile.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := config.Get()
@@ -42,6 +45,18 @@ If no profile is specified, uses the default profile from configuration.`,
 				logger.Error("No profile specified and no default profile configured")
 				logger.Info("Usage: ztictl auth login <profile-name>")
 				os.Exit(1)
+			}
+
+			// Prompt user to confirm using default profile (like bash version)
+			logger.Info("No profile specified. Using default: " + profileName)
+			fmt.Print("Proceed with default profile? (y/n): ")
+			
+			var response string
+			fmt.Scanln(&response)
+			
+			if strings.ToLower(strings.TrimSpace(response)) != "y" && strings.ToLower(strings.TrimSpace(response)) != "yes" {
+				logger.Info("Please run: ztictl auth login <profile-name>")
+				os.Exit(0)
 			}
 		}
 
@@ -164,15 +179,39 @@ If no profile is specified, uses the current AWS_PROFILE or default profile.`,
 
 		fmt.Printf("\n🔑 AWS Credentials for profile: %s\n", profileName)
 		fmt.Println("----------------------------------------")
-		fmt.Printf("export AWS_ACCESS_KEY_ID=%s\n", creds.AccessKeyID)
-		fmt.Printf("export AWS_SECRET_ACCESS_KEY=%s\n", creds.SecretAccessKey)
-		if creds.SessionToken != "" {
-			fmt.Printf("export AWS_SESSION_TOKEN=%s\n", creds.SessionToken)
+		
+		// Platform-specific credential output
+		switch runtime.GOOS {
+		case "windows":
+			// Windows Command Prompt instructions
+			fmt.Println("\nFor Command Prompt (cmd):")
+			fmt.Printf("set AWS_ACCESS_KEY_ID=%s\n", creds.AccessKeyID)
+			fmt.Printf("set AWS_SECRET_ACCESS_KEY=%s\n", creds.SecretAccessKey)
+			if creds.SessionToken != "" {
+				fmt.Printf("set AWS_SESSION_TOKEN=%s\n", creds.SessionToken)
+			}
+			fmt.Printf("set AWS_REGION=%s\n", creds.Region)
+			
+			fmt.Println("\nFor PowerShell:")
+			fmt.Printf("$env:AWS_ACCESS_KEY_ID=\"%s\"\n", creds.AccessKeyID)
+			fmt.Printf("$env:AWS_SECRET_ACCESS_KEY=\"%s\"\n", creds.SecretAccessKey)
+			if creds.SessionToken != "" {
+				fmt.Printf("$env:AWS_SESSION_TOKEN=\"%s\"\n", creds.SessionToken)
+			}
+			fmt.Printf("$env:AWS_REGION=\"%s\"\n", creds.Region)
+			
+		default:
+			// Unix/Linux/macOS instructions
+			fmt.Printf("export AWS_ACCESS_KEY_ID=%s\n", creds.AccessKeyID)
+			fmt.Printf("export AWS_SECRET_ACCESS_KEY=%s\n", creds.SecretAccessKey)
+			if creds.SessionToken != "" {
+				fmt.Printf("export AWS_SESSION_TOKEN=%s\n", creds.SessionToken)
+			}
+			fmt.Printf("export AWS_REGION=%s\n", creds.Region)
+			fmt.Println("----------------------------------------")
+			fmt.Printf("To use these credentials in your current shell, run:\n")
+			fmt.Printf("eval $(ztictl auth creds %s)\n", profileName)
 		}
-		fmt.Printf("export AWS_REGION=%s\n", creds.Region)
-		fmt.Println("----------------------------------------")
-		fmt.Printf("To use these credentials in your current shell, run:\n")
-		fmt.Printf("eval $(ztictl auth creds %s)\n", profileName)
 	},
 }
 

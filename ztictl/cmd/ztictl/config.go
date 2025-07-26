@@ -26,10 +26,11 @@ Examples:
 var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize configuration",
-	Long: `Initialize ztictl configuration by creating a sample configuration file.
-This will create a .ztictl.yaml file in your home directory with default settings.`,
+	Long: `Initialize ztictl configuration by creating a configuration file.
+This will guide you through an interactive setup process to configure AWS SSO settings.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		force, _ := cmd.Flags().GetBool("force")
+		interactive, _ := cmd.Flags().GetBool("interactive")
 
 		// Determine config file path
 		home, err := os.UserHomeDir()
@@ -47,7 +48,16 @@ This will create a .ztictl.yaml file in your home directory with default setting
 			os.Exit(1)
 		}
 
-		// Create sample configuration
+		// Run interactive setup if requested or if it's a first run
+		if interactive || force {
+			if err := runInteractiveConfig(configPath); err != nil {
+				logger.Error("Interactive configuration failed", "error", err)
+				os.Exit(1)
+			}
+			return
+		}
+
+		// Create sample configuration (non-interactive)
 		if err := config.CreateSampleConfig(configPath); err != nil {
 			logger.Error("Failed to create configuration file", "error", err)
 			os.Exit(1)
@@ -60,6 +70,7 @@ This will create a .ztictl.yaml file in your home directory with default setting
 		fmt.Printf("1. Edit %s with your AWS SSO settings\n", configPath)
 		fmt.Printf("2. Run 'ztictl config check' to verify requirements\n")
 		fmt.Printf("3. Run 'ztictl auth login' to authenticate\n")
+		fmt.Printf("\nOr run 'ztictl config init --interactive' for guided setup\n")
 	},
 }
 
@@ -158,6 +169,7 @@ var configShowCmd = &cobra.Command{
 		fmt.Printf("  File Size Threshold: %d bytes (%.1f MB)\n",
 			cfg.System.FileSizeThreshold, float64(cfg.System.FileSizeThreshold)/1024/1024)
 		fmt.Printf("  S3 Bucket Prefix: %s\n", cfg.System.S3BucketPrefix)
+		fmt.Printf("  Temporary Directory: %s\n", cfg.System.TempDirectory)
 
 		// Show config file location if available
 		if configFile := os.Getenv("ZTICTL_CONFIG"); configFile != "" {
@@ -224,5 +236,6 @@ func init() {
 
 	// Add flags
 	configInitCmd.Flags().BoolP("force", "f", false, "Overwrite existing configuration file")
+	configInitCmd.Flags().BoolP("interactive", "i", false, "Interactive configuration setup")
 	configCheckCmd.Flags().BoolP("fix", "", false, "Attempt to automatically fix issues")
 }
