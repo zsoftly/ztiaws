@@ -23,7 +23,7 @@ and temporary resources were not cleaned up automatically.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		region := args[0]
-		
+
 		if region == "" {
 			return fmt.Errorf("region is required")
 		}
@@ -32,9 +32,9 @@ and temporary resources were not cleaned up automatically.`,
 		ssmManager := ssm.NewManager(logger)
 
 		ctx := context.Background()
-		
+
 		logger.Info("Starting cleanup operation", "region", region)
-		
+
 		// Perform routine cleanup
 		if err := ssmManager.Cleanup(ctx, region); err != nil {
 			return fmt.Errorf("cleanup failed: %w", err)
@@ -61,7 +61,7 @@ ensure all temporary resources are removed.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		region := args[0]
-		
+
 		if region == "" {
 			return fmt.Errorf("region is required")
 		}
@@ -70,9 +70,9 @@ ensure all temporary resources are removed.`,
 		ssmManager := ssm.NewManager(logger)
 
 		ctx := context.Background()
-		
+
 		logger.Info("Starting emergency cleanup operation", "region", region)
-		
+
 		// Perform emergency cleanup
 		if err := ssmManager.EmergencyCleanup(ctx, region); err != nil {
 			return fmt.Errorf("emergency cleanup failed: %w", err)

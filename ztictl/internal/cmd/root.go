@@ -50,7 +50,7 @@ func handleStartup(cmd *cobra.Command) {
 	if cmd.Name() == "help" || cmd.Name() == "completion" {
 		return
 	}
-	
+
 	// Check if we should show splash screen
 	showedSplash, err := splash.ShowSplash(Version)
 	if err != nil {
@@ -60,12 +60,12 @@ func handleStartup(cmd *cobra.Command) {
 		}
 		return
 	}
-	
+
 	// If this is first run, trigger interactive configuration
 	if showedSplash {
 		// Check if config file exists
 		configExists := config.Exists()
-		
+
 		if !configExists {
 			// Show interactive configuration
 			if err := config.InteractiveInit(); err != nil {
@@ -74,7 +74,7 @@ func handleStartup(cmd *cobra.Command) {
 				}
 				os.Exit(1)
 			}
-			
+
 			// Reload configuration after interactive setup
 			if err := config.Load(); err != nil {
 				if logger != nil {

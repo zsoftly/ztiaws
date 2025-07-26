@@ -32,7 +32,7 @@ If no profile is specified, uses the default profile from configuration.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := config.Get()
-		
+
 		var profileName string
 		if len(args) > 0 {
 			profileName = args[0]
@@ -135,7 +135,7 @@ If no profile is specified, uses the current AWS_PROFILE or default profile.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := config.Get()
-		
+
 		var profileName string
 		if len(args) > 0 {
 			profileName = args[0]

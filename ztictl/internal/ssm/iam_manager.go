@@ -53,11 +53,11 @@ type Statement struct {
 
 // Configuration constants
 const (
-	IAMPropagationDelay        = 5 * time.Second
-	IAMLockAcquisitionTimeout  = 30 * time.Second
-	StaleLockTimeoutSeconds    = 120 * time.Second
+	IAMPropagationDelay         = 5 * time.Second
+	IAMLockAcquisitionTimeout   = 30 * time.Second
+	StaleLockTimeoutSeconds     = 120 * time.Second
 	RegistryCleanupAgeThreshold = 24 * time.Hour
-	PolicyNamePrefix           = "ZTIaws-SSM-S3-Access"
+	PolicyNamePrefix            = "ZTIaws-SSM-S3-Access"
 )
 
 // NewIAMManager creates a new IAM manager
@@ -69,7 +69,7 @@ func NewIAMManager(logger *logging.Logger, iamClient *iam.Client, ec2Client *ec2
 
 	registryFile := filepath.Join(tempDir, "policy-registry.json")
 	lockDir := filepath.Join(tempDir, "locks")
-	
+
 	if err := os.MkdirAll(lockDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create lock directory: %w", err)
 	}
@@ -87,20 +87,20 @@ func NewIAMManager(logger *logging.Logger, iamClient *iam.Client, ec2Client *ec2
 // generateUniqueID creates a unique identifier for policy names
 func (m *IAMManager) generateUniqueID() string {
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
-	
+
 	// Generate 8 random bytes (16 hex characters)
 	randomBytes := make([]byte, 8)
 	if _, err := rand.Read(randomBytes); err != nil {
 		// Fallback to timestamp + process ID if random fails
 		return fmt.Sprintf("%s-%d", timestamp, os.Getpid())
 	}
-	
+
 	randomHex := hex.EncodeToString(randomBytes)
 	hostname, _ := os.Hostname()
 	if hostname == "" {
 		hostname = "unknown"
 	}
-	
+
 	return fmt.Sprintf("%s-%s-%s", timestamp, hostname, randomHex)
 }
 
@@ -203,7 +203,7 @@ func (m *IAMManager) addPolicyToRegistry(instanceID, region, policyARN, policyFi
 	}
 
 	entries = append(entries, entry)
-	
+
 	if err := m.savePolicyRegistry(entries); err != nil {
 		return err
 	}
@@ -370,7 +370,7 @@ func (m *IAMManager) createS3PolicyDocument(bucketName string) (string, error) {
 // createSecureTempFile creates a temporary file with restricted permissions
 func (m *IAMManager) createSecureTempFile(prefix string) (string, error) {
 	tempFile := filepath.Join(m.tempDir, fmt.Sprintf("%s-%s", prefix, m.generateUniqueID()))
-	
+
 	file, err := os.OpenFile(tempFile, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0600)
 	if err != nil {
 		return "", fmt.Errorf("failed to create secure temp file: %w", err)
@@ -622,7 +622,7 @@ func (m *IAMManager) EmergencyCleanup(ctx context.Context, region string) error 
 
 	// Clean up stale locks
 	m.cleanupStaleLocks()
-	
+
 	// Clean up stale registry entries
 	m.cleanupStaleRegistryEntries()
 

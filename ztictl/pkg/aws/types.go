@@ -68,14 +68,14 @@ type SSORole struct {
 
 // CommandExecution represents the execution of an SSM command
 type CommandExecution struct {
-	CommandID  string                 `json:"command_id"`
-	InstanceID string                 `json:"instance_id"`
-	Status     string                 `json:"status"`
-	Output     string                 `json:"output,omitempty"`
-	Error      string                 `json:"error,omitempty"`
-	ExitCode   int32                  `json:"exit_code,omitempty"`
-	StartTime  *time.Time             `json:"start_time,omitempty"`
-	EndTime    *time.Time             `json:"end_time,omitempty"`
+	CommandID  string     `json:"command_id"`
+	InstanceID string     `json:"instance_id"`
+	Status     string     `json:"status"`
+	Output     string     `json:"output,omitempty"`
+	Error      string     `json:"error,omitempty"`
+	ExitCode   int32      `json:"exit_code,omitempty"`
+	StartTime  *time.Time `json:"start_time,omitempty"`
+	EndTime    *time.Time `json:"end_time,omitempty"`
 }
 
 // FileTransfer represents a file transfer operation
@@ -111,7 +111,7 @@ func getPlatform(instance types.Instance) string {
 	if instance.Platform != "" {
 		return string(instance.Platform)
 	}
-	
+
 	// Default to Linux if platform is not specified
 	return "Linux/UNIX"
 }

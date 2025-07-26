@@ -170,13 +170,13 @@ func (l *Logger) Error(msg string, fields ...interface{}) {
 // fieldsToLogrusFields converts alternating key-value pairs to logrus.Fields
 func (l *Logger) fieldsToLogrusFields(fields []interface{}) logrus.Fields {
 	logrusFields := make(logrus.Fields)
-	
+
 	for i := 0; i < len(fields)-1; i += 2 {
 		if key, ok := fields[i].(string); ok {
 			logrusFields[key] = fields[i+1]
 		}
 	}
-	
+
 	return logrusFields
 }
 

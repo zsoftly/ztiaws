@@ -30,7 +30,7 @@ var configInitCmd = &cobra.Command{
 This will create a .ztictl.yaml file in your home directory with default settings.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		force, _ := cmd.Flags().GetBool("force")
-		
+
 		// Determine config file path
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -55,7 +55,7 @@ This will create a .ztictl.yaml file in your home directory with default setting
 
 		logger.Info("Configuration file created successfully", "path", configPath)
 		logger.Info("Please edit the configuration file with your AWS SSO settings")
-		
+
 		fmt.Printf("\nNext steps:\n")
 		fmt.Printf("1. Edit %s with your AWS SSO settings\n", configPath)
 		fmt.Printf("2. Run 'ztictl config check' to verify requirements\n")
@@ -71,11 +71,11 @@ var configCheckCmd = &cobra.Command{
 This includes AWS CLI, Session Manager plugin, and other system requirements.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fix, _ := cmd.Flags().GetBool("fix")
-		
+
 		logger.Info("Checking system requirements...")
 
 		checker := system.NewRequirementsChecker(logger)
-		
+
 		// Check all requirements
 		results, err := checker.CheckAll()
 		if err != nil {
@@ -97,7 +97,7 @@ This includes AWS CLI, Session Manager plugin, and other system requirements.`,
 			}
 
 			fmt.Printf("%-30s %s\n", result.Name, status)
-			
+
 			if !result.Passed {
 				fmt.Printf("  Issue: %s\n", result.Error)
 				if result.Suggestion != "" {
@@ -111,7 +111,7 @@ This includes AWS CLI, Session Manager plugin, and other system requirements.`,
 			logger.Info("All requirements met! ✅")
 		} else {
 			logger.Error("Some requirements are not met")
-			
+
 			if fix {
 				logger.Info("Attempting to fix issues...")
 				if err := checker.FixIssues(results); err != nil {
@@ -137,25 +137,25 @@ var configShowCmd = &cobra.Command{
 
 		fmt.Println("\nztictl Configuration:")
 		fmt.Println("=====================")
-		
+
 		fmt.Printf("Default Region: %s\n", cfg.DefaultRegion)
 		fmt.Println()
-		
+
 		fmt.Println("AWS SSO Configuration:")
 		fmt.Printf("  Start URL: %s\n", cfg.SSO.StartURL)
-		fmt.Printf("  Region: %s\n", cfg.SSO.Region) 
+		fmt.Printf("  Region: %s\n", cfg.SSO.Region)
 		fmt.Printf("  Default Profile: %s\n", cfg.SSO.DefaultProfile)
 		fmt.Println()
-		
+
 		fmt.Println("Logging Configuration:")
 		fmt.Printf("  Directory: %s\n", cfg.Logging.Directory)
 		fmt.Printf("  File Logging: %t\n", cfg.Logging.FileLogging)
 		fmt.Printf("  Level: %s\n", cfg.Logging.Level)
 		fmt.Println()
-		
+
 		fmt.Println("System Configuration:")
 		fmt.Printf("  IAM Propagation Delay: %d seconds\n", cfg.System.IAMPropagationDelay)
-		fmt.Printf("  File Size Threshold: %d bytes (%.1f MB)\n", 
+		fmt.Printf("  File Size Threshold: %d bytes (%.1f MB)\n",
 			cfg.System.FileSizeThreshold, float64(cfg.System.FileSizeThreshold)/1024/1024)
 		fmt.Printf("  S3 Bucket Prefix: %s\n", cfg.System.S3BucketPrefix)
 

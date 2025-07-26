@@ -19,8 +19,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/pkg/browser"
-	"ztictl/internal/logging"
 	appconfig "ztictl/internal/config"
+	"ztictl/internal/logging"
 	"ztictl/pkg/errors"
 )
 
@@ -31,23 +31,23 @@ type Manager struct {
 
 // Profile represents an AWS profile with SSO information
 type Profile struct {
-	Name            string `json:"name"`
-	IsAuthenticated bool   `json:"is_authenticated"`
-	AccountID       string `json:"account_id,omitempty"`
-	AccountName     string `json:"account_name,omitempty"`
-	RoleName        string `json:"role_name,omitempty"`
-	Region          string `json:"region,omitempty"`
-	SSOStartURL     string `json:"sso_start_url,omitempty"`
-	SSORegion       string `json:"sso_region,omitempty"`
+	Name            string     `json:"name"`
+	IsAuthenticated bool       `json:"is_authenticated"`
+	AccountID       string     `json:"account_id,omitempty"`
+	AccountName     string     `json:"account_name,omitempty"`
+	RoleName        string     `json:"role_name,omitempty"`
+	Region          string     `json:"region,omitempty"`
+	SSOStartURL     string     `json:"sso_start_url,omitempty"`
+	SSORegion       string     `json:"sso_region,omitempty"`
 	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
 }
 
 // Credentials represents AWS credentials
 type Credentials struct {
-	AccessKeyID     string `json:"access_key_id"`
-	SecretAccessKey string `json:"secret_access_key"`
-	SessionToken    string `json:"session_token"`
-	Region          string `json:"region"`
+	AccessKeyID     string     `json:"access_key_id"`
+	SecretAccessKey string     `json:"secret_access_key"`
+	SessionToken    string     `json:"session_token"`
+	Region          string     `json:"region"`
 	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
 }
 
@@ -61,15 +61,15 @@ type SSOToken struct {
 
 // Account represents an AWS account from SSO
 type Account struct {
-	AccountID   string `json:"account_id"`
-	AccountName string `json:"account_name"`
+	AccountID    string `json:"account_id"`
+	AccountName  string `json:"account_name"`
 	EmailAddress string `json:"email_address,omitempty"`
 }
 
 // Role represents an AWS role in an account
 type Role struct {
-	RoleName    string `json:"role_name"`
-	AccountID   string `json:"account_id"`
+	RoleName  string `json:"role_name"`
+	AccountID string `json:"account_id"`
 }
 
 // NewManager creates a new authentication manager
@@ -82,7 +82,7 @@ func NewManager(logger *logging.Logger) *Manager {
 // Login performs AWS SSO login with interactive account and role selection
 func (m *Manager) Login(ctx context.Context, profileName string) error {
 	cfg := appconfig.Get()
-	
+
 	if cfg.SSO.StartURL == "" {
 		return errors.NewValidationError("SSO start URL not configured. Please run 'ztictl config init' first")
 	}
@@ -104,7 +104,7 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 	token, err := m.getCachedToken(cfg.SSO.StartURL)
 	if err != nil || !m.isTokenValid(token) {
 		m.logger.Info("No valid cached token found, initiating SSO login...")
-		
+
 		// Perform SSO login
 		if err := m.performSSOLogin(ctx, awsCfg, profileName, cfg); err != nil {
 			return err
@@ -181,7 +181,7 @@ func (m *Manager) Logout(ctx context.Context, profileName string) error {
 func (m *Manager) ListProfiles(ctx context.Context) ([]Profile, error) {
 	// Read AWS config file to get all profiles
 	configPath := filepath.Join(os.Getenv("HOME"), ".aws", "config")
-	
+
 	content, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -191,7 +191,7 @@ func (m *Manager) ListProfiles(ctx context.Context) ([]Profile, error) {
 	}
 
 	profiles := m.parseProfiles(string(content))
-	
+
 	// Check authentication status for each profile
 	for i := range profiles {
 		isAuth, err := m.isProfileAuthenticated(ctx, profiles[i].Name)
@@ -207,7 +207,7 @@ func (m *Manager) ListProfiles(ctx context.Context) ([]Profile, error) {
 // GetCredentials returns AWS credentials for a profile
 func (m *Manager) GetCredentials(ctx context.Context, profileName string) (*Credentials, error) {
 	// First, try to get an STS token to force credential resolution
-	awsCfg, err := config.LoadDefaultConfig(ctx, 
+	awsCfg, err := config.LoadDefaultConfig(ctx,
 		config.WithSharedConfigProfile(profileName),
 	)
 	if err != nil {
@@ -228,8 +228,8 @@ func (m *Manager) GetCredentials(ctx context.Context, profileName string) (*Cred
 	}
 
 	// Verify the credentials work by checking the caller identity
-	m.logger.Info("Retrieved credentials", 
-		"account", *callerIdentity.Account, 
+	m.logger.Info("Retrieved credentials",
+		"account", *callerIdentity.Account,
 		"arn", *callerIdentity.Arn,
 		"profile", profileName)
 
@@ -249,7 +249,7 @@ func (m *Manager) configureProfile(profileName string, cfg *appconfig.Config) er
 	}
 
 	configPath := filepath.Join(configDir, "config")
-	
+
 	// Read existing config
 	var content string
 	if existing, err := os.ReadFile(configPath); err == nil {
@@ -270,34 +270,34 @@ func (m *Manager) configureProfile(profileName string, cfg *appconfig.Config) er
 // getCachedToken retrieves a cached SSO token
 func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 	cacheDir := filepath.Join(os.Getenv("HOME"), ".aws", "sso", "cache")
-	
+
 	// First, try the expected filename based on SHA1 hash
 	hasher := sha1.New()
 	hasher.Write([]byte(startURL))
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	expectedFile := filepath.Join(cacheDir, fmt.Sprintf("%s.json", hash))
-	
+
 	if content, err := os.ReadFile(expectedFile); err == nil {
 		var token SSOToken
 		if json.Unmarshal(content, &token) == nil && token.StartURL == startURL {
 			return &token, nil
 		}
 	}
-	
+
 	// Fallback: search through all cache files
 	var tokenFile string
 	err := filepath.WalkDir(cacheDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // Continue walking
 		}
-		
+
 		if !d.IsDir() && strings.HasSuffix(path, ".json") {
 			// Check if this file contains our start URL
 			content, readErr := os.ReadFile(path)
 			if readErr != nil {
 				return nil
 			}
-			
+
 			var token SSOToken
 			if json.Unmarshal(content, &token) == nil && token.StartURL == startURL {
 				tokenFile = path
@@ -306,11 +306,11 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 		}
 		return nil
 	})
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for token files: %w", err)
 	}
-	
+
 	if tokenFile == "" {
 		return nil, fmt.Errorf("no cached token found for start URL: %s", startURL)
 	}
@@ -366,12 +366,12 @@ func (m *Manager) performSSOLogin(ctx context.Context, awsCfg aws.Config, profil
 	// Display authorization information and open browser automatically
 	authURL := aws.ToString(authResp.VerificationUriComplete)
 	userCode := aws.ToString(authResp.UserCode)
-	
+
 	fmt.Printf("\n🔐 AWS SSO Authentication Required\n")
 	fmt.Printf("   Opening browser automatically to: %s\n", authURL)
 	fmt.Printf("   If browser doesn't open, copy the URL above\n")
 	fmt.Printf("   Your verification code: %s\n\n", userCode)
-	
+
 	// Attempt to open browser automatically
 	if err := browser.OpenURL(authURL); err != nil {
 		m.logger.Warn("Failed to open browser automatically", "error", err)
@@ -379,15 +379,15 @@ func (m *Manager) performSSOLogin(ctx context.Context, awsCfg aws.Config, profil
 	} else {
 		fmt.Printf("✅ Browser opened automatically\n")
 	}
-	
+
 	fmt.Printf("⏳ Waiting for authentication completion (do not close this terminal)...\n\n")
 
 	// Poll for token
 	m.logger.Info("Polling for authentication completion...")
-	
+
 	ticker := time.NewTicker(time.Duration(authResp.Interval) * time.Second)
 	defer ticker.Stop()
-	
+
 	timeout := time.After(time.Duration(authResp.ExpiresIn) * time.Second)
 
 	for {
@@ -403,8 +403,8 @@ func (m *Manager) performSSOLogin(ctx context.Context, awsCfg aws.Config, profil
 			})
 			if err != nil {
 				// Check for authorization pending - this is expected while user authenticates
-				if strings.Contains(err.Error(), "authorization_pending") || 
-				   strings.Contains(err.Error(), "AuthorizationPendingException") {
+				if strings.Contains(err.Error(), "authorization_pending") ||
+					strings.Contains(err.Error(), "AuthorizationPendingException") {
 					continue // Keep polling
 				}
 				// Check for slow down request
@@ -465,9 +465,9 @@ func (m *Manager) saveTokenToCache(tokenResp *ssooidc.CreateTokenOutput, startUR
 // listAccounts retrieves available AWS accounts from SSO
 func (m *Manager) listAccounts(ctx context.Context, awsCfg aws.Config, accessToken string) ([]Account, error) {
 	cfg := appconfig.Get()
-	
+
 	// Create a new config specifically for SSO operations using the configured SSO region
-	ssoConfig, err := config.LoadDefaultConfig(ctx, 
+	ssoConfig, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(cfg.SSO.Region), // Use the configured SSO region
 	)
 	if err != nil {
@@ -487,8 +487,8 @@ func (m *Manager) listAccounts(ctx context.Context, awsCfg aws.Config, accessTok
 	accounts := make([]Account, len(resp.AccountList))
 	for i, acc := range resp.AccountList {
 		accounts[i] = Account{
-			AccountID:   aws.ToString(acc.AccountId),
-			AccountName: aws.ToString(acc.AccountName),
+			AccountID:    aws.ToString(acc.AccountId),
+			AccountName:  aws.ToString(acc.AccountName),
 			EmailAddress: aws.ToString(acc.EmailAddress),
 		}
 	}
@@ -524,9 +524,9 @@ func (m *Manager) selectAccount(accounts []Account) (*Account, error) {
 // listAccountRoles retrieves available roles for an account
 func (m *Manager) listAccountRoles(ctx context.Context, awsCfg aws.Config, accessToken, accountID string) ([]Role, error) {
 	cfg := appconfig.Get()
-	
+
 	// Create a new config specifically for SSO operations using the configured SSO region
-	ssoConfig, err := config.LoadDefaultConfig(ctx, 
+	ssoConfig, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(cfg.SSO.Region), // Use the configured SSO region
 	)
 	if err != nil {
@@ -583,7 +583,7 @@ func (m *Manager) selectRole(roles []Role, account *Account) (*Role, error) {
 // updateProfileWithSelection updates the AWS profile with selected account and role
 func (m *Manager) updateProfileWithSelection(profileName string, account *Account, role *Role, cfg *appconfig.Config) error {
 	configPath := filepath.Join(os.Getenv("HOME"), ".aws", "config")
-	
+
 	// Read existing config
 	content, err := os.ReadFile(configPath)
 	if err != nil {
@@ -610,55 +610,55 @@ func (m *Manager) updateProfileInConfig(content, profileName string, cfg *appcon
 	var inTargetProfile bool
 	var targetProfileSection string
 	profileUpdated := false
-	
+
 	targetProfileSection = fmt.Sprintf("[profile %s]", profileName)
 	if profileName == "default" {
 		targetProfileSection = "[default]"
 	}
-	
+
 	// Parse existing content and update the target profile
 	for i, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
-		
+
 		// Check if this is a profile header
 		if strings.HasPrefix(trimmedLine, "[") && strings.HasSuffix(trimmedLine, "]") {
 			// If we were in target profile, we've finished processing it
 			if inTargetProfile {
 				inTargetProfile = false
 			}
-			
+
 			// Check if this is our target profile
 			if trimmedLine == targetProfileSection {
 				inTargetProfile = true
 				profileUpdated = true
 				result = append(result, line)
-				
+
 				// Add or update the SSO settings for this profile
 				result = append(result, fmt.Sprintf("sso_start_url = %s", cfg.SSO.StartURL))
 				result = append(result, fmt.Sprintf("sso_region = %s", cfg.SSO.Region))
 				result = append(result, fmt.Sprintf("region = %s", cfg.DefaultRegion))
 				result = append(result, "output = json")
-				
+
 				// Skip existing settings for this profile - we'll replace them
 				j := i + 1
 				for j < len(lines) && !strings.HasPrefix(strings.TrimSpace(lines[j]), "[") {
 					// Skip lines that are SSO-related settings we're replacing
 					nextLine := strings.TrimSpace(lines[j])
 					if strings.HasPrefix(nextLine, "sso_start_url") ||
-					   strings.HasPrefix(nextLine, "sso_region") ||
-					   strings.HasPrefix(nextLine, "region") ||
-					   strings.HasPrefix(nextLine, "output") {
+						strings.HasPrefix(nextLine, "sso_region") ||
+						strings.HasPrefix(nextLine, "region") ||
+						strings.HasPrefix(nextLine, "output") {
 						j++
 						continue
 					}
-					
+
 					// Keep other settings (like sso_account_id, sso_role_name)
 					if nextLine != "" {
 						result = append(result, lines[j])
 					}
 					j++
 				}
-				
+
 				// Fast forward the main loop
 				i = j - 1
 				continue
@@ -672,7 +672,7 @@ func (m *Manager) updateProfileInConfig(content, profileName string, cfg *appcon
 		}
 		// If in target profile, we're skipping old lines (handled above)
 	}
-	
+
 	// If profile wasn't found, add it at the end
 	if !profileUpdated {
 		if len(result) > 0 && result[len(result)-1] != "" {
@@ -684,7 +684,7 @@ func (m *Manager) updateProfileInConfig(content, profileName string, cfg *appcon
 		result = append(result, fmt.Sprintf("region = %s", cfg.DefaultRegion))
 		result = append(result, "output = json")
 	}
-	
+
 	return strings.Join(result, "\n")
 }
 
@@ -694,29 +694,29 @@ func (m *Manager) updateProfileWithAccountRole(content, profileName string, acco
 	var inTargetProfile bool
 	var targetProfileSection string
 	profileUpdated := false
-	
+
 	targetProfileSection = fmt.Sprintf("[profile %s]", profileName)
 	if profileName == "default" {
 		targetProfileSection = "[default]"
 	}
-	
+
 	// Parse existing content and update the target profile
 	for i, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
-		
+
 		// Check if this is a profile header
 		if strings.HasPrefix(trimmedLine, "[") && strings.HasSuffix(trimmedLine, "]") {
 			// If we were in target profile, we've finished processing it
 			if inTargetProfile {
 				inTargetProfile = false
 			}
-			
+
 			// Check if this is our target profile
 			if trimmedLine == targetProfileSection {
 				inTargetProfile = true
 				profileUpdated = true
 				result = append(result, line)
-				
+
 				// Collect all existing settings, then add/update account and role
 				var profileSettings []string
 				j := i + 1
@@ -727,14 +727,14 @@ func (m *Manager) updateProfileWithAccountRole(content, profileName string, acco
 					}
 					j++
 				}
-				
+
 				// Add all existing settings first
 				result = append(result, profileSettings...)
-				
+
 				// Add the account and role information
 				result = append(result, fmt.Sprintf("sso_account_id = %s", account.AccountID))
 				result = append(result, fmt.Sprintf("sso_role_name = %s", role.RoleName))
-				
+
 				// Fast forward the main loop
 				i = j - 1
 				continue
@@ -748,7 +748,7 @@ func (m *Manager) updateProfileWithAccountRole(content, profileName string, acco
 		}
 		// If in target profile, we're skipping old lines (handled above)
 	}
-	
+
 	// If profile wasn't found, create it with all settings
 	if !profileUpdated {
 		if len(result) > 0 && result[len(result)-1] != "" {
@@ -762,7 +762,7 @@ func (m *Manager) updateProfileWithAccountRole(content, profileName string, acco
 		result = append(result, fmt.Sprintf("sso_account_id = %s", account.AccountID))
 		result = append(result, fmt.Sprintf("sso_role_name = %s", role.RoleName))
 	}
-	
+
 	return strings.Join(result, "\n")
 }
 
@@ -770,23 +770,23 @@ func (m *Manager) parseProfiles(content string) []Profile {
 	profiles := []Profile{}
 	profileMap := make(map[string]*Profile) // Use map to avoid duplicates
 	lines := strings.Split(content, "\n")
-	
+
 	var currentProfile *Profile
-	
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		
+
 		// Skip empty lines and comments
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		
+
 		// Check for profile header [profile name] or [default]
 		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
 			// Parse profile name
 			profileLine := strings.Trim(line, "[]")
 			var profileName string
-			
+
 			if profileLine == "default" {
 				profileName = "default"
 			} else if strings.HasPrefix(profileLine, "profile ") {
@@ -794,7 +794,7 @@ func (m *Manager) parseProfiles(content string) []Profile {
 			} else {
 				continue // Skip unrecognized sections
 			}
-			
+
 			// Check if profile already exists (handle duplicates)
 			if existingProfile, exists := profileMap[profileName]; exists {
 				currentProfile = existingProfile
@@ -807,14 +807,14 @@ func (m *Manager) parseProfiles(content string) []Profile {
 			}
 			continue
 		}
-		
+
 		// Parse key-value pairs for current profile
 		if currentProfile != nil && strings.Contains(line, "=") {
 			parts := strings.SplitN(line, "=", 2)
 			if len(parts) == 2 {
 				key := strings.TrimSpace(parts[0])
 				value := strings.TrimSpace(parts[1])
-				
+
 				switch key {
 				case "sso_start_url":
 					currentProfile.SSOStartURL = value
@@ -830,12 +830,12 @@ func (m *Manager) parseProfiles(content string) []Profile {
 			}
 		}
 	}
-	
+
 	// Convert map to slice
 	for _, profile := range profileMap {
 		profiles = append(profiles, *profile)
 	}
-	
+
 	return profiles
 }
 
@@ -846,13 +846,13 @@ func (m *Manager) IsProfileAuthenticated(profileName string) bool {
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		return false
 	}
-	
+
 	// Look for cached tokens for this profile
 	files, err := os.ReadDir(configDir)
 	if err != nil {
 		return false
 	}
-	
+
 	for _, file := range files {
 		if !file.IsDir() && strings.HasSuffix(file.Name(), ".json") {
 			// Read and check if token is still valid
@@ -861,16 +861,16 @@ func (m *Manager) IsProfileAuthenticated(profileName string) bool {
 			if err != nil {
 				continue
 			}
-			
+
 			var token struct {
 				AccessToken string `json:"accessToken"`
 				ExpiresAt   string `json:"expiresAt"`
 			}
-			
+
 			if err := json.Unmarshal(content, &token); err != nil {
 				continue
 			}
-			
+
 			// Check if token is expired
 			if expiresAt, err := time.Parse(time.RFC3339, token.ExpiresAt); err == nil {
 				if time.Now().Before(expiresAt) {
@@ -879,7 +879,7 @@ func (m *Manager) IsProfileAuthenticated(profileName string) bool {
 			}
 		}
 	}
-	
+
 	return false
 }
 
@@ -888,7 +888,7 @@ func (m *Manager) isProfileAuthenticated(ctx context.Context, profileName string
 	if authenticated := m.IsProfileAuthenticated(profileName); authenticated {
 		return true, nil
 	}
-	
+
 	// Fallback to trying AWS API call
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(profileName))
 	if err != nil {

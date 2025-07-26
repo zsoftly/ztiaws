@@ -42,7 +42,7 @@ Instance identifier can be an instance ID (i-1234567890abcdef0) or instance name
 		}
 
 		instanceIdentifier := args[0]
-		
+
 		logger.Info("Connecting to instance", "identifier", instanceIdentifier, "region", region)
 
 		ssmManager := ssm.NewManager(logger)
@@ -103,7 +103,7 @@ Optionally filter by tags, status, or name patterns.`,
 			if name == "" {
 				name = "N/A"
 			}
-			fmt.Printf("%-20s %-19s %-15s %-10s %s\n", 
+			fmt.Printf("%-20s %-19s %-15s %-10s %s\n",
 				name, instance.InstanceID, instance.PrivateIPAddress, instance.State, instance.Platform)
 		}
 		fmt.Printf("\nTotal: %d instances\n", len(instances))
@@ -155,7 +155,7 @@ Instance identifier can be an instance ID or instance name.`,
 	},
 }
 
-// ssmTransferCmd represents the ssm transfer command  
+// ssmTransferCmd represents the ssm transfer command
 var ssmTransferCmd = &cobra.Command{
 	Use:   "transfer",
 	Short: "File transfer operations via SSM",
@@ -329,7 +329,7 @@ If no instance is specified, shows status for all instances in the region.`,
 			fmt.Println(strings.Repeat("-", 75))
 
 			for _, status := range statuses {
-				fmt.Printf("%-20s %-15s %-20s %s\n", 
+				fmt.Printf("%-20s %-15s %-20s %s\n",
 					status.InstanceID, status.SSMStatus, status.LastPingDateTime, status.SSMAgentVersion)
 			}
 		}
@@ -354,17 +354,17 @@ and temporary resources were not cleaned up automatically.`,
 		if region == "" {
 			region = config.Get().DefaultRegion
 		}
-		
+
 		if region == "" {
 			GetLogger().Error("Region is required. Use --region flag or set default region in config")
 			return
 		}
 
 		GetLogger().Info("Starting cleanup operation", "region", region)
-		
+
 		ssmManager := ssm.NewManager(GetLogger())
 		ctx := context.Background()
-		
+
 		// Perform routine cleanup
 		if err := ssmManager.Cleanup(ctx, region); err != nil {
 			GetLogger().Error("Cleanup failed", "error", err)
@@ -394,17 +394,17 @@ ensure all temporary resources are removed.`,
 		if region == "" {
 			region = config.Get().DefaultRegion
 		}
-		
+
 		if region == "" {
 			GetLogger().Error("Region is required. Use --region flag or set default region in config")
 			return
 		}
 
 		GetLogger().Info("Starting emergency cleanup operation", "region", region)
-		
+
 		ssmManager := ssm.NewManager(GetLogger())
 		ctx := context.Background()
-		
+
 		// Perform emergency cleanup
 		if err := ssmManager.EmergencyCleanup(ctx, region); err != nil {
 			GetLogger().Error("Emergency cleanup failed", "error", err)
@@ -417,7 +417,7 @@ ensure all temporary resources are removed.`,
 
 func init() {
 	rootCmd.AddCommand(ssmCmd)
-	
+
 	// Add subcommands
 	ssmCmd.AddCommand(ssmConnectCmd)
 	ssmCmd.AddCommand(ssmListCmd)
@@ -425,7 +425,7 @@ func init() {
 	ssmCmd.AddCommand(ssmTransferCmd)
 	ssmCmd.AddCommand(ssmForwardCmd)
 	ssmCmd.AddCommand(ssmStatusCmd)
-	
+
 	// Add transfer subcommands
 	ssmTransferCmd.AddCommand(ssmUploadCmd)
 	ssmTransferCmd.AddCommand(ssmDownloadCmd)
@@ -443,6 +443,6 @@ func init() {
 	ssmListCmd.Flags().StringP("tag", "t", "", "Filter by tag (format: key=value)")
 	ssmListCmd.Flags().StringP("status", "s", "", "Filter by status (running, stopped, etc.)")
 	ssmListCmd.Flags().StringP("name", "n", "", "Filter by name pattern")
-	
+
 	ssmCommandCmd.Flags().StringP("comment", "c", "", "Comment for the command execution")
 }

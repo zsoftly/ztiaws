@@ -27,10 +27,10 @@ type LifecycleConfiguration struct {
 }
 
 type LifecycleRule struct {
-	ID                             string                         `json:"ID"`
-	Status                         string                         `json:"Status"`
-	Filter                         LifecycleFilter                `json:"Filter"`
-	Expiration                     *LifecycleExpiration           `json:"Expiration,omitempty"`
+	ID                             string                          `json:"ID"`
+	Status                         string                          `json:"Status"`
+	Filter                         LifecycleFilter                 `json:"Filter"`
+	Expiration                     *LifecycleExpiration            `json:"Expiration,omitempty"`
 	AbortIncompleteMultipartUpload *AbortIncompleteMultipartUpload `json:"AbortIncompleteMultipartUpload,omitempty"`
 }
 
@@ -47,10 +47,10 @@ type AbortIncompleteMultipartUpload struct {
 }
 
 const (
-	S3BucketPrefix              = "ztiaws-ssm-transfer"
-	LifecycleRuleID            = "SSMFileTransferCleanup"
-	DefaultExpirationDays      = 1
-	DefaultAbortUploadDays     = 1
+	S3BucketPrefix         = "ztiaws-ssm-transfer"
+	LifecycleRuleID        = "SSMFileTransferCleanup"
+	DefaultExpirationDays  = 1
+	DefaultAbortUploadDays = 1
 )
 
 // NewS3LifecycleManager creates a new S3 lifecycle manager
@@ -72,7 +72,7 @@ func (m *S3LifecycleManager) GetS3BucketName(ctx context.Context, region string)
 
 	accountID := *result.Account
 	bucketName := fmt.Sprintf("%s-%s-%s", S3BucketPrefix, accountID, region)
-	
+
 	return bucketName, nil
 }
 

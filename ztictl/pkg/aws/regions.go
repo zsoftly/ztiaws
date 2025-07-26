@@ -14,20 +14,20 @@ var RegionMapping = map[string]string{
 	"caw1": "ca-west-1",    // Calgary
 
 	// United States
-	"use1": "us-east-1",      // N. Virginia
-	"use2": "us-east-2",      // Ohio
-	"usw1": "us-west-1",      // N. California
-	"usw2": "us-west-2",      // Oregon
+	"use1": "us-east-1", // N. Virginia
+	"use2": "us-east-2", // Ohio
+	"usw1": "us-west-1", // N. California
+	"usw2": "us-west-2", // Oregon
 
 	// Europe
-	"euw1": "eu-west-1",      // Ireland
-	"euw2": "eu-west-2",      // London
-	"euw3": "eu-west-3",      // Paris
-	"euc1": "eu-central-1",   // Frankfurt
-	"euc2": "eu-central-2",   // Zurich
-	"eun1": "eu-north-1",     // Stockholm
-	"eus1": "eu-south-1",     // Milan
-	"eus2": "eu-south-2",     // Spain
+	"euw1": "eu-west-1",    // Ireland
+	"euw2": "eu-west-2",    // London
+	"euw3": "eu-west-3",    // Paris
+	"euc1": "eu-central-1", // Frankfurt
+	"euc2": "eu-central-2", // Zurich
+	"eun1": "eu-north-1",   // Stockholm
+	"eus1": "eu-south-1",   // Milan
+	"eus2": "eu-south-2",   // Spain
 
 	// Asia Pacific
 	"aps1":  "ap-south-1",     // Mumbai
@@ -53,22 +53,22 @@ var RegionMapping = map[string]string{
 
 // RegionDescriptions provides human-readable descriptions for regions
 var RegionDescriptions = map[string]string{
-	"cac1": "Canada Central (Montreal)",
-	"caw1": "Canada West (Calgary)",
-	"use1": "US East (N. Virginia)",
-	"use2": "US East (Ohio)",
-	"usw1": "US West (N. California)",
-	"usw2": "US West (Oregon)",
-	"euw1": "EU West (Ireland)",
-	"euw2": "EU West (London)",
-	"euw3": "EU West (Paris)",
-	"euc1": "EU Central (Frankfurt)",
-	"euc2": "EU Central (Zurich)",
-	"eun1": "EU North (Stockholm)",
-	"eus1": "EU South (Milan)",
-	"eus2": "EU South (Spain)",
-	"aps1": "Asia Pacific South (Mumbai)",
-	"aps2": "Asia Pacific South (Hyderabad)",
+	"cac1":  "Canada Central (Montreal)",
+	"caw1":  "Canada West (Calgary)",
+	"use1":  "US East (N. Virginia)",
+	"use2":  "US East (Ohio)",
+	"usw1":  "US West (N. California)",
+	"usw2":  "US West (Oregon)",
+	"euw1":  "EU West (Ireland)",
+	"euw2":  "EU West (London)",
+	"euw3":  "EU West (Paris)",
+	"euc1":  "EU Central (Frankfurt)",
+	"euc2":  "EU Central (Zurich)",
+	"eun1":  "EU North (Stockholm)",
+	"eus1":  "EU South (Milan)",
+	"eus2":  "EU South (Spain)",
+	"aps1":  "Asia Pacific South (Mumbai)",
+	"aps2":  "Asia Pacific South (Hyderabad)",
 	"apse1": "Asia Pacific Southeast (Singapore)",
 	"apse2": "Asia Pacific Southeast (Sydney)",
 	"apse3": "Asia Pacific Southeast (Jakarta)",
@@ -76,10 +76,10 @@ var RegionDescriptions = map[string]string{
 	"apne1": "Asia Pacific Northeast (Tokyo)",
 	"apne2": "Asia Pacific Northeast (Seoul)",
 	"apne3": "Asia Pacific Northeast (Osaka)",
-	"sae1": "South America East (São Paulo)",
-	"afs1": "Africa South (Cape Town)",
-	"mes1": "Middle East South (Bahrain)",
-	"mec1": "Middle East Central (UAE)",
+	"sae1":  "South America East (São Paulo)",
+	"afs1":  "Africa South (Cape Town)",
+	"mes1":  "Middle East South (Bahrain)",
+	"mec1":  "Middle East Central (UAE)",
 }
 
 // GetRegion converts a region code to an AWS region name

@@ -116,14 +116,14 @@ func (c *RequirementsChecker) checkSSMPlugin() RequirementResult {
 	// Check if session-manager-plugin exists
 	cmd := exec.Command("session-manager-plugin")
 	err := cmd.Run()
-	
+
 	// session-manager-plugin returns exit code 255 when called without arguments, but that means it's installed
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 255 {
 			result.Passed = true
 			return result
 		}
-		
+
 		result.Error = "Session Manager plugin not found"
 		result.Suggestion = c.getSSMPluginInstallInstructions()
 		return result
@@ -301,10 +301,10 @@ func (c *RequirementsChecker) isRedHatCentOS() bool {
 
 func (c *RequirementsChecker) installSSMPluginUbuntu() error {
 	// Download the package
-	downloadCmd := exec.Command("curl", 
+	downloadCmd := exec.Command("curl",
 		"https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb",
 		"-o", "session-manager-plugin.deb")
-	
+
 	if err := downloadCmd.Run(); err != nil {
 		return fmt.Errorf("failed to download SSM plugin: %w", err)
 	}

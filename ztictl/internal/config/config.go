@@ -15,13 +15,13 @@ import (
 type Config struct {
 	// AWS SSO Configuration
 	SSO SSOConfig `mapstructure:"sso"`
-	
+
 	// Default AWS region
 	DefaultRegion string `mapstructure:"default_region"`
-	
+
 	// Logging configuration
 	Logging LoggingConfig `mapstructure:"logging"`
-	
+
 	// System configuration
 	System SystemConfig `mapstructure:"system"`
 }
@@ -30,10 +30,10 @@ type Config struct {
 type SSOConfig struct {
 	// SSO start URL
 	StartURL string `mapstructure:"start_url"`
-	
+
 	// SSO region
 	Region string `mapstructure:"region"`
-	
+
 	// Default profile name
 	DefaultProfile string `mapstructure:"default_profile"`
 }
@@ -42,10 +42,10 @@ type SSOConfig struct {
 type LoggingConfig struct {
 	// Log directory path
 	Directory string `mapstructure:"directory"`
-	
+
 	// Enable file logging
 	FileLogging bool `mapstructure:"file_logging"`
-	
+
 	// Log level (debug, info, warn, error)
 	Level string `mapstructure:"level"`
 }
@@ -54,10 +54,10 @@ type LoggingConfig struct {
 type SystemConfig struct {
 	// IAM propagation delay in seconds
 	IAMPropagationDelay int `mapstructure:"iam_propagation_delay"`
-	
+
 	// File size threshold for S3 transfer (in bytes)
 	FileSizeThreshold int64 `mapstructure:"file_size_threshold"`
-	
+
 	// S3 bucket prefix for file transfers
 	S3BucketPrefix string `mapstructure:"s3_bucket_prefix"`
 }
@@ -70,13 +70,13 @@ var (
 // Load loads the configuration from file and environment variables
 func Load() error {
 	cfg = &Config{}
-	
+
 	// Set defaults first
 	setDefaults()
-	
+
 	// Check if this is a first run (no config file exists)
 	isFirstRun := !Exists()
-	
+
 	// Try to load from legacy .env file first (from the parent directory where authaws is)
 	envFilePath := filepath.Join("..", ".env")
 	envFileExists := false
@@ -86,7 +86,7 @@ func Load() error {
 			return err
 		}
 	}
-	
+
 	// If this is first run and no .env file exists, we need user configuration
 	if isFirstRun && !envFileExists {
 		// For first run without existing .env, create a minimal valid config with defaults
@@ -106,7 +106,7 @@ func Load() error {
 			System: SystemConfig{
 				IAMPropagationDelay: viper.GetInt("system.iam_propagation_delay"),
 				FileSizeThreshold:   viper.GetInt64("system.file_size_threshold"),
-				S3BucketPrefix:     viper.GetString("system.s3_bucket_prefix"),
+				S3BucketPrefix:      viper.GetString("system.s3_bucket_prefix"),
 			},
 		}
 	} else {
@@ -115,7 +115,7 @@ func Load() error {
 			return errors.NewConfigError("failed to unmarshal configuration", err)
 		}
 	}
-	
+
 	// Validate configuration (but allow empty SSO config for first run)
 	if err := validate(cfg); err != nil {
 		// If validation fails and it's first run, provide helpful guidance
@@ -124,7 +124,7 @@ func Load() error {
 		}
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -141,17 +141,17 @@ func Get() *Config {
 func setDefaults() {
 	// AWS defaults
 	viper.SetDefault("default_region", "ca-central-1")
-	
+
 	// SSO defaults - these should be overridden by user config or .env file
 	viper.SetDefault("sso.region", "us-east-1")
 	viper.SetDefault("sso.default_profile", "default-sso-profile")
-	
+
 	// Logging defaults
 	home, _ := os.UserHomeDir()
 	viper.SetDefault("logging.directory", filepath.Join(home, "logs"))
 	viper.SetDefault("logging.file_logging", true)
 	viper.SetDefault("logging.level", "info")
-	
+
 	// System defaults
 	viper.SetDefault("system.iam_propagation_delay", 5)
 	viper.SetDefault("system.file_size_threshold", 1048576) // 1MB
@@ -165,7 +165,7 @@ func validate(cfg *Config) error {
 		// This is okay for first run, but commands that need SSO will fail gracefully
 		return nil
 	}
-	
+
 	// Validate SSO configuration if provided
 	if cfg.SSO.StartURL != "" {
 		if cfg.SSO.Region == "" {
@@ -175,7 +175,7 @@ func validate(cfg *Config) error {
 			return errors.NewValidationError("SSO default profile must be specified when SSO start URL is provided")
 		}
 	}
-	
+
 	return nil
 }
 
@@ -184,35 +184,35 @@ func LoadLegacyEnvFile(envFilePath string) error {
 	if _, err := os.Stat(envFilePath); os.IsNotExist(err) {
 		return nil // No .env file, not an error
 	}
-	
+
 	// Read .env file manually since viper doesn't handle bash-style env files well
 	envFile, err := os.Open(envFilePath)
 	if err != nil {
 		return errors.NewConfigError("failed to open .env file", err)
 	}
 	defer envFile.Close()
-	
+
 	// Parse .env file and set viper values
 	scanner := bufio.NewScanner(envFile)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		
+
 		// Skip comments and empty lines
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		
+
 		// Parse KEY=VALUE format
 		if parts := strings.SplitN(line, "=", 2); len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			
+
 			// Remove quotes if present
 			if (strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`)) ||
-			   (strings.HasPrefix(value, `'`) && strings.HasSuffix(value, `'`)) {
+				(strings.HasPrefix(value, `'`) && strings.HasSuffix(value, `'`)) {
 				value = value[1 : len(value)-1]
 			}
-			
+
 			// Map legacy .env variables to new config structure
 			switch key {
 			case "SSO_START_URL":
@@ -226,11 +226,11 @@ func LoadLegacyEnvFile(envFilePath string) error {
 			}
 		}
 	}
-	
+
 	if err := scanner.Err(); err != nil {
 		return errors.NewConfigError("failed to parse .env file", err)
 	}
-	
+
 	return nil
 }
 
@@ -281,12 +281,12 @@ system:
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return errors.NewConfigError("failed to create config directory", err)
 	}
-	
+
 	// Write sample config
 	if err := os.WriteFile(configPath, []byte(sampleConfig), 0644); err != nil {
 		return errors.NewConfigError("failed to write sample config", err)
 	}
-	
+
 	return nil
 }
 
@@ -307,18 +307,18 @@ func Exists() bool {
 func InteractiveInit() error {
 	fmt.Println("\n🚀 Welcome to ztictl! Let's set up your configuration.")
 	fmt.Println("========================================================")
-	
+
 	reader := bufio.NewReader(os.Stdin)
 	config := &Config{}
-	
+
 	// AWS SSO Configuration
 	fmt.Println("\n📋 AWS SSO Configuration")
 	fmt.Println("-------------------------")
-	
+
 	fmt.Print("Enter your AWS SSO Start URL (e.g., https://d-xxxxxxxxxx.awsapps.com/start): ")
 	startURL, _ := reader.ReadString('\n')
 	config.SSO.StartURL = strings.TrimSpace(startURL)
-	
+
 	fmt.Print("Enter your SSO region [us-east-1]: ")
 	ssoRegion, _ := reader.ReadString('\n')
 	ssoRegion = strings.TrimSpace(ssoRegion)
@@ -326,7 +326,7 @@ func InteractiveInit() error {
 		ssoRegion = "us-east-1"
 	}
 	config.SSO.Region = ssoRegion
-	
+
 	fmt.Print("Enter default profile name [default-sso-profile]: ")
 	defaultProfile, _ := reader.ReadString('\n')
 	defaultProfile = strings.TrimSpace(defaultProfile)
@@ -334,7 +334,7 @@ func InteractiveInit() error {
 		defaultProfile = "default-sso-profile"
 	}
 	config.SSO.DefaultProfile = defaultProfile
-	
+
 	// Default AWS Region
 	fmt.Println("\n🌍 Default AWS Region")
 	fmt.Println("--------------------")
@@ -345,14 +345,14 @@ func InteractiveInit() error {
 		defaultRegion = "ca-central-1"
 	}
 	config.DefaultRegion = defaultRegion
-	
+
 	// Logging Configuration
 	fmt.Println("\n📝 Logging Configuration")
 	fmt.Println("------------------------")
 	fmt.Print("Enable file logging? [y/N]: ")
 	fileLogging, _ := reader.ReadString('\n')
 	config.Logging.FileLogging = strings.ToLower(strings.TrimSpace(fileLogging)) == "y"
-	
+
 	fmt.Print("Log directory [~/logs]: ")
 	logDir, _ := reader.ReadString('\n')
 	logDir = strings.TrimSpace(logDir)
@@ -360,7 +360,7 @@ func InteractiveInit() error {
 		logDir = "~/logs"
 	}
 	config.Logging.Directory = logDir
-	
+
 	fmt.Print("Log level (debug/info/warn/error) [info]: ")
 	logLevel, _ := reader.ReadString('\n')
 	logLevel = strings.TrimSpace(logLevel)
@@ -368,7 +368,7 @@ func InteractiveInit() error {
 		logLevel = "info"
 	}
 	config.Logging.Level = logLevel
-	
+
 	// System Configuration
 	fmt.Println("\n⚙️  System Configuration")
 	fmt.Println("-----------------------")
@@ -380,7 +380,7 @@ func InteractiveInit() error {
 	} else {
 		fmt.Sscanf(iamDelay, "%d", &config.System.IAMPropagationDelay)
 	}
-	
+
 	fmt.Print("S3 bucket prefix for file transfers [ztictl-ssm-file-transfer]: ")
 	s3Prefix, _ := reader.ReadString('\n')
 	s3Prefix = strings.TrimSpace(s3Prefix)
@@ -388,21 +388,21 @@ func InteractiveInit() error {
 		s3Prefix = "ztictl-ssm-file-transfer"
 	}
 	config.System.S3BucketPrefix = s3Prefix
-	
+
 	// Set default file size threshold
 	config.System.FileSizeThreshold = 1048576 // 1MB
-	
+
 	// Write the configuration
 	if err := writeInteractiveConfig(config); err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
 	}
-	
+
 	fmt.Println("\n✅ Configuration saved successfully!")
 	fmt.Printf("📁 Config file: %s\n", getConfigPath())
 	fmt.Println("\nNext steps:")
 	fmt.Println("1. Run 'ztictl config check' to verify requirements")
 	fmt.Println("2. Run 'ztictl auth login' to authenticate")
-	
+
 	return nil
 }
 
@@ -410,12 +410,12 @@ func InteractiveInit() error {
 func writeInteractiveConfig(config *Config) error {
 	configPath := getConfigPath()
 	configDir := filepath.Dir(configPath)
-	
+
 	// Create directory if it doesn't exist
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
-	
+
 	// Generate YAML content
 	yamlContent := fmt.Sprintf(`# ztictl Configuration File
 # Generated interactively on first run
@@ -452,11 +452,11 @@ system:
 		config.System.FileSizeThreshold,
 		config.System.S3BucketPrefix,
 	)
-	
+
 	// Write to file
 	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
-	
+
 	return nil
 }

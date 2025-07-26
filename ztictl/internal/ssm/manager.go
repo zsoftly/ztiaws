@@ -22,8 +22,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"ztictl/internal/logging"
 	appconfig "ztictl/internal/config"
+	"ztictl/internal/logging"
 	"ztictl/pkg/errors"
 )
 
@@ -36,26 +36,26 @@ type Manager struct {
 
 // Instance represents an EC2 instance with SSM information
 type Instance struct {
-	InstanceID         string    `json:"instance_id"`
-	Name               string    `json:"name"`
-	State              string    `json:"state"`
-	Platform           string    `json:"platform"`
-	PrivateIPAddress   string    `json:"private_ip_address"`
-	PublicIPAddress    string    `json:"public_ip_address,omitempty"`
-	SSMStatus          string    `json:"ssm_status"`
-	SSMAgentVersion    string    `json:"ssm_agent_version,omitempty"`
-	LastPingDateTime   string    `json:"last_ping_date_time,omitempty"`
-	Tags               map[string]string `json:"tags,omitempty"`
+	InstanceID       string            `json:"instance_id"`
+	Name             string            `json:"name"`
+	State            string            `json:"state"`
+	Platform         string            `json:"platform"`
+	PrivateIPAddress string            `json:"private_ip_address"`
+	PublicIPAddress  string            `json:"public_ip_address,omitempty"`
+	SSMStatus        string            `json:"ssm_status"`
+	SSMAgentVersion  string            `json:"ssm_agent_version,omitempty"`
+	LastPingDateTime string            `json:"last_ping_date_time,omitempty"`
+	Tags             map[string]string `json:"tags,omitempty"`
 }
 
 // CommandResult represents the result of a command execution
 type CommandResult struct {
-	InstanceID   string  `json:"instance_id"`
-	Command      string  `json:"command"`
-	Status       string  `json:"status"`
-	ExitCode     *int32  `json:"exit_code,omitempty"`
-	Output       string  `json:"output"`
-	ErrorOutput  string  `json:"error_output,omitempty"`
+	InstanceID    string         `json:"instance_id"`
+	Command       string         `json:"command"`
+	Status        string         `json:"status"`
+	ExitCode      *int32         `json:"exit_code,omitempty"`
+	Output        string         `json:"output"`
+	ErrorOutput   string         `json:"error_output,omitempty"`
 	ExecutionTime *time.Duration `json:"execution_time,omitempty"`
 }
 
@@ -125,9 +125,9 @@ func (m *Manager) StartSession(ctx context.Context, instanceIdentifier, region s
 	m.logger.Info("Starting SSM session", "instance", instanceID, "region", region)
 
 	// Use AWS CLI for session manager (Go SDK doesn't support interactive sessions)
-	cmd := exec.CommandContext(ctx, "aws", "ssm", "start-session", 
+	cmd := exec.CommandContext(ctx, "aws", "ssm", "start-session",
 		"--region", region, "--target", instanceID)
-	
+
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -194,7 +194,7 @@ func (m *Manager) ExecuteCommand(ctx context.Context, instanceIdentifier, region
 	}
 
 	startTime := time.Now()
-	
+
 	sendResp, err := ssmClient.SendCommand(ctx, &ssm.SendCommandInput{
 		DocumentName: aws.String("AWS-RunShellScript"),
 		InstanceIds:  []string{instanceID},
@@ -238,7 +238,7 @@ func (m *Manager) UploadFile(ctx context.Context, instanceIdentifier, region, lo
 	}
 
 	cfg := appconfig.Get()
-	
+
 	m.logger.Info("Uploading file", "instance", instanceID, "local", localPath, "remote", remotePath, "size", fileInfo.Size())
 
 	// Choose transfer method based on file size
@@ -340,7 +340,7 @@ func (m *Manager) GetInstanceStatus(ctx context.Context, instanceIdentifier, reg
 	}
 
 	info := resp.InstanceInformationList[0]
-	
+
 	return &Instance{
 		InstanceID:       aws.ToString(info.InstanceId),
 		SSMStatus:        string(info.PingStatus),
@@ -411,11 +411,11 @@ func (m *Manager) validateInstanceID(ctx context.Context, instanceID, region str
 	}
 
 	ec2Client := ec2.NewFromConfig(awsCfg)
-	
+
 	_, err = ec2Client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
 		InstanceIds: []string{instanceID},
 	})
-	
+
 	if err != nil {
 		return fmt.Errorf("instance ID '%s' not found in region '%s'", instanceID, region)
 	}
@@ -673,7 +673,7 @@ func (m *Manager) downloadFileSmall(ctx context.Context, instanceID, region, rem
 
 func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, localPath, remotePath string) error {
 	m.logger.Info("Starting large file upload via S3", "instance", instanceID, "file", localPath, "size", "large")
-	
+
 	// Initialize managers if not already done
 	if m.iamManager == nil || m.s3LifecycleManager == nil {
 		if err := m.initializeManagers(ctx, region); err != nil {
@@ -716,7 +716,7 @@ func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, local
 	rand.Read(randomBytes)
 	timestamp := time.Now().Unix()
 	s3Key := fmt.Sprintf("uploads/%d-%s-%s", timestamp, hex.EncodeToString(randomBytes), filepath.Base(localPath))
-	
+
 	// Defer cleanup of S3 object
 	defer func() {
 		m.s3LifecycleManager.CleanupS3Object(ctx, bucketName, s3Key, region)
@@ -764,7 +764,7 @@ func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, local
 
 func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, remotePath, localPath string) error {
 	m.logger.Info("Starting large file download via S3", "instance", instanceID, "file", remotePath, "size", "large")
-	
+
 	// Initialize managers if not already done
 	if m.iamManager == nil || m.s3LifecycleManager == nil {
 		if err := m.initializeManagers(ctx, region); err != nil {
@@ -807,7 +807,7 @@ func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, rem
 	rand.Read(randomBytes)
 	timestamp := time.Now().Unix()
 	s3Key := fmt.Sprintf("downloads/%d-%s-%s", timestamp, hex.EncodeToString(randomBytes), filepath.Base(remotePath))
-	
+
 	// Defer cleanup of S3 object
 	defer func() {
 		m.s3LifecycleManager.CleanupS3Object(ctx, bucketName, s3Key, region)
