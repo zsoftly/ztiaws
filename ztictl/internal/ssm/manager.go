@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -87,6 +88,14 @@ func NewManager(logger *logging.Logger) *Manager {
 	}
 }
 
+// getAWSCommand returns the platform-appropriate AWS CLI command name
+func getAWSCommand() string {
+	if runtime.GOOS == "windows" {
+		return "aws.exe"
+	}
+	return "aws"
+}
+
 // initializeManagers initializes the IAM and S3 lifecycle managers
 func (m *Manager) initializeManagers(ctx context.Context, region string) error {
 	// Load AWS configuration
@@ -125,7 +134,7 @@ func (m *Manager) StartSession(ctx context.Context, instanceIdentifier, region s
 	m.logger.Info("Starting SSM session", "instance", instanceID, "region", region)
 
 	// Use AWS CLI for session manager (Go SDK doesn't support interactive sessions)
-	cmd := exec.CommandContext(ctx, "aws", "ssm", "start-session",
+	cmd := exec.CommandContext(ctx, getAWSCommand(), "ssm", "start-session",
 		"--region", region, "--target", instanceID)
 
 	cmd.Stdin = os.Stdin
@@ -286,7 +295,7 @@ func (m *Manager) ForwardPort(ctx context.Context, instanceIdentifier, region st
 	m.logger.Info("Starting port forwarding", "instance", instanceID, "local_port", localPort, "remote_port", remotePort)
 
 	// Use AWS CLI for port forwarding (Go SDK doesn't support this directly)
-	cmd := exec.CommandContext(ctx, "aws", "ssm", "start-session",
+	cmd := exec.CommandContext(ctx, getAWSCommand(), "ssm", "start-session",
 		"--region", region,
 		"--target", instanceID,
 		"--document-name", "AWS-StartPortForwardingSession",

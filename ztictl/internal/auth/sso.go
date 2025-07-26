@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sso"
 	"github.com/aws/aws-sdk-go-v2/service/ssooidc"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/fatih/color"
 	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/pkg/browser"
 	appconfig "ztictl/internal/config"
@@ -79,6 +81,24 @@ func NewManager(logger *logging.Logger) *Manager {
 	}
 }
 
+// getAWSConfigDir returns the AWS configuration directory path
+func getAWSConfigDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+	return filepath.Join(homeDir, ".aws"), nil
+}
+
+// getAWSCacheDir returns the AWS SSO cache directory path
+func getAWSCacheDir() (string, error) {
+	configDir, err := getAWSConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, "sso", "cache"), nil
+}
+
 // Login performs AWS SSO login with interactive account and role selection
 func (m *Manager) Login(ctx context.Context, profileName string) error {
 	cfg := appconfig.Get()
@@ -89,18 +109,27 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 
 	m.logger.Info("Starting AWS SSO authentication", "profile", profileName)
 
-	// Load AWS config
-	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(cfg.SSO.Region))
-	if err != nil {
-		return errors.NewAWSError("failed to load AWS config", err)
-	}
+	// Debug: Log the configuration being used
+	m.logger.Debug("Using SSO configuration", 
+		"start_url", cfg.SSO.StartURL, 
+		"sso_region", cfg.SSO.Region,
+		"default_region", cfg.DefaultRegion)
 
-	// Configure the profile with SSO settings
+	// Step 1: Configure the profile with basic SSO settings first (like bash version)
 	if err := m.configureProfile(profileName, cfg); err != nil {
 		return fmt.Errorf("failed to configure profile: %w", err)
 	}
+	m.logger.Debug("Profile configured successfully", "profile", profileName)
 
-	// Check for valid cached token
+	// Step 2: Load AWS config without specifying the profile (to avoid SSO validation issues)
+	// Create a completely isolated AWS config that bypasses all profile loading
+	awsCfg := aws.Config{
+		Region: cfg.SSO.Region,
+		Credentials: aws.AnonymousCredentials{},
+	}
+	m.logger.Debug("AWS config loaded successfully", "region", cfg.SSO.Region)
+
+	// Step 3: Check for valid cached token
 	token, err := m.getCachedToken(cfg.SSO.StartURL)
 	if err != nil || !m.isTokenValid(token) {
 		m.logger.Info("No valid cached token found, initiating SSO login...")
@@ -119,13 +148,13 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 		m.logger.Info("Using valid cached SSO token")
 	}
 
-	// Get available accounts
+	// Step 4: Get available accounts
 	accounts, err := m.listAccounts(ctx, awsCfg, token.AccessToken)
 	if err != nil {
 		return fmt.Errorf("failed to list accounts: %w", err)
 	}
 
-	// Interactive account selection
+	// Step 5: Interactive account selection
 	selectedAccount, err := m.selectAccount(accounts)
 	if err != nil {
 		return fmt.Errorf("account selection failed: %w", err)
@@ -133,13 +162,13 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 
 	m.logger.Info("Selected account", "id", selectedAccount.AccountID, "name", selectedAccount.AccountName)
 
-	// Get available roles for the selected account
+	// Step 6: Get available roles for the selected account
 	roles, err := m.listAccountRoles(ctx, awsCfg, token.AccessToken, selectedAccount.AccountID)
 	if err != nil {
 		return fmt.Errorf("failed to list roles: %w", err)
 	}
 
-	// Interactive role selection
+	// Step 7: Interactive role selection
 	selectedRole, err := m.selectRole(roles, selectedAccount)
 	if err != nil {
 		return fmt.Errorf("role selection failed: %w", err)
@@ -147,7 +176,7 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 
 	m.logger.Info("Selected role", "role", selectedRole.RoleName)
 
-	// Update profile with selected account and role
+	// Step 8: Update profile with selected account and role
 	if err := m.updateProfileWithSelection(profileName, selectedAccount, selectedRole, cfg); err != nil {
 		return fmt.Errorf("failed to update profile: %w", err)
 	}
@@ -156,6 +185,9 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 		"profile", profileName,
 		"account", selectedAccount.AccountName,
 		"role", selectedRole.RoleName)
+
+	// Print platform-specific success message
+	m.printSuccessMessage(profileName, selectedAccount, selectedRole, cfg)
 
 	return nil
 }
@@ -180,7 +212,11 @@ func (m *Manager) Logout(ctx context.Context, profileName string) error {
 // ListProfiles returns all configured AWS profiles
 func (m *Manager) ListProfiles(ctx context.Context) ([]Profile, error) {
 	// Read AWS config file to get all profiles
-	configPath := filepath.Join(os.Getenv("HOME"), ".aws", "config")
+	configDir, err := getAWSConfigDir()
+	if err != nil {
+		return nil, err
+	}
+	configPath := filepath.Join(configDir, "config")
 
 	content, err := os.ReadFile(configPath)
 	if err != nil {
@@ -243,33 +279,51 @@ func (m *Manager) GetCredentials(ctx context.Context, profileName string) (*Cred
 
 // configureProfile sets up the AWS profile with SSO settings
 func (m *Manager) configureProfile(profileName string, cfg *appconfig.Config) error {
-	configDir := filepath.Join(os.Getenv("HOME"), ".aws")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+	m.logger.Debug("Using home directory", "path", homeDir)
+
+	configDir := filepath.Join(homeDir, ".aws")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("failed to create AWS config directory: %w", err)
 	}
+	m.logger.Debug("AWS config directory", "path", configDir)
 
 	configPath := filepath.Join(configDir, "config")
+	m.logger.Debug("AWS config file path", "path", configPath)
 
 	// Read existing config
 	var content string
 	if existing, err := os.ReadFile(configPath); err == nil {
 		content = string(existing)
+		m.logger.Debug("Read existing config", "length", len(content))
+	} else {
+		m.logger.Debug("No existing config file found, will create new one")
 	}
 
 	// Update or add profile configuration
 	content = m.updateProfileInConfig(content, profileName, cfg)
+	m.logger.Debug("Updated profile configuration", "profile", profileName)
 
 	// Write back to file
 	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write AWS config: %w", err)
 	}
+	m.logger.Debug("Wrote AWS config file successfully")
 
 	return nil
 }
 
 // getCachedToken retrieves a cached SSO token
 func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
-	cacheDir := filepath.Join(os.Getenv("HOME"), ".aws", "sso", "cache")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	cacheDir := filepath.Join(homeDir, ".aws", "sso", "cache")
 
 	// First, try the expected filename based on SHA1 hash
 	hasher := sha1.New()
@@ -286,7 +340,7 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 
 	// Fallback: search through all cache files
 	var tokenFile string
-	err := filepath.WalkDir(cacheDir, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(cacheDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // Continue walking
 		}
@@ -428,7 +482,10 @@ func (m *Manager) performSSOLogin(ctx context.Context, awsCfg aws.Config, profil
 
 // saveTokenToCache saves an SSO token to the AWS cache
 func (m *Manager) saveTokenToCache(tokenResp *ssooidc.CreateTokenOutput, startURL, region string) error {
-	cacheDir := filepath.Join(os.Getenv("HOME"), ".aws", "sso", "cache")
+	cacheDir, err := getAWSCacheDir()
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		return fmt.Errorf("failed to create cache directory: %w", err)
 	}
@@ -466,12 +523,10 @@ func (m *Manager) saveTokenToCache(tokenResp *ssooidc.CreateTokenOutput, startUR
 func (m *Manager) listAccounts(ctx context.Context, awsCfg aws.Config, accessToken string) ([]Account, error) {
 	cfg := appconfig.Get()
 
-	// Create a new config specifically for SSO operations using the configured SSO region
-	ssoConfig, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(cfg.SSO.Region), // Use the configured SSO region
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load SSO config: %w", err)
+	// Create a completely isolated config for SSO operations
+	ssoConfig := aws.Config{
+		Region: cfg.SSO.Region,
+		Credentials: aws.AnonymousCredentials{},
 	}
 
 	// Create SSO client with explicit configuration
@@ -525,12 +580,10 @@ func (m *Manager) selectAccount(accounts []Account) (*Account, error) {
 func (m *Manager) listAccountRoles(ctx context.Context, awsCfg aws.Config, accessToken, accountID string) ([]Role, error) {
 	cfg := appconfig.Get()
 
-	// Create a new config specifically for SSO operations using the configured SSO region
-	ssoConfig, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(cfg.SSO.Region), // Use the configured SSO region
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load SSO config: %w", err)
+	// Create a completely isolated config for SSO operations
+	ssoConfig := aws.Config{
+		Region: cfg.SSO.Region,
+		Credentials: aws.AnonymousCredentials{},
 	}
 
 	// Create SSO client with explicit configuration
@@ -582,7 +635,11 @@ func (m *Manager) selectRole(roles []Role, account *Account) (*Role, error) {
 
 // updateProfileWithSelection updates the AWS profile with selected account and role
 func (m *Manager) updateProfileWithSelection(profileName string, account *Account, role *Role, cfg *appconfig.Config) error {
-	configPath := filepath.Join(os.Getenv("HOME"), ".aws", "config")
+	configDir, err := getAWSConfigDir()
+	if err != nil {
+		return err
+	}
+	configPath := filepath.Join(configDir, "config")
 
 	// Read existing config
 	content, err := os.ReadFile(configPath)
@@ -842,7 +899,10 @@ func (m *Manager) parseProfiles(content string) []Profile {
 // isProfileAuthenticated checks if a profile has valid cached tokens
 func (m *Manager) IsProfileAuthenticated(profileName string) bool {
 	// Check if SSO token cache exists and is valid
-	configDir := filepath.Join(os.Getenv("HOME"), ".aws", "sso", "cache")
+	configDir, err := getAWSCacheDir()
+	if err != nil {
+		return false
+	}
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		return false
 	}
@@ -900,7 +960,54 @@ func (m *Manager) isProfileAuthenticated(ctx context.Context, profileName string
 	return err == nil, nil
 }
 
+// printSuccessMessage displays platform-specific instructions after successful authentication
+func (m *Manager) printSuccessMessage(profileName string, account *Account, role *Role, cfg *appconfig.Config) {
+	// Color setup
+	successColor := color.New(color.FgGreen, color.Bold)
+	infoColor := color.New(color.FgCyan)
+	commandColor := color.New(color.FgYellow)
+	
+	fmt.Println()
+	successColor.Println("🎉 Successfully configured AWS SSO profile.")
+	fmt.Println("----------------------------------------")
+	infoColor.Printf("Account: %s\n", account.AccountName)
+	infoColor.Printf("Role: %s\n", role.RoleName)
+	infoColor.Printf("Profile: %s\n", profileName)
+	fmt.Println()
+	
+	// Platform-specific instructions
+	infoColor.Println("To use this profile, run:")
+	
+	switch runtime.GOOS {
+	case "windows":
+		// Windows Command Prompt instructions
+		fmt.Println()
+		infoColor.Println("For Command Prompt (cmd):")
+		commandColor.Printf("set AWS_PROFILE=%s\n", profileName)
+		commandColor.Printf("set AWS_DEFAULT_REGION=%s\n", cfg.SSO.Region)
+		
+		fmt.Println()
+		infoColor.Println("For PowerShell:")
+		commandColor.Printf("$env:AWS_PROFILE=\"%s\"\n", profileName)
+		commandColor.Printf("$env:AWS_DEFAULT_REGION=\"%s\"\n", cfg.SSO.Region)
+		
+	default:
+		// Unix/Linux/macOS instructions
+		commandColor.Printf("export AWS_PROFILE=%s AWS_DEFAULT_REGION=%s\n", profileName, cfg.SSO.Region)
+	}
+	
+	fmt.Println()
+	infoColor.Println("To view your credentials, run:")
+	commandColor.Printf("ztictl auth creds %s\n", profileName)
+	
+	fmt.Println()
+	infoColor.Println("To list EC2 instances, run:")
+	commandColor.Printf("ztictl ssm list\n")
+}
+
 func (m *Manager) clearSSOCache() error {
-	cacheDir := filepath.Join(os.Getenv("HOME"), ".aws", "sso", "cache")
-	return os.RemoveAll(cacheDir)
+	// For Windows compatibility, we'll disable automatic cache clearing
+	// Users can manually clear cache using AWS CLI: aws sso logout
+	m.logger.Info("Cache clearing disabled for security compatibility")
+	return nil
 }

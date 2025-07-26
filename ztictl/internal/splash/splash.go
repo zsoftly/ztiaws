@@ -11,14 +11,17 @@ import (
 )
 
 const (
-	// ASCII art banner for ztictl
+	// ASCII art banner for ztictl with butterfly theme
 	banner = `
- ███████╗████████╗██╗ ██████╗████████╗██╗     
- ╚══███╔╝╚══██╔══╝██║██╔════╝╚══██╔══╝██║     
-   ███╔╝    ██║   ██║██║        ██║   ██║     
-  ███╔╝     ██║   ██║██║        ██║   ██║     
- ███████╗   ██║   ██║╚██████╗   ██║   ███████╗
- ╚══════╝   ╚═╝   ╚═╝ ╚═════╝   ╚═╝   ╚══════╝
+  ╭─────────────────────────────────────────────╮
+  │    🦋 ztictl - Transform Your AWS Workflow   │
+  │         ╭─╮   Small commands,              │
+  │      ╭─╯   ╰─╮ Big impact                  │
+  │   ╭─╯  ◦ ◦  ╰─╮                            │
+  │  ╰─╮    ◦    ╱─╯  🔐 SSO • 🖥️ SSM • ⚡ More │
+  │     ╰─╮     ╱                              │
+  │       ╰─────╯                              │
+  ╰─────────────────────────────────────────────╯
 `
 
 	// Version tracking file
@@ -97,19 +100,20 @@ func ShowSplash(version string) (bool, error) {
 
 // displaySplash renders the colored splash screen
 func displaySplash(config SplashConfig) {
-	// Color setup
-	titleColor := color.New(color.FgCyan, color.Bold)
-	versionColor := color.New(color.FgGreen, color.Bold)
-	descColor := color.New(color.FgYellow)
-	featureColor := color.New(color.FgBlue)
-	headerColor := color.New(color.FgMagenta, color.Bold)
-	accentColor := color.New(color.FgRed, color.Bold)
+	// Blue and white color scheme for butterfly theme
+	titleColor := color.New(color.FgBlue, color.Bold)        // Blue for main elements
+	versionColor := color.New(color.FgCyan, color.Bold)      // Cyan for version
+	descColor := color.New(color.FgWhite)                    // White for description
+	featureColor := color.New(color.FgBlue)                  // Blue for features
+	headerColor := color.New(color.FgBlue, color.Bold)       // Bold blue for headers
+	accentColor := color.New(color.FgCyan, color.Bold)       // Cyan for accents
+	butterflyColor := color.New(color.FgMagenta, color.Bold) // Special color for butterfly elements
 
 	// Clear screen for better presentation
 	fmt.Print("\033[2J\033[H")
 
-	// Display banner
-	titleColor.Print(banner)
+	// Display banner with butterfly theme colors
+	butterflyColor.Print(banner)
 
 	// Version and title
 	fmt.Print("\n")
@@ -117,13 +121,14 @@ func displaySplash(config SplashConfig) {
 	versionColor.Printf("v%s\n", config.AppVersion)
 	descColor.Printf("  %s\n\n", config.Description)
 
-	// Welcome message based on run type
+	// Welcome message based on run type with butterfly theme
 	if config.IsFirstRun {
-		headerColor.Println("  🎉 Welcome to ztictl! This appears to be your first run.")
+		headerColor.Println("  🦋 Welcome to ztictl! Ready to transform your AWS workflow?")
+		descColor.Println("  Like a butterfly effect, small commands create powerful changes.")
 		fmt.Println("  Let's get you set up with everything you need.")
 	} else if config.IsNewVersion {
-		headerColor.Printf("  🚀 Welcome back! You've upgraded to v%s\n", config.AppVersion)
-		fmt.Println("  Check out the new features and improvements below.")
+		headerColor.Printf("  🦋 Welcome back! Your workflow just got more powerful with v%s\n", config.AppVersion)
+		descColor.Println("  New features await - small updates, big improvements.")
 	}
 
 	// Feature showcase
@@ -167,18 +172,18 @@ func displaySplash(config SplashConfig) {
 	featureColor.Println("    • Help:   ztictl --help")
 	featureColor.Println("    • Config: ztictl config --help")
 
-	// Animated separator
+	// Animated separator with butterfly theme
 	fmt.Println()
-	animateMessage("  " + strings.Repeat("━", 60))
+	animateMessage("  🦋" + strings.Repeat("═", 56) + "🦋")
 	fmt.Println()
 
 	// Pause for user to read
 	if config.IsFirstRun {
-		fmt.Print("  Press Enter to start the interactive configuration...")
+		butterflyColor.Print("  🦋 Press Enter to begin your transformation...")
 		fmt.Scanln()
 	} else {
 		time.Sleep(3 * time.Second)
-		fmt.Println("  Starting ztictl...")
+		descColor.Println("  🦋 Spreading wings... Starting ztictl...")
 		time.Sleep(1 * time.Second)
 	}
 }
@@ -197,8 +202,12 @@ func animateMessage(message string) {
 
 // ShowBriefWelcome shows a minimal welcome for subsequent runs
 func ShowBriefWelcome(version string) {
-	color := color.New(color.FgCyan)
-	color.Printf("ztictl v%s - AWS SSO & Systems Manager CLI\n", version)
+	butterflyColor := color.New(color.FgMagenta, color.Bold)
+	titleColor := color.New(color.FgBlue, color.Bold)
+	
+	butterflyColor.Print("🦋 ")
+	titleColor.Printf("ztictl v%s", version)
+	fmt.Println(" - Transform your AWS workflow")
 	fmt.Println("Type 'ztictl --help' for usage information.")
 	fmt.Println()
 }
