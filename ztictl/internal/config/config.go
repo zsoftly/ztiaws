@@ -60,6 +60,9 @@ type SystemConfig struct {
 
 	// S3 bucket prefix for file transfers
 	S3BucketPrefix string `mapstructure:"s3_bucket_prefix"`
+
+	// Temporary directory for file operations
+	TempDirectory string `mapstructure:"temp_directory"`
 }
 
 var (
@@ -99,7 +102,7 @@ func Load() error {
 			},
 			DefaultRegion: viper.GetString("default_region"),
 			Logging: LoggingConfig{
-				Directory:   viper.GetString("logging.directory"),
+				Directory:   expandPath(viper.GetString("logging.directory")),
 				FileLogging: viper.GetBool("logging.file_logging"),
 				Level:       viper.GetString("logging.level"),
 			},
@@ -107,6 +110,7 @@ func Load() error {
 				IAMPropagationDelay: viper.GetInt("system.iam_propagation_delay"),
 				FileSizeThreshold:   viper.GetInt64("system.file_size_threshold"),
 				S3BucketPrefix:      viper.GetString("system.s3_bucket_prefix"),
+				TempDirectory:       viper.GetString("system.temp_directory"),
 			},
 		}
 	} else {
@@ -114,6 +118,9 @@ func Load() error {
 		if err := viper.Unmarshal(cfg); err != nil {
 			return errors.NewConfigError("failed to unmarshal configuration", err)
 		}
+		
+		// Expand paths with tilde support
+		cfg.Logging.Directory = expandPath(cfg.Logging.Directory)
 	}
 
 	// Validate configuration (but allow empty SSO config for first run)
@@ -156,6 +163,7 @@ func setDefaults() {
 	viper.SetDefault("system.iam_propagation_delay", 5)
 	viper.SetDefault("system.file_size_threshold", 1048576) // 1MB
 	viper.SetDefault("system.s3_bucket_prefix", "ztictl-ssm-file-transfer")
+	viper.SetDefault("system.temp_directory", os.TempDir()) // Platform-appropriate temp directory
 }
 
 // validate validates the configuration
@@ -236,7 +244,19 @@ func LoadLegacyEnvFile(envFilePath string) error {
 
 // CreateSampleConfig creates a sample configuration file
 func CreateSampleConfig(configPath string) error {
-	sampleConfig := `# ztictl Configuration File
+	// Get home directory for platform-compatible paths
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("unable to get home directory: %w", err)
+	}
+	
+	// Use absolute path for log directory
+	logDir := filepath.Join(home, "logs")
+	
+	// Use platform-appropriate temp directory
+	tempDir := os.TempDir()
+	
+	sampleConfig := fmt.Sprintf(`# ztictl Configuration File
 # This file configures ztictl with your AWS SSO and system settings
 
 # AWS SSO Configuration
@@ -255,8 +275,8 @@ default_region: "ca-central-1"
 
 # Logging configuration
 logging:
-  # Directory for log files
-  directory: "~/logs"
+  # Directory for log files (absolute path, Windows compatible)
+  directory: "%s"
   
   # Enable file logging (in addition to console)
   file_logging: true
@@ -274,7 +294,10 @@ system:
   
   # S3 bucket prefix for file transfers
   s3_bucket_prefix: "ztictl-ssm-file-transfer"
-`
+  
+  # Temporary directory for file operations (platform-appropriate)
+  temp_directory: "%s"
+`, logDir, tempDir)
 
 	// Create directory if it doesn't exist
 	configDir := filepath.Dir(configPath)
@@ -459,4 +482,31 @@ system:
 	}
 
 	return nil
+}
+
+// expandPath expands paths with tilde (~) to the user's home directory
+func expandPath(path string) string {
+	if path == "" {
+		return path
+	}
+	
+	// Handle tilde expansion
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path // Return original path if we can't get home dir
+		}
+		return filepath.Join(home, path[2:])
+	}
+	
+	// Handle bare tilde
+	if path == "~" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return home
+	}
+	
+	return path
 }

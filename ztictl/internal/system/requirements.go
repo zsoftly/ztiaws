@@ -87,8 +87,14 @@ func (c *RequirementsChecker) FixIssues(results []RequirementResult) error {
 func (c *RequirementsChecker) checkAWSCLI() RequirementResult {
 	result := RequirementResult{Name: "AWS CLI"}
 
+	// Use platform-appropriate command name
+	cmdName := "aws"
+	if runtime.GOOS == "windows" {
+		cmdName = "aws.exe"
+	}
+
 	// Check if aws command exists
-	cmd := exec.Command("aws", "--version")
+	cmd := exec.Command(cmdName, "--version")
 	output, err := cmd.Output()
 	if err != nil {
 		result.Error = "AWS CLI not found"
@@ -113,8 +119,14 @@ func (c *RequirementsChecker) checkAWSCLI() RequirementResult {
 func (c *RequirementsChecker) checkSSMPlugin() RequirementResult {
 	result := RequirementResult{Name: "Session Manager Plugin"}
 
+	// Use platform-appropriate command name
+	cmdName := "session-manager-plugin"
+	if runtime.GOOS == "windows" {
+		cmdName = "session-manager-plugin.exe"
+	}
+
 	// Check if session-manager-plugin exists
-	cmd := exec.Command("session-manager-plugin")
+	cmd := exec.Command(cmdName)
 	err := cmd.Run()
 
 	// session-manager-plugin returns exit code 255 when called without arguments, but that means it's installed
