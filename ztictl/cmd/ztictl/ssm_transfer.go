@@ -80,7 +80,7 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 func init() {
 	ssmTransferCmd.AddCommand(ssmUploadCmd)
 	ssmTransferCmd.AddCommand(ssmDownloadCmd)
-	
+
 	ssmUploadCmd.Flags().StringP("region", "r", "", "AWS region or shortcode (cac1, use1, euw1, etc.) - default from config")
 	ssmDownloadCmd.Flags().StringP("region", "r", "", "AWS region or shortcode (cac1, use1, euw1, etc.) - default from config")
 }

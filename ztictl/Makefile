@@ -16,6 +16,25 @@ CMD_DIR := ./cmd/ztictl
 # Go build flags
 LDFLAGS := -ldflags "-X main.version=$(VERSION) -s -w"
 
+# Cross-platform commands
+ifeq ($(OS),Windows_NT)
+	RM = del /Q /F
+	RMDIR = rmdir /S /Q
+	MKDIR = mkdir
+	LS = dir
+	COPY = copy
+	SEP = \\
+	EXE_EXT = .exe
+else
+	RM = rm -f
+	RMDIR = rm -rf
+	MKDIR = mkdir -p
+	LS = ls -lh
+	COPY = cp
+	SEP = /
+	EXE_EXT =
+endif
+
 # Platform targets
 PLATFORMS := \
 	linux/amd64 \
@@ -28,26 +47,40 @@ PLATFORMS := \
 # Build all platforms
 build: clean
 	@echo "Building ztictl v$(VERSION) for all platforms..."
-	@mkdir -p $(BUILD_DIR)
+ifeq ($(OS),Windows_NT)
+	@if not exist $(BUILD_DIR) $(MKDIR) $(BUILD_DIR)
+else
+	@$(MKDIR) $(BUILD_DIR)
+endif
 	@$(foreach platform,$(PLATFORMS),$(call build_platform,$(platform)))
 	@echo ""
 	@echo "Build Summary:"
 	@echo "=============="
-	@ls -lh $(BUILD_DIR)/
+ifeq ($(OS),Windows_NT)
+	@$(LS) $(BUILD_DIR)
+else
+	@$(LS) $(BUILD_DIR)/
+endif
 	@echo ""
 	@echo "✓ All builds completed successfully!"
 
 # Build for current platform only
 build-local:
 	@echo "Building ztictl for current platform..."
-	@go build $(LDFLAGS) -o ztictl $(CMD_DIR)
-	@echo "✓ Local build completed: ./ztictl"
+	@go build $(LDFLAGS) -o ztictl$(EXE_EXT) $(CMD_DIR)
+	@echo "✓ Local build completed: ./ztictl$(EXE_EXT)"
 
 # Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
-	@rm -rf $(BUILD_DIR)/
-	@rm -f ztictl ztictl.exe
+ifeq ($(OS),Windows_NT)
+	@if exist $(BUILD_DIR) $(RMDIR) $(BUILD_DIR)
+	@if exist ztictl.exe $(RM) ztictl.exe
+	@if exist ztictl $(RM) ztictl
+else
+	@$(RMDIR) $(BUILD_DIR)/
+	@$(RM) ztictl ztictl.exe
+endif
 	@echo "✓ Clean completed"
 
 # Run tests
@@ -59,8 +92,13 @@ test:
 # Install locally (for development)
 install: build-local
 	@echo "Installing ztictl to local system..."
-	@sudo cp ztictl /usr/local/bin/
+ifeq ($(OS),Windows_NT)
+	@echo "Manual installation required on Windows:"
+	@echo "Copy ztictl.exe to a directory in your PATH"
+else
+	@sudo $(COPY) ztictl /usr/local/bin/
 	@echo "✓ ztictl installed to /usr/local/bin/"
+endif
 
 # Show help
 help:
@@ -88,7 +126,7 @@ help:
 define build_platform
 	$(eval GOOS := $(word 1,$(subst /, ,$(1))))
 	$(eval GOARCH := $(word 2,$(subst /, ,$(1))))
-	$(eval OUTPUT := $(BUILD_DIR)/ztictl-$(GOOS)-$(GOARCH)$(if $(filter windows,$(GOOS)),.exe))
+	$(eval OUTPUT := $(BUILD_DIR)$(SEP)ztictl-$(GOOS)-$(GOARCH)$(if $(filter windows,$(GOOS)),.exe))
 	@echo "Building for $(GOOS)/$(GOARCH)..."
 	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(LDFLAGS) -o $(OUTPUT) $(CMD_DIR)
 	@echo "✓ Built: $(OUTPUT)"

@@ -29,9 +29,9 @@ Examples:
 
 		region := resolveRegion(regionCode)
 
-		logger.Info("Executing command on instance", 
-			"identifier", instanceIdentifier, 
-			"region", region, 
+		logger.Info("Executing command on instance",
+			"identifier", instanceIdentifier,
+			"region", region,
 			"command", command)
 
 		ssmManager := ssm.NewManager(logger)
@@ -47,7 +47,7 @@ Examples:
 		if result.ErrorOutput != "" {
 			fmt.Printf("Error output:\n%s\n", result.ErrorOutput)
 		}
-		
+
 		if result.ExitCode != nil && *result.ExitCode != 0 {
 			logger.Warn("Command exited with non-zero status", "exitCode", *result.ExitCode)
 			os.Exit(int(*result.ExitCode))
@@ -74,9 +74,9 @@ Examples:
 
 		region := resolveRegion(regionCode)
 
-		logger.Info("Executing command on tagged instances", 
+		logger.Info("Executing command on tagged instances",
 			"tag", fmt.Sprintf("%s=%s", tagKey, tagValue),
-			"region", region, 
+			"region", region,
 			"command", command)
 
 		ssmManager := ssm.NewManager(logger)
@@ -104,12 +104,12 @@ Examples:
 		successCount := 0
 		for _, instance := range instances {
 			logger.Info("Executing on instance", "instanceId", instance.InstanceID, "name", instance.Name)
-			
+
 			result, err := ssmManager.ExecuteCommand(ctx, instance.InstanceID, region, command, "")
 			if err != nil {
-				logger.Error("Failed to execute command on instance", 
-					"instanceId", instance.InstanceID, 
-					"name", instance.Name, 
+				logger.Error("Failed to execute command on instance",
+					"instanceId", instance.InstanceID,
+					"name", instance.Name,
 					"error", err)
 				continue
 			}
@@ -117,11 +117,11 @@ Examples:
 			fmt.Printf("\n=== Instance: %s (%s) ===\n", instance.Name, instance.InstanceID)
 			fmt.Printf("Command: %s\n", command)
 			fmt.Printf("Output:\n%s\n", result.Output)
-			
+
 			if result.ErrorOutput != "" {
 				fmt.Printf("Error output:\n%s\n", result.ErrorOutput)
 			}
-			
+
 			if result.ExitCode == nil || *result.ExitCode == 0 {
 				successCount++
 				exitCode := 0
@@ -134,9 +134,9 @@ Examples:
 			}
 		}
 
-		logger.Info("Command execution completed", 
-			"total", len(instances), 
-			"successful", successCount, 
+		logger.Info("Command execution completed",
+			"total", len(instances),
+			"successful", successCount,
 			"failed", len(instances)-successCount)
 
 		if successCount < len(instances) {

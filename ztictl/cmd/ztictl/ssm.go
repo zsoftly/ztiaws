@@ -27,14 +27,14 @@ func init() {
 
 	// Add subcommands - each defined in separate files following bash modular pattern
 	// Equivalent to sourcing individual .sh files in bash version
-	ssmCmd.AddCommand(ssmConnectCmd)     // ssm_connect.go
-	ssmCmd.AddCommand(ssmListCmd)        // ssm_list.go  
-	ssmCmd.AddCommand(ssmCommandCmd)     // ssm_command.go
-	ssmCmd.AddCommand(ssmTransferCmd)    // ssm_transfer.go
-	ssmCmd.AddCommand(ssmForwardCmd)     // ssm_management.go
-	ssmCmd.AddCommand(ssmStatusCmd)      // ssm_management.go
-	ssmCmd.AddCommand(ssmExecCmd)        // ssm_exec.go
-	ssmCmd.AddCommand(ssmExecTaggedCmd)  // ssm_exec.go
-	ssmCmd.AddCommand(ssmCleanupCmd)     // ssm_cleanup.go
+	ssmCmd.AddCommand(ssmConnectCmd)          // ssm_connect.go
+	ssmCmd.AddCommand(ssmListCmd)             // ssm_list.go
+	ssmCmd.AddCommand(ssmCommandCmd)          // ssm_command.go
+	ssmCmd.AddCommand(ssmTransferCmd)         // ssm_transfer.go
+	ssmCmd.AddCommand(ssmForwardCmd)          // ssm_management.go
+	ssmCmd.AddCommand(ssmStatusCmd)           // ssm_management.go
+	ssmCmd.AddCommand(ssmExecCmd)             // ssm_exec.go
+	ssmCmd.AddCommand(ssmExecTaggedCmd)       // ssm_exec.go
+	ssmCmd.AddCommand(ssmCleanupCmd)          // ssm_cleanup.go
 	ssmCmd.AddCommand(ssmEmergencyCleanupCmd) // ssm_cleanup.go
 }
