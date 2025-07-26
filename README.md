@@ -147,6 +147,32 @@ authaws creds myprofile # Show credentials for a specific profile
 
 This will display your AWS access key, secret key, and session token for the specified profile.
 
+## 🚀 Next Generation: ztictl
+
+**ztictl** is the modern Go implementation of AWS SSM operations, designed to eventually replace the current bash-based tools with enhanced features and cross-platform support.
+
+> **⚠️ Current Status:** The bash tools (`ssm` and `authaws`) above remain the **production tools**. ztictl is under active development and testing.
+
+### Key Advantages of ztictl:
+- **🌍 Cross-platform**: Native binaries for Linux, macOS, and Windows (AMD64/ARM64)
+- **⚡ Enhanced performance**: Intelligent file transfer routing and S3 integration
+- **🔒 Advanced security**: Comprehensive IAM lifecycle management and automatic cleanup
+- **🛠️ Professional tooling**: Built-in logging, debugging, and resource management
+
+### Quick Example:
+```bash
+# Install (Linux/macOS)
+curl -L -o ztictl "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/')"
+chmod +x ztictl && sudo mv ztictl /usr/local/bin/
+
+# Use (enhanced capabilities)
+ztictl ssm list --region ca-central-1
+ztictl ssm connect i-1234567890abcdef0 --region ca-central-1
+ztictl ssm transfer upload i-1234567890abcdef0 large-file.zip /opt/data.zip  # Advanced file transfers
+```
+
+**📚 Complete Documentation:** [ztictl/README.md](ztictl/README.md) | [Installation Guide](INSTALLATION.md) | [Release Process](RELEASE.md)
+
 ## 🌎 Supported Regions (for SSM tool)
 
 For a complete list of regions and their status, see [docs/REGIONS.md](docs/REGIONS.md).
