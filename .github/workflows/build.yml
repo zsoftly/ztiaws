@@ -1,0 +1,156 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ztictl
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+        
+    - name: Get dependencies
+      working-directory: ./ztictl
+      run: go mod download
+    
+    - name: Build binary
+      working-directory: ./ztictl
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        # Set version from tag or default
+        VERSION=${GITHUB_REF#refs/tags/v}
+        if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+          VERSION="dev-${GITHUB_SHA::8}"
+        fi
+        
+        # Set output filename
+        BINARY_NAME="ztictl-${{ matrix.goos }}-${{ matrix.goarch }}"
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          BINARY_NAME="${BINARY_NAME}.exe"
+        fi
+        
+        # Build with version and optimization flags
+        go build \
+          -ldflags "-X main.version=${VERSION} -s -w" \
+          -o "${BINARY_NAME}" \
+          ./cmd/ztictl
+        
+        # Verify binary
+        if [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "amd64" ]; then
+          ./"${BINARY_NAME}" --version
+        fi
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ztictl-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: ztictl/ztictl-${{ matrix.goos }}-${{ matrix.goarch }}*
+        retention-days: 30
+
+  test:
+    name: Test ztictl
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+        
+    - name: Run tests
+      working-directory: ./ztictl
+      run: |
+        go mod download
+        go test -v ./...
+        
+    - name: Run go vet
+      working-directory: ./ztictl
+      run: go vet ./...
+      
+    - name: Check formatting
+      working-directory: ./ztictl
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "The following files are not formatted correctly:"
+          gofmt -s -l .
+          exit 1
+        fi
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts/
+    
+    - name: Create release archives
+      run: |
+        mkdir -p release/
+        
+        for dir in artifacts/*/; do
+          platform=$(basename "$dir")
+          cd "$dir"
+          
+          # Create tarball for Unix systems, zip for Windows
+          if [[ "$platform" == *"windows"* ]]; then
+            zip -r "../../release/${platform}.zip" ./*
+          else
+            tar -czf "../../release/${platform}.tar.gz" ./*
+          fi
+          
+          cd - > /dev/null
+        done
+        
+        ls -la release/
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
