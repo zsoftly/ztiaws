@@ -14,6 +14,20 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Go build artifacts
+# Built binaries (local and cross-platform)
+/ztictl/ztictl
+/ztictl/ztictl.exe
+/ztictl/builds/
+**/ztictl-*
+*.exe
+*.bin
+
+# Go specific
+*.out
+go.work
+go.work.sum
+
 # Test files
 *.log
 test_results/

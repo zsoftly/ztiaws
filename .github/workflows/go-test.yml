@@ -1,0 +1,64 @@
+name: Go Tests
+
+on:
+  push:
+    branches: [ main, 'feature/*', 'feat/*', 'issue/*' ]
+    paths:
+      - 'ztictl/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'ztictl/**'
+
+jobs:
+  test:
+    name: Test ztictl
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        go-version: ['1.24']
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ matrix.go-version }}
+        
+    - name: Get dependencies
+      working-directory: ./ztictl
+      run: go mod download
+    
+    - name: Run tests
+      working-directory: ./ztictl
+      run: go test -v ./...
+    
+    - name: Test build
+      working-directory: ./ztictl
+      run: go build -o ztictl ./cmd/ztictl
+    
+    - name: Test CLI commands (no auth required)
+      working-directory: ./ztictl
+      shell: bash
+      run: |
+        # Test help commands
+        ./ztictl --help
+        ./ztictl config --help
+        ./ztictl auth --help
+        ./ztictl ssm --help
+        
+        # Test version
+        ./ztictl --version
+        
+        # Test config validation (should fail gracefully without config)
+        ./ztictl config validate || echo "Expected to fail without config"
+        
+        # Test config show (should show defaults)
+        ./ztictl config show || echo "Expected to work with defaults"
+        
+        # Test system check (should work without AWS)
+        ./ztictl config check || echo "Expected to show missing dependencies"

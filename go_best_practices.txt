@@ -1,0 +1,46 @@
+Go Application Development: Top Best Practices - Concise Guide
+
+---
+
+Instructions for AI Agent:
+
+Develop Go applications following these brief best practices. Focus on simplicity, clarity, and Go's concurrency model.
+
+---
+
+1.  Code Formatting & Style
+    * Always use gofmt.
+    * Use clear, concise names: lowercase for packages, CamelCase for exported, camelCase for unexported.
+    * Keep functions small and focused.
+
+2.  Error Handling
+    * Always check errors (if err != nil).
+    * Return errors as the last value.
+    * Wrap errors with context (fmt.Errorf with %w).
+    * Use sentinel errors (errors.New) for specific conditions; check with errors.Is.
+
+3.  Concurrency (Goroutines & Channels)
+    * Prefer channels for communication over shared memory.
+    * Use context.Context for goroutine cancellation and timeouts.
+    * Use sync.Mutex for specific shared state protection; sync.WaitGroup to wait for goroutines.
+
+4.  Package & Project Structure
+    * Organize into small, cohesive packages.
+    * Follow standard layout: cmd/, pkg/, internal/, api/, configs/.
+    * Use Go Modules for dependency management.
+
+5.  Testing
+    * Write unit tests for all significant code.
+    * Use table-driven tests for multiple cases.
+    * Use go test -bench . for benchmarking.
+
+6.  Documentation & Comments
+    * Document all exported identifiers clearly.
+    * Comment complex logic; avoid obvious comments.
+
+7.  Performance & Resources
+    * Profile with pprof to find bottlenecks.
+    * Minimize memory allocations.
+    * Ensure resource cleanup with defer.
+
+---
