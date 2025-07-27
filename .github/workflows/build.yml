@@ -14,8 +14,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  quick-test:
-    name: Quick Tests
+  test:
+    name: Test & Validate
     runs-on: ${{ matrix.os }}
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
     
@@ -101,8 +101,9 @@ jobs:
         $ZTICTL_EXE config check || echo "Expected to show missing dependencies"
 
   security:
-    name: Security Analysis (SAST)
+    name: Security Analysis
     runs-on: ubuntu-latest
+    needs: test
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     env:
       GOPROXY: proxy.golang.org,direct
@@ -123,17 +124,10 @@ jobs:
     
     - name: Install security tools
       run: |
-        # Ensure GOPATH/bin is in PATH
-        echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-        
-        # Install gosec using their official installation script
-        curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
-        
         # Install govulncheck for official Go vulnerability checking
         go install golang.org/x/vuln/cmd/govulncheck@latest
         
-        # Verify installations
-        gosec --version || echo "GoSec installation failed"
+        # Verify installation
         govulncheck -version || echo "govulncheck installation failed"
     
     - name: Run Trivy vulnerability scanner
@@ -146,12 +140,9 @@ jobs:
       continue-on-error: true
     
     - name: Run GoSec security scan
-      working-directory: ./ztictl
-      run: |
-        echo "🔍 Running GoSec security analysis..."
-        gosec -fmt text ./... || true
-        echo ""
-        echo "📊 GoSec scan completed"
+      uses: securego/gosec@master
+      with:
+        args: './ztictl/...'
       continue-on-error: true
     
     - name: Run Go vulnerability check
@@ -190,7 +181,7 @@ jobs:
         echo "ℹ️  Consider updating outdated dependencies regularly."
 
   build:
-    name: Build ztictl
+    name: Cross-Platform Build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     
@@ -260,7 +251,7 @@ jobs:
         retention-days: 30
 
   release:
-    name: Create Release
+    name: GitHub Release
     runs-on: ubuntu-latest
     needs: [build]
     if: startsWith(github.ref, 'refs/tags/v')
