@@ -48,6 +48,14 @@ jobs:
       working-directory: ./ztictl
       shell: bash
       run: |
+        # Ensure consistent line endings across platforms
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          # Configure git to handle line endings properly for this check
+          git config core.autocrlf false
+          # Re-checkout files with correct line endings
+          git checkout HEAD -- .
+        fi
+        
         # Check if any files need formatting
         UNFORMATTED=$(gofmt -s -l .)
         if [ -n "$UNFORMATTED" ]; then
