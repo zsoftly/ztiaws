@@ -118,7 +118,7 @@ func Load() error {
 		if err := viper.Unmarshal(cfg); err != nil {
 			return errors.NewConfigError("failed to unmarshal configuration", err)
 		}
-		
+
 		// Expand paths with tilde support
 		cfg.Logging.Directory = expandPath(cfg.Logging.Directory)
 	}
@@ -249,13 +249,13 @@ func CreateSampleConfig(configPath string) error {
 	if err != nil {
 		return fmt.Errorf("unable to get home directory: %w", err)
 	}
-	
+
 	// Use absolute path for log directory
 	logDir := filepath.Join(home, "logs")
-	
+
 	// Use platform-appropriate temp directory
 	tempDir := os.TempDir()
-	
+
 	sampleConfig := fmt.Sprintf(`# ztictl Configuration File
 # This file configures ztictl with your AWS SSO and system settings
 
@@ -489,7 +489,7 @@ func expandPath(path string) string {
 	if path == "" {
 		return path
 	}
-	
+
 	// Handle tilde expansion
 	if strings.HasPrefix(path, "~/") {
 		home, err := os.UserHomeDir()
@@ -498,7 +498,7 @@ func expandPath(path string) string {
 		}
 		return filepath.Join(home, path[2:])
 	}
-	
+
 	// Handle bare tilde
 	if path == "~" {
 		home, err := os.UserHomeDir()
@@ -507,6 +507,6 @@ func expandPath(path string) string {
 		}
 		return home
 	}
-	
+
 	return path
 }

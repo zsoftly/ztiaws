@@ -144,12 +144,12 @@ func containsAll(str string, substrings []string) bool {
 }
 
 func contains(str, substr string) bool {
-	return len(str) >= len(substr) && 
-		   (str == substr || 
-		    (len(str) > len(substr) && 
-		     (str[:len(substr)] == substr || 
-		      str[len(str)-len(substr):] == substr || 
-		      indexOfSubstring(str, substr) >= 0)))
+	return len(str) >= len(substr) &&
+		(str == substr ||
+			(len(str) > len(substr) &&
+				(str[:len(substr)] == substr ||
+					str[len(str)-len(substr):] == substr ||
+					indexOfSubstring(str, substr) >= 0)))
 }
 
 func indexOfSubstring(str, substr string) int {

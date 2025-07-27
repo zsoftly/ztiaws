@@ -22,7 +22,7 @@ func TestNewLoggerWithDebug(t *testing.T) {
 
 func TestLoggerSetLevel(t *testing.T) {
 	logger := NewLogger(false)
-	
+
 	// Test that SetLevel doesn't panic
 	logger.SetLevel(DebugLevel)
 	logger.SetLevel(InfoLevel)
@@ -32,7 +32,7 @@ func TestLoggerSetLevel(t *testing.T) {
 
 func TestLoggerBasicLogging(t *testing.T) {
 	logger := NewLogger(false)
-	
+
 	// Test that basic logging doesn't panic
 	logger.Info("test info message")
 	logger.Warn("test warn message", "key", "value")
@@ -42,7 +42,7 @@ func TestLoggerBasicLogging(t *testing.T) {
 
 func TestLoggerWithFields(t *testing.T) {
 	logger := NewLogger(false)
-	
+
 	// Test logging with various field types
 	logger.Info("test with fields",
 		"string", "value",

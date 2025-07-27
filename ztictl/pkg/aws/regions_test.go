@@ -35,12 +35,12 @@ func TestGetRegion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			region, err := GetRegion(tt.input)
-			
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetRegion() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			
+
 			if region != tt.expected {
 				t.Errorf("GetRegion() = %v, want %v", region, tt.expected)
 			}

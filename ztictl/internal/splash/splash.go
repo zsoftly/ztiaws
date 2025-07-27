@@ -204,7 +204,7 @@ func animateMessage(message string) {
 func ShowBriefWelcome(version string) {
 	butterflyColor := color.New(color.FgMagenta, color.Bold)
 	titleColor := color.New(color.FgBlue, color.Bold)
-	
+
 	butterflyColor.Print("🦋 ")
 	titleColor.Printf("ztictl v%s", version)
 	fmt.Println(" - Transform your AWS workflow")

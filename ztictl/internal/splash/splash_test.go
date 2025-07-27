@@ -8,13 +8,13 @@ import (
 func TestShowSplash(t *testing.T) {
 	// Use temporary directory for testing
 	tempDir := t.TempDir()
-	
+
 	// Temporarily change home directory
 	originalHome := os.Getenv("HOME")
 	if originalHome == "" {
 		originalHome = os.Getenv("USERPROFILE") // Windows
 	}
-	
+
 	// Set temp dir as home for this test
 	if originalHome != "" {
 		defer func() {
@@ -33,7 +33,7 @@ func TestShowSplash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ShowSplash failed: %v", err)
 	}
-	
+
 	if !shown {
 		t.Error("Expected splash to be shown on first run")
 	}
@@ -43,7 +43,7 @@ func TestShowSplash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ShowSplash failed on second call: %v", err)
 	}
-	
+
 	if shown {
 		t.Error("Expected splash NOT to be shown on subsequent run with same version")
 	}
@@ -53,7 +53,7 @@ func TestShowSplash(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ShowSplash failed with new version: %v", err)
 	}
-	
+
 	if !shown {
 		t.Error("Expected splash to be shown with new version")
 	}

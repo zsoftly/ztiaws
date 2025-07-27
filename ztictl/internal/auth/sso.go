@@ -110,8 +110,8 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 	m.logger.Info("Starting AWS SSO authentication", "profile", profileName)
 
 	// Debug: Log the configuration being used
-	m.logger.Debug("Using SSO configuration", 
-		"start_url", cfg.SSO.StartURL, 
+	m.logger.Debug("Using SSO configuration",
+		"start_url", cfg.SSO.StartURL,
 		"sso_region", cfg.SSO.Region,
 		"default_region", cfg.DefaultRegion)
 
@@ -124,7 +124,7 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 	// Step 2: Load AWS config without specifying the profile (to avoid SSO validation issues)
 	// Create a completely isolated AWS config that bypasses all profile loading
 	awsCfg := aws.Config{
-		Region: cfg.SSO.Region,
+		Region:      cfg.SSO.Region,
 		Credentials: aws.AnonymousCredentials{},
 	}
 	m.logger.Debug("AWS config loaded successfully", "region", cfg.SSO.Region)
@@ -525,7 +525,7 @@ func (m *Manager) listAccounts(ctx context.Context, awsCfg aws.Config, accessTok
 
 	// Create a completely isolated config for SSO operations
 	ssoConfig := aws.Config{
-		Region: cfg.SSO.Region,
+		Region:      cfg.SSO.Region,
 		Credentials: aws.AnonymousCredentials{},
 	}
 
@@ -582,7 +582,7 @@ func (m *Manager) listAccountRoles(ctx context.Context, awsCfg aws.Config, acces
 
 	// Create a completely isolated config for SSO operations
 	ssoConfig := aws.Config{
-		Region: cfg.SSO.Region,
+		Region:      cfg.SSO.Region,
 		Credentials: aws.AnonymousCredentials{},
 	}
 
@@ -966,7 +966,7 @@ func (m *Manager) printSuccessMessage(profileName string, account *Account, role
 	successColor := color.New(color.FgGreen, color.Bold)
 	infoColor := color.New(color.FgCyan)
 	commandColor := color.New(color.FgYellow)
-	
+
 	fmt.Println()
 	successColor.Println("🎉 Successfully configured AWS SSO profile.")
 	fmt.Println("----------------------------------------")
@@ -974,10 +974,10 @@ func (m *Manager) printSuccessMessage(profileName string, account *Account, role
 	infoColor.Printf("Role: %s\n", role.RoleName)
 	infoColor.Printf("Profile: %s\n", profileName)
 	fmt.Println()
-	
+
 	// Platform-specific instructions
 	infoColor.Println("To use this profile, run:")
-	
+
 	switch runtime.GOOS {
 	case "windows":
 		// Windows Command Prompt instructions
@@ -985,21 +985,21 @@ func (m *Manager) printSuccessMessage(profileName string, account *Account, role
 		infoColor.Println("For Command Prompt (cmd):")
 		commandColor.Printf("set AWS_PROFILE=%s\n", profileName)
 		commandColor.Printf("set AWS_DEFAULT_REGION=%s\n", cfg.SSO.Region)
-		
+
 		fmt.Println()
 		infoColor.Println("For PowerShell:")
 		commandColor.Printf("$env:AWS_PROFILE=\"%s\"\n", profileName)
 		commandColor.Printf("$env:AWS_DEFAULT_REGION=\"%s\"\n", cfg.SSO.Region)
-		
+
 	default:
 		// Unix/Linux/macOS instructions
 		commandColor.Printf("export AWS_PROFILE=%s AWS_DEFAULT_REGION=%s\n", profileName, cfg.SSO.Region)
 	}
-	
+
 	fmt.Println()
 	infoColor.Println("To view your credentials, run:")
 	commandColor.Printf("ztictl auth creds %s\n", profileName)
-	
+
 	fmt.Println()
 	infoColor.Println("To list EC2 instances, run:")
 	commandColor.Printf("ztictl ssm list\n")

@@ -50,10 +50,10 @@ If no profile is specified, you will be prompted to confirm using the default pr
 			// Prompt user to confirm using default profile (like bash version)
 			logger.Info("No profile specified. Using default: " + profileName)
 			fmt.Print("Proceed with default profile? (y/n): ")
-			
+
 			var response string
 			fmt.Scanln(&response)
-			
+
 			if strings.ToLower(strings.TrimSpace(response)) != "y" && strings.ToLower(strings.TrimSpace(response)) != "yes" {
 				logger.Info("Please run: ztictl auth login <profile-name>")
 				os.Exit(0)
@@ -179,7 +179,7 @@ If no profile is specified, uses the current AWS_PROFILE or default profile.`,
 
 		fmt.Printf("\n🔑 AWS Credentials for profile: %s\n", profileName)
 		fmt.Println("----------------------------------------")
-		
+
 		// Platform-specific credential output
 		switch runtime.GOOS {
 		case "windows":
@@ -191,7 +191,7 @@ If no profile is specified, uses the current AWS_PROFILE or default profile.`,
 				fmt.Printf("set AWS_SESSION_TOKEN=%s\n", creds.SessionToken)
 			}
 			fmt.Printf("set AWS_REGION=%s\n", creds.Region)
-			
+
 			fmt.Println("\nFor PowerShell:")
 			fmt.Printf("$env:AWS_ACCESS_KEY_ID=\"%s\"\n", creds.AccessKeyID)
 			fmt.Printf("$env:AWS_SECRET_ACCESS_KEY=\"%s\"\n", creds.SecretAccessKey)
@@ -199,7 +199,7 @@ If no profile is specified, uses the current AWS_PROFILE or default profile.`,
 				fmt.Printf("$env:AWS_SESSION_TOKEN=\"%s\"\n", creds.SessionToken)
 			}
 			fmt.Printf("$env:AWS_REGION=\"%s\"\n", creds.Region)
-			
+
 		default:
 			// Unix/Linux/macOS instructions
 			fmt.Printf("export AWS_ACCESS_KEY_ID=%s\n", creds.AccessKeyID)
