@@ -46,6 +46,7 @@ jobs:
       
     - name: Check formatting
       working-directory: ./ztictl
+      shell: bash
       run: |
         if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
           echo "The following files are not formatted correctly:"
@@ -55,29 +56,36 @@ jobs:
     
     - name: Test build
       working-directory: ./ztictl
-      run: go build -o ztictl ./cmd/ztictl
+      run: go build -o ztictl${{ matrix.os == 'windows-latest' && '.exe' || '' }} ./cmd/ztictl
     
     - name: Test CLI commands (no auth required)
       working-directory: ./ztictl
       shell: bash
       run: |
+        # Set executable name based on OS
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          ZTICTL_EXE="./ztictl.exe"
+        else
+          ZTICTL_EXE="./ztictl"
+        fi
+        
         # Test help commands
-        ./ztictl --help
-        ./ztictl config --help
-        ./ztictl auth --help
-        ./ztictl ssm --help
+        $ZTICTL_EXE --help
+        $ZTICTL_EXE config --help
+        $ZTICTL_EXE auth --help
+        $ZTICTL_EXE ssm --help
         
         # Test version
-        ./ztictl --version
+        $ZTICTL_EXE --version
         
         # Test config validation (should fail gracefully without config)
-        ./ztictl config validate || echo "Expected to fail without config"
+        $ZTICTL_EXE config validate || echo "Expected to fail without config"
         
         # Test config show (should show defaults)
-        ./ztictl config show || echo "Expected to work with defaults"
+        $ZTICTL_EXE config show || echo "Expected to work with defaults"
         
         # Test system check (should work without AWS)
-        ./ztictl config check || echo "Expected to show missing dependencies"
+        $ZTICTL_EXE config check || echo "Expected to show missing dependencies"
 
   security:
     name: Security Analysis (SAST)
