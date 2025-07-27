@@ -108,7 +108,7 @@ if: github.event_name == 'pull_request' && github.base_ref == 'main'
 
 **Security Tools Rationale:**
 - **Trivy vs Nancy**: Removed Nancy (redundant with Trivy's capabilities)
-- **GoSec dual output**: Removed JSON output (only text needed for CI logs)
+- **GoSec installation**: Uses official installation script from securego/gosec repository
 - **Non-blocking**: All security scans use `continue-on-error: true` for informational purposes
 
 #### 3. **build** - Cross-Platform Production Builds
