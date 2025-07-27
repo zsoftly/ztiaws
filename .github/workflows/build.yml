@@ -1,17 +1,167 @@
-name: Build and Release
+name: CI/CD Pipeline
 
 on:
   push:
+    branches: [ main, 'feature/*', 'feat/*', 'issue/*' ]
     tags:
       - 'v*'
+    paths:
+      - 'ztictl/**'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'ztictl/**'
   workflow_dispatch:
 
 jobs:
+  quick-test:
+    name: Quick Tests
+    runs-on: ${{ matrix.os }}
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+        
+    - name: Get dependencies
+      working-directory: ./ztictl
+      run: go mod download
+    
+    - name: Run tests
+      working-directory: ./ztictl
+      run: go test -v ./...
+        
+    - name: Run go vet
+      working-directory: ./ztictl
+      run: go vet ./...
+      
+    - name: Check formatting
+      working-directory: ./ztictl
+      run: |
+        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+          echo "The following files are not formatted correctly:"
+          gofmt -s -l .
+          exit 1
+        fi
+    
+    - name: Test build
+      working-directory: ./ztictl
+      run: go build -o ztictl ./cmd/ztictl
+    
+    - name: Test CLI commands (no auth required)
+      working-directory: ./ztictl
+      shell: bash
+      run: |
+        # Test help commands
+        ./ztictl --help
+        ./ztictl config --help
+        ./ztictl auth --help
+        ./ztictl ssm --help
+        
+        # Test version
+        ./ztictl --version
+        
+        # Test config validation (should fail gracefully without config)
+        ./ztictl config validate || echo "Expected to fail without config"
+        
+        # Test config show (should show defaults)
+        ./ztictl config show || echo "Expected to work with defaults"
+        
+        # Test system check (should work without AWS)
+        ./ztictl config check || echo "Expected to show missing dependencies"
+
+  security:
+    name: Security Analysis (SAST)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+        
+    - name: Download dependencies
+      working-directory: ./ztictl
+      run: go mod download
+    
+    - name: Install security tools
+      run: |
+        # Install gosec for Go security analysis
+        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
+        
+        # Install govulncheck for official Go vulnerability checking
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: './ztictl'
+        format: 'table'
+        exit-code: '0'  # Don't fail the build
+      continue-on-error: true
+    
+    - name: Run GoSec security scan
+      working-directory: ./ztictl
+      run: |
+        echo "🔍 Running GoSec security analysis..."
+        gosec -fmt text ./... || true
+        echo ""
+        echo "📊 GoSec scan completed"
+      continue-on-error: true
+    
+    - name: Run Go vulnerability check
+      working-directory: ./ztictl
+      run: |
+        echo "🔍 Running Go vulnerability check..."
+        govulncheck ./... || true
+        echo ""
+        echo "📊 Go vulnerability check completed"
+      continue-on-error: true
+    
+    - name: Check for outdated dependencies
+      working-directory: ./ztictl
+      run: |
+        echo "🔍 Checking for outdated Go dependencies..."
+        echo "Current dependencies:"
+        go list -m all
+        echo ""
+        echo "Checking for updates (this is informational only):"
+        go list -u -m all | grep -E '\[.*\]' || echo "All dependencies appear to be up to date"
+        echo ""
+        echo "📊 Dependency update check completed"
+      continue-on-error: true
+    
+    - name: Security scan summary
+      run: |
+        echo "🛡️  Security Analysis Summary"
+        echo "=============================="
+        echo "✅ Trivy filesystem scan completed"
+        echo "✅ GoSec security analysis completed"
+        echo "✅ Go vulnerability check completed"
+        echo "✅ Dependency update check completed"
+        echo ""
+        echo "ℹ️  This job runs security scans for informational purposes."
+        echo "ℹ️  Review the output above for any security findings."
+        echo "ℹ️  Consider updating outdated dependencies regularly."
+
   build:
     name: Build ztictl
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     
     strategy:
       matrix:
@@ -78,42 +228,10 @@ jobs:
         path: ztictl/ztictl-${{ matrix.goos }}-${{ matrix.goarch }}*
         retention-days: 30
 
-  test:
-    name: Test ztictl
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.24'
-        
-    - name: Run tests
-      working-directory: ./ztictl
-      run: |
-        go mod download
-        go test -v ./...
-        
-    - name: Run go vet
-      working-directory: ./ztictl
-      run: go vet ./...
-      
-    - name: Check formatting
-      working-directory: ./ztictl
-      run: |
-        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
-          echo "The following files are not formatted correctly:"
-          gofmt -s -l .
-          exit 1
-        fi
-
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    needs: [build, test]
+    needs: [build]
     if: startsWith(github.ref, 'refs/tags/v')
     
     steps:

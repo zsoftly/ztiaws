@@ -181,6 +181,8 @@ For required IAM permissions, see [docs/IAM_PERMISSIONS.md](docs/IAM_PERMISSIONS
 
 For troubleshooting common issues, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
+For CI/CD pipeline architecture and development workflow, see [docs/CI_CD_PIPELINE.md](docs/CI_CD_PIPELINE.md).
+
 ## 👥 Contributing
 
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

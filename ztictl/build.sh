@@ -9,13 +9,13 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Version from go.mod or default
 VERSION=${VERSION:-"1.0.0"}
 
-echo -e "${BLUE}Building ztictl v${VERSION} for multiple platforms...${NC}"
+echo -e "${CYAN}Building ztictl v${VERSION} for multiple platforms...${NC}"
 
 # Clean previous builds
 rm -rf builds/
@@ -61,7 +61,7 @@ done
 
 echo ""
 echo -e "${GREEN}Build Summary:${NC}"
-echo -e "${BLUE}===============${NC}"
+echo -e "${CYAN}===============${NC}"
 ls -lh builds/ | tail -n +2 | while read -r line; do
     echo "  $line"
 done

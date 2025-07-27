@@ -38,16 +38,27 @@ When submitting a new region, include:
 git checkout -b feature/add-region-euw2
 ```
 3. Make your changes
-4. Run tests
+4. Run tests locally
 ```bash
+# For Go code (ztictl)
+cd ztictl && make test
+
+# For shell scripts
 ./tests/test_ssm.sh
 ```
 5. Submit a Pull Request
 
+> **📚 CI/CD Information:** See [docs/CI_CD_PIPELINE.md](docs/CI_CD_PIPELINE.md) for details on our automated testing and build process.
+
 ## Pull Request Process
 
-1. Update REGIONS.md with new region details
-2. Update tests to cover new region
+1. Update REGIONS.md with new region details (if adding regions)
+2. Update tests to cover new functionality
+3. Ensure all CI checks pass:
+   - **Quick tests** run automatically on all PRs
+   - **Security scans** run on PRs to main branch
+   - **Builds** are triggered only for releases
+4. Update documentation if needed
 3. Ensure all tests pass
 4. Update documentation if needed
 
@@ -102,39 +113,31 @@ Thank you for contributing!
 
 ## 🚀 Releasing a New Version
 
-ZTiAWS now uses an automated release process through GitHub Actions:
+ZTiAWS uses an automated CI/CD pipeline for releases. See [docs/CI_CD_PIPELINE.md](docs/CI_CD_PIPELINE.md) for detailed architecture.
 
-1. Make sure you're on the main branch
+### Quick Release Process:
+
+1. **Prepare release** on main branch:
    ```bash
-   git checkout main
-   git pull origin main
+   git checkout main && git pull origin main
    ```
 
-2. Ensure all changes are committed and the working directory is clean
-   ```bash
-   git status
-   ```
+2. **Update version** in relevant files:
+   - `ssm`/`authaws` scripts (VERSION variable)
+   - `CHANGELOG.md` (add new entry)
+   - `RELEASE_NOTES.txt` (release description)
 
-3. Update the version numbers in the files:
-   - Update VERSION variable in `ssm` and/or `authaws` scripts
-   - Add a new entry to the top of `CHANGELOG.md`
-   - Update `RELEASE_NOTES.txt` with details for this release
-
-4. Commit these version changes
+3. **Create and push tag**:
    ```bash
-   git add ssm authaws CHANGELOG.md RELEASE_NOTES.txt
-   git commit -m "Bump version to vX.Y.Z"
-   ```
-
-5. Create and push an annotated tag
-   ```bash
-   git tag -a vX.Y.Z -m "Version X.Y.Z: Brief description of changes" 
+   git add . && git commit -m "Bump version to vX.Y.Z"
+   git tag -a vX.Y.Z -m "Version X.Y.Z: Brief description"
    git push origin main vX.Y.Z
    ```
 
-6. The GitHub Actions workflow will automatically:
-   - Create a new GitHub release using the tag
-   - Use the content of RELEASE_NOTES.txt as the release description
-   - Validate the scripts using shellcheck
+4. **Automated pipeline** handles:
+   - Cross-platform builds (6 platforms)
+   - GitHub release creation
+   - Binary distribution
+   - Release notes from RELEASE_NOTES.txt
 
-The automated process ensures that releases are consistent and reduces manual steps needed for creating releases.
+> **💡 Pro tip:** Use semantic versioning (major.minor.patch) and watch the GitHub Actions pipeline for build status.

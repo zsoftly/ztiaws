@@ -199,6 +199,7 @@ Following DRY principles, comprehensive documentation is centralized:
 |-------|----------|-------------|
 | **Installation** | [INSTALLATION.md](../INSTALLATION.md) | Platform-specific setup and troubleshooting |
 | **Release Process** | [RELEASE.md](../RELEASE.md) | Version management and deployment |
+| **CI/CD Pipeline** | [docs/CI_CD_PIPELINE.md](../docs/CI_CD_PIPELINE.md) | Build automation and workflow architecture |
 | **Build Artifacts** | [BUILD_ARTIFACTS.md](../BUILD_ARTIFACTS.md) | Git workflow and artifact management |
 | **Quick Reference** | [QUICK_START.md](../QUICK_START.md) | Essential commands and examples |
 | **Root Project** | [../README.md](../README.md) | Current production tools and overview |
