@@ -48,11 +48,16 @@ jobs:
       working-directory: ./ztictl
       shell: bash
       run: |
-        if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+        # Check if any files need formatting
+        UNFORMATTED=$(gofmt -s -l .)
+        if [ -n "$UNFORMATTED" ]; then
           echo "The following files are not formatted correctly:"
-          gofmt -s -l .
+          echo "$UNFORMATTED"
+          echo ""
+          echo "Please run 'gofmt -s -w .' to fix formatting issues."
           exit 1
         fi
+        echo "All Go files are properly formatted."
     
     - name: Test build
       working-directory: ./ztictl
