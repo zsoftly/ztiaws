@@ -83,6 +83,9 @@ jobs:
     name: Security Analysis (SAST)
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    env:
+      GOPROXY: proxy.golang.org,direct
+      GOSUMDB: sum.golang.org
     
     steps:
     - name: Checkout code
@@ -99,8 +102,15 @@ jobs:
     
     - name: Install security tools
       run: |
-        # Install gosec for Go security analysis  
-        go install github.com/gosec/gosec/v2/cmd/gosec@latest
+        # Ensure GOPATH/bin is in PATH
+        echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+        
+        # Install gosec by downloading binary directly (more reliable in CI)
+        curl -sfL https://raw.githubusercontent.com/securecodewarrior/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
+        # Alternative: Install via go install with proper configuration
+        # git config --global url."https://github.com/".insteadOf "git@github.com:"
+        # GOPROXY=proxy.golang.org go install github.com/gosec/gosec/v2/cmd/gosec@latest
+        
         # Install govulncheck for official Go vulnerability checking
         go install golang.org/x/vuln/cmd/govulncheck@latest
     
