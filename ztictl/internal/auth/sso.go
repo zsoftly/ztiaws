@@ -13,6 +13,10 @@ import (
 	"strings"
 	"time"
 
+	appconfig "ztictl/internal/config"
+	"ztictl/internal/logging"
+	"ztictl/pkg/errors"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sso"
@@ -21,9 +25,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/pkg/browser"
-	appconfig "ztictl/internal/config"
-	"ztictl/internal/logging"
-	"ztictl/pkg/errors"
 )
 
 // Manager handles AWS SSO authentication operations
@@ -135,7 +136,7 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 		m.logger.Info("No valid cached token found, initiating SSO login...")
 
 		// Perform SSO login
-		if err := m.performSSOLogin(ctx, awsCfg, profileName, cfg); err != nil {
+		if err := m.performSSOLogin(ctx, awsCfg, cfg); err != nil {
 			return err
 		}
 
@@ -149,7 +150,7 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 	}
 
 	// Step 4: Get available accounts
-	accounts, err := m.listAccounts(ctx, awsCfg, token.AccessToken)
+	accounts, err := m.listAccounts(ctx, token.AccessToken)
 	if err != nil {
 		return fmt.Errorf("failed to list accounts: %w", err)
 	}
@@ -163,7 +164,7 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 	m.logger.Info("Selected account", "id", selectedAccount.AccountID, "name", selectedAccount.AccountName)
 
 	// Step 6: Get available roles for the selected account
-	roles, err := m.listAccountRoles(ctx, awsCfg, token.AccessToken, selectedAccount.AccountID)
+	roles, err := m.listAccountRoles(ctx, token.AccessToken, selectedAccount.AccountID)
 	if err != nil {
 		return fmt.Errorf("failed to list roles: %w", err)
 	}
@@ -392,7 +393,7 @@ func (m *Manager) isTokenValid(token *SSOToken) bool {
 }
 
 // performSSOLogin initiates the SSO login flow
-func (m *Manager) performSSOLogin(ctx context.Context, awsCfg aws.Config, profileName string, cfg *appconfig.Config) error {
+func (m *Manager) performSSOLogin(ctx context.Context, awsCfg aws.Config, cfg *appconfig.Config) error {
 	m.logger.Info("Starting SSO device authorization flow...")
 
 	// Create SSO OIDC client
@@ -520,7 +521,7 @@ func (m *Manager) saveTokenToCache(tokenResp *ssooidc.CreateTokenOutput, startUR
 }
 
 // listAccounts retrieves available AWS accounts from SSO
-func (m *Manager) listAccounts(ctx context.Context, awsCfg aws.Config, accessToken string) ([]Account, error) {
+func (m *Manager) listAccounts(ctx context.Context, accessToken string) ([]Account, error) {
 	cfg := appconfig.Get()
 
 	// Create a completely isolated config for SSO operations
@@ -577,7 +578,7 @@ func (m *Manager) selectAccount(accounts []Account) (*Account, error) {
 }
 
 // listAccountRoles retrieves available roles for an account
-func (m *Manager) listAccountRoles(ctx context.Context, awsCfg aws.Config, accessToken, accountID string) ([]Role, error) {
+func (m *Manager) listAccountRoles(ctx context.Context, accessToken, accountID string) ([]Role, error) {
 	cfg := appconfig.Get()
 
 	// Create a completely isolated config for SSO operations
@@ -674,7 +675,8 @@ func (m *Manager) updateProfileInConfig(content, profileName string, cfg *appcon
 	}
 
 	// Parse existing content and update the target profile
-	for i, line := range lines {
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
 		trimmedLine := strings.TrimSpace(line)
 
 		// Check if this is a profile header
@@ -758,7 +760,8 @@ func (m *Manager) updateProfileWithAccountRole(content, profileName string, acco
 	}
 
 	// Parse existing content and update the target profile
-	for i, line := range lines {
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
 		trimmedLine := strings.TrimSpace(line)
 
 		// Check if this is a profile header
@@ -777,12 +780,11 @@ func (m *Manager) updateProfileWithAccountRole(content, profileName string, acco
 				// Collect all existing settings, then add/update account and role
 				var profileSettings []string
 				j := i + 1
-				for j < len(lines) && !strings.HasPrefix(strings.TrimSpace(lines[j]), "[") {
+				for ; j < len(lines) && !strings.HasPrefix(strings.TrimSpace(lines[j]), "["); j++ {
 					nextLine := strings.TrimSpace(lines[j])
 					if nextLine != "" && !strings.HasPrefix(nextLine, "sso_account_id") && !strings.HasPrefix(nextLine, "sso_role_name") {
 						profileSettings = append(profileSettings, lines[j])
 					}
-					j++
 				}
 
 				// Add all existing settings first

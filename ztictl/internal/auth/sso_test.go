@@ -15,6 +15,7 @@ func TestNewManager(t *testing.T) {
 
 	if manager == nil {
 		t.Error("Expected manager to be created, got nil")
+		return
 	}
 
 	if manager.logger != logger {
@@ -77,6 +78,30 @@ func TestProfileStructure(t *testing.T) {
 		t.Error("Expected profile to be authenticated")
 	}
 
+	if profile.AccountID != "123456789012" {
+		t.Errorf("Expected account ID '123456789012', got %s", profile.AccountID)
+	}
+
+	if profile.AccountName != "Test Account" {
+		t.Errorf("Expected account name 'Test Account', got %s", profile.AccountName)
+	}
+
+	if profile.RoleName != "TestRole" {
+		t.Errorf("Expected role name 'TestRole', got %s", profile.RoleName)
+	}
+
+	if profile.Region != "us-east-1" {
+		t.Errorf("Expected region 'us-east-1', got %s", profile.Region)
+	}
+
+	if profile.SSOStartURL != "https://test.awsapps.com/start" {
+		t.Errorf("Expected SSO start URL 'https://test.awsapps.com/start', got %s", profile.SSOStartURL)
+	}
+
+	if profile.SSORegion != "us-east-1" {
+		t.Errorf("Expected SSO region 'us-east-1', got %s", profile.SSORegion)
+	}
+
 	if profile.ExpiresAt != &now {
 		t.Error("Expected profile expiration time to be set")
 	}
@@ -93,6 +118,14 @@ func TestCredentialsStructure(t *testing.T) {
 
 	if creds.AccessKeyID != "AKIA..." {
 		t.Errorf("Expected access key ID 'AKIA...', got %s", creds.AccessKeyID)
+	}
+
+	if creds.SecretAccessKey != "secret..." {
+		t.Errorf("Expected secret access key 'secret...', got %s", creds.SecretAccessKey)
+	}
+
+	if creds.SessionToken != "token..." {
+		t.Errorf("Expected session token 'token...', got %s", creds.SessionToken)
 	}
 
 	if creds.Region != "us-east-1" {
@@ -115,7 +148,7 @@ func TestListProfilesWithoutAWS(t *testing.T) {
 	}
 
 	// Profiles can be empty or have system profiles
-	if profiles != nil && len(profiles) > 0 {
+	if len(profiles) > 0 {
 		t.Logf("Found %d profiles on system", len(profiles))
 	}
 }

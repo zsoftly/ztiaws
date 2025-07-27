@@ -29,6 +29,10 @@ func TestRequirementResult(t *testing.T) {
 	if !result.Passed {
 		t.Error("Expected Passed to be true")
 	}
+
+	if result.Version != "1.0.0" {
+		t.Errorf("Expected version '1.0.0', got %q", result.Version)
+	}
 }
 
 func TestCheckAWSCLI(t *testing.T) {
