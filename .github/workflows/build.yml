@@ -99,9 +99,8 @@ jobs:
     
     - name: Install security tools
       run: |
-        # Install gosec for Go security analysis
-        go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
-        
+        # Install gosec for Go security analysis  
+        go install github.com/gosec/gosec/v2/cmd/gosec@latest
         # Install govulncheck for official Go vulnerability checking
         go install golang.org/x/vuln/cmd/govulncheck@latest
     
