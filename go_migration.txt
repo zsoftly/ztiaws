@@ -1,0 +1,197 @@
+omprehensive Feature Request: SSM + AuthAWS Migration to Go (ztictl)
+
+Objective:
+Develop a unified Go-based CLI application, ztictl, to fully replace existing Bash tooling for AWS SSO authentication and AWS Systems Manager (SSM) operations. The goal is to create a single, performant, secure, cross-platform, and maintainable binary that encapsulates all existing functionalities and enhances them with Go's capabilities.
+
+Go Application Structure Plan:
+The application will be structured as a unified CLI tool, ztictl, adhering to standard Go project layouts:
+
+ztictl/
+├── cmd/
+│   └── ztictl/
+│       ├── main.go              # Main CLI entry point
+│       ├── auth.go              # SSO authentication commands
+│       ├── ssm.go               # SSM-related commands
+│       └── config.go            # Configuration commands
+├── internal/
+│   ├── auth/
+│   │   ├── sso.go               # SSO authentication logic
+│   │   ├── tokens.go            # Token management
+│   │   ├── profiles.go          # AWS profile management
+│   │   └── credentials.go       # Credential operations
+│   ├── ssm/
+│   │   ├── sessions.go          # SSM session management
+│   │   ├── portforward.go       # Port forwarding
+│   │   ├── filetransfer.go      # File transfer operations
+│   │   ├── tunnels.go           # Tunnel management
+│   │   ├── instances.go         # Instance discovery via SSM
+│   │   ├── inventory.go         # SSM inventory management
+│   │   ├── commands.go          # Remote command execution
+│   │   └── agent.go             # SSM agent status checking
+│   ├── config/
+│   │   ├── env.go               # Environment configuration
+│   │   ├── validation.go        # Configuration validation
+│   │   └── defaults.go          # Default settings
+│   ├── ui/
+│   │   ├── interactive.go       # Interactive selection (fzf)
+│   │   ├── display.go           # Output formatting
+│   │   ├── prompts.go           # User input handling
+│   │   └── progress.go          # Progress indicators
+│   ├── logging/
+│   │   ├── logger.go            # Structured logging
+│   │   └── rotation.go          # Log rotation
+│   └── system/
+│       ├── requirements.go      # Dependency checking
+│       └── platform.go          # Platform-specific code
+├── pkg/
+│   ├── aws/
+│   │   ├── client.go            # AWS client wrapper
+│   │   ├── regions.go           # Region management
+│   │   └── types.go             # AWS-specific types
+│   ├── errors/
+│   │   └── errors.go            # Custom error types
+│   └── utils/
+│       ├── files.go             # File operations
+│       └── network.go           # Network utilities
+
+Complete Feature Inventory:
+
+1.  AWS SSO Authentication & Profile Management
+    * Environment configuration management (.env file creation/validation).
+    * Interactive AWS SSO login flow with token caching.
+    * Token expiration validation and automatic refresh.
+    * Multiple SSO profile support.
+    * Account and role selection with interactive UI (fzf-style).
+    * AWS CLI profile creation and management.
+    * Credential export in environment variable format.
+    * SSO logout handling.
+
+2.  AWS Systems Manager (SSM) Operations
+    * EC2 instance discovery and listing via SSM.
+    * SSM Session Manager connections.
+    * Port forwarding through SSM tunnels.
+    * File transfer via SSM (scp-like functionality).
+    * Instance filtering by tags, status, and name patterns.
+    * Multi-region instance discovery through SSM.
+    * Instance health and SSM agent status checking.
+    * SSM-enabled instance management.
+    * Instance lifecycle operations via SSM.
+
+3.  Interactive User Interface
+    * Fuzzy search for instances/accounts/roles (fzf equivalent).
+    * Preview windows with detailed information.
+    * Interactive selection menus.
+    * User confirmation prompts.
+    * Progress indicators for long operations.
+    * Color-coded output and status messages.
+
+4.  Configuration Management
+    * Environment variable validation and setup.
+    * Configuration file management (.env, AWS config).
+    * Default profile and region handling.
+    * Custom log directory configuration.
+    * Sample configuration generation.
+    * Multi-environment support (dev, staging, prod).
+
+5.  System Integration & Dependencies
+    * System requirements checking (AWS CLI, dependencies).
+    * Cross-platform compatibility (Linux, macOS, Windows).
+    * Shell integration and environment variable export.
+    * Installation guidance for missing dependencies.
+    * AWS credential status validation.
+
+6.  Logging & Error Handling
+    * Structured logging with multiple levels (debug, info, warn, error).
+    * Log file management with rotation.
+    * Color-coded console output.
+    * Comprehensive error messages with recovery suggestions.
+    * Debug mode with detailed operation traces.
+
+7.  Security & Credentials
+    * Secure token storage and retrieval.
+    * Credential validation and expiration handling.
+    * Session management across multiple AWS accounts.
+    * Role assumption and permission validation.
+    * Secure credential display and masking.
+
+8.  Command Line Interface
+    * Multiple command modes and subcommands.
+    * Help system with examples and usage.
+    * Version information and updates.
+    * Argument parsing and validation.
+    * Batch operation support.
+
+9.  SSM Instance Management
+    * Instance discovery via SSM inventory.
+    * Instance metadata retrieval through SSM (tags, status, type).
+    * Instance grouping and filtering based on SSM data.
+    * SSM connection status monitoring.
+    * SSM agent status and version checking.
+    * Instance patching status via SSM.
+
+10. Network & Connectivity via SSM
+    * SSM port forwarding management.
+    * SSM connection health monitoring.
+    * Network troubleshooting through SSM utilities.
+    * SSM tunnel management.
+    * Connection retry and failover logic.
+    * Remote command execution via SSM.
+
+Command Structure Design:
+
+Main Commands:
+* ztictl auth login [profile]           # SSO authentication
+* ztictl auth logout [profile]          # SSO logout
+* ztictl auth profiles                  # List/manage profiles
+* ztictl auth creds [profile]           # Show credentials
+
+* ztictl ssm connect <instance>         # Connect to instance via SSM
+* ztictl ssm list [filters]             # List SSM-enabled instances
+* ztictl ssm forward <instance> <ports> # Port forwarding via SSM
+* ztictl ssm transfer <src> <dst>       # File transfer via SSM
+* ztictl ssm command <instance> <cmd>   # Execute command via SSM
+* ztictl ssm status [instance]          # Check SSM agent status
+* ztictl ssm inventory [region]         # Show SSM inventory data
+
+* ztictl config init                    # Initialize configuration
+* ztictl config check                   # Check requirements
+* ztictl config show                    # Show current config
+
+* ztictl version                        # Version information
+* ztictl help                           # Help system
+
+Key Technical Migration Points (from Bash to Go Equivalents):
+
+* fzf -> github.com/ktr0731/go-fuzzyfinder
+* jq -> encoding/json package
+* aws CLI calls -> AWS SDK v2 direct API calls (SSM, EC2, STS)
+* Shell scripting -> Go's os/exec for external commands (use sparingly)
+* Environment variables -> os.Getenv() and github.com/spf13/viper
+* File operations -> os and path/filepath packages
+* Colors -> github.com/fatih/color
+* Logging -> slog or github.com/sirupsen/logrus
+
+Core Dependencies:
+* github.com/spf13/cobra - CLI framework
+* github.com/aws/aws-sdk-go-v2 - AWS SDK
+* github.com/aws/aws-sdk-go-v2/service/ssm - SSM service
+* github.com/aws/aws-sdk-go-v2/service/ec2 - EC2 service (for SSM instance queries)
+* github.com/aws/aws-sdk-go-v2/service/sts - STS service
+* github.com/spf13/viper - Configuration management
+* github.com/ktr0731/go-fuzzyfinder - Interactive selection
+* github.com/fatih/color - Colored output
+* github.com/sirupsen/logrus - Structured logging (or slog from standard library)
+
+SSM-Focused Integration Benefits:
+* Unified SSM Operations: All instance operations go through SSM for security.
+* Single Binary: One executable for all AWS SSM operations.
+* Unified Configuration: Shared settings across SSO and SSM.
+* Cross-Platform: Native Windows, macOS, Linux support.
+* Performance: Faster execution than shell scripts.
+* Type Safety: Compile-time error checking.
+* Maintainability: Better code organization and testing.
+* SSM-First Approach: Leverages SSM for all instance interactions.
+* Enhanced Security: All connections go through SSM Session Manager.
+* Agentless Operations: Uses SSM for instance discovery and management (no direct SSH/WinRM).
+
+This unified approach combines all SSO authentication features with SSM-centric operations into a single, powerful CLI tool called ztictl that maintains all existing functionality while providing better performance, security through SSM, and cross-platform support.

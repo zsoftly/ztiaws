@@ -2,7 +2,7 @@ name: Test quickssm
 
 on:
   push:
-    branches: [ main, 'feature/*', 'feat/*', 'issues/*' ]
+    branches: [ main, 'feature/*', 'feat/*', 'issue/*' ]
   pull_request:
     branches: [ main ]
     types: [ opened, synchronize, reopened ]
@@ -38,7 +38,7 @@ jobs:
     steps:
     - name: Check branch name
       run: |
-        if [[ ! "${{ github.head_ref }}" =~ ^issues ]]; then
+        if [[ ! "${{ github.head_ref }}" =~ ^issue ]]; then
           echo "❌ Pull requests to main branch must come from branches starting with 'issues'"
           echo "Current branch: ${{ github.head_ref }}"
           echo "Please create your PR from a branch that starts with 'issues/' (e.g., issues/123-fix-bug)"

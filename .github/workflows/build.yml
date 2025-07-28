@@ -1,0 +1,296 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, 'feature/*', 'feat/*', 'issue/*' ]
+    tags:
+      - 'v*'
+    paths:
+      - 'ztictl/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'ztictl/**'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Test & Validate
+    runs-on: ${{ matrix.os }}
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+        
+    - name: Get dependencies
+      working-directory: ./ztictl
+      run: go mod download
+    
+    - name: Run tests
+      working-directory: ./ztictl
+      run: go test -v ./...
+        
+    - name: Run go vet
+      working-directory: ./ztictl
+      run: go vet ./...
+      
+    - name: Check formatting
+      working-directory: ./ztictl
+      shell: bash
+      run: |
+        # Ensure consistent line endings across platforms
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          # Configure git to handle line endings properly for this check
+          git config core.autocrlf false
+          # Re-checkout files with correct line endings
+          git checkout HEAD -- .
+        fi
+        
+        # Check if any files need formatting
+        UNFORMATTED=$(gofmt -s -l .)
+        if [ -n "$UNFORMATTED" ]; then
+          echo "The following files are not formatted correctly:"
+          echo "$UNFORMATTED"
+          echo ""
+          echo "Please run 'gofmt -s -w .' to fix formatting issues."
+          exit 1
+        fi
+        echo "All Go files are properly formatted."
+    
+    - name: Test build
+      working-directory: ./ztictl
+      run: go build -o ztictl${{ matrix.os == 'windows-latest' && '.exe' || '' }} ./cmd/ztictl
+    
+    - name: Test CLI commands (no auth required)
+      working-directory: ./ztictl
+      shell: bash
+      run: |
+        # Set executable name based on OS
+        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+          ZTICTL_EXE="./ztictl.exe"
+        else
+          ZTICTL_EXE="./ztictl"
+        fi
+        
+        # Test help commands
+        $ZTICTL_EXE --help
+        $ZTICTL_EXE config --help
+        $ZTICTL_EXE auth --help
+        $ZTICTL_EXE ssm --help
+        
+        # Test version
+        $ZTICTL_EXE --version
+        
+        # Test config validation (should fail gracefully without config)
+        $ZTICTL_EXE config validate || echo "Expected to fail without config"
+        
+        # Test config show (should show defaults)
+        $ZTICTL_EXE config show || echo "Expected to work with defaults"
+        
+        # Test system check (should work without AWS)
+        $ZTICTL_EXE config check || echo "Expected to show missing dependencies"
+
+  security:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    env:
+      GOPROXY: proxy.golang.org,direct
+      GOSUMDB: sum.golang.org
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+        
+    - name: Download dependencies
+      working-directory: ./ztictl
+      run: go mod download
+    
+    - name: Install security tools
+      run: |
+        # Install govulncheck for official Go vulnerability checking
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        
+        # Verify installation
+        govulncheck -version || echo "govulncheck installation failed"
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: './ztictl'
+        format: 'table'
+        exit-code: '0'  # Don't fail the build
+      continue-on-error: true
+    
+    - name: Run GoSec security scan
+      uses: securego/gosec@master
+      with:
+        args: './ztictl/...'
+      continue-on-error: true
+    
+    - name: Run Go vulnerability check
+      working-directory: ./ztictl
+      run: |
+        echo "🔍 Running Go vulnerability check..."
+        govulncheck ./... || true
+        echo ""
+        echo "📊 Go vulnerability check completed"
+      continue-on-error: true
+    
+    - name: Check for outdated dependencies
+      working-directory: ./ztictl
+      run: |
+        echo "🔍 Checking for outdated Go dependencies..."
+        echo "Current dependencies:"
+        go list -m all
+        echo ""
+        echo "Checking for updates (this is informational only):"
+        go list -u -m all | grep -E '\[.*\]' || echo "All dependencies appear to be up to date"
+        echo ""
+        echo "📊 Dependency update check completed"
+      continue-on-error: true
+    
+    - name: Security scan summary
+      run: |
+        echo "🛡️  Security Analysis Summary"
+        echo "=============================="
+        echo "✅ Trivy filesystem scan completed"
+        echo "✅ GoSec security analysis completed"
+        echo "✅ Go vulnerability check completed"
+        echo "✅ Dependency update check completed"
+        echo ""
+        echo "ℹ️  This job runs security scans for informational purposes."
+        echo "ℹ️  Review the output above for any security findings."
+        echo "ℹ️  Consider updating outdated dependencies regularly."
+
+  build:
+    name: Cross-Platform Build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.24'
+        
+    - name: Get dependencies
+      working-directory: ./ztictl
+      run: go mod download
+    
+    - name: Build binary
+      working-directory: ./ztictl
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        # Set version from tag or default
+        VERSION=${GITHUB_REF#refs/tags/v}
+        if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+          VERSION="dev-${GITHUB_SHA::8}"
+        fi
+        
+        # Set output filename
+        BINARY_NAME="ztictl-${{ matrix.goos }}-${{ matrix.goarch }}"
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          BINARY_NAME="${BINARY_NAME}.exe"
+        fi
+        
+        # Build with version and optimization flags
+        go build \
+          -ldflags "-X main.version=${VERSION} -s -w" \
+          -o "${BINARY_NAME}" \
+          ./cmd/ztictl
+        
+        # Verify binary
+        if [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "amd64" ]; then
+          ./"${BINARY_NAME}" --version
+        fi
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ztictl-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: ztictl/ztictl-${{ matrix.goos }}-${{ matrix.goarch }}*
+        retention-days: 30
+
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts/
+    
+    - name: Create release archives
+      run: |
+        mkdir -p release/
+        
+        for dir in artifacts/*/; do
+          platform=$(basename "$dir")
+          cd "$dir"
+          
+          # Create tarball for Unix systems, zip for Windows
+          if [[ "$platform" == *"windows"* ]]; then
+            zip -r "../../release/${platform}.zip" ./*
+          else
+            tar -czf "../../release/${platform}.tar.gz" ./*
+          fi
+          
+          cd - > /dev/null
+        done
+        
+        ls -la release/
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
