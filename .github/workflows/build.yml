@@ -1,14 +1,22 @@
 name: CI/CD Pipeline
 
+# Git Flow Pattern:
+# 1. Create release branch from main (e.g., release/v2.0.0)
+# 2. Make release preparations (version updates, changelog, etc.)
+# 3. Push tag to trigger this workflow (e.g., v2.0.0)
+# 4. Workflow builds, tests, and creates GitHub release
+# 5. MANUAL: Merge release branch back to main when ready
+# 6. Main branch stays up-to-date with all release changes
+
 on:
   push:
-    branches: [ main, 'feature/*', 'feat/*', 'issue/*' ]
+    branches: [ main, 'feature/*', 'feat/*', 'issue/*', 'release/*' ]
     tags:
       - 'v*'
     paths:
       - 'ztictl/**'
   pull_request:
-    branches: [ main ]
+    branches: [ main, 'release/*' ]
     paths:
       - 'ztictl/**'
   workflow_dispatch:
