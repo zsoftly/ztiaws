@@ -27,6 +27,12 @@ import (
 	"github.com/pkg/browser"
 )
 
+const (
+	// SSO authentication timeout constraints
+	MinTimeoutSeconds = 60  // 1 minute minimum for user interaction
+	MaxTimeoutSeconds = 180 // 3 minute maximum for security
+)
+
 // Manager handles AWS SSO authentication operations
 type Manager struct {
 	logger *logging.Logger
@@ -443,12 +449,43 @@ func (m *Manager) performSSOLogin(ctx context.Context, awsCfg aws.Config, cfg *a
 	ticker := time.NewTicker(time.Duration(authResp.Interval) * time.Second)
 	defer ticker.Stop()
 
-	timeout := time.After(time.Duration(authResp.ExpiresIn) * time.Second)
+	// Use intelligent timeout: respect AWS timeout but ensure reasonable minimum
+	// This balances security with usability
+	timeoutSeconds := authResp.ExpiresIn
+
+	if timeoutSeconds < MinTimeoutSeconds {
+		timeoutSeconds = MinTimeoutSeconds
+		m.logger.Debug("Extended timeout for better user experience",
+			"aws_timeout", authResp.ExpiresIn, "actual_timeout", timeoutSeconds)
+	} else if timeoutSeconds > MaxTimeoutSeconds {
+		timeoutSeconds = MaxTimeoutSeconds
+		m.logger.Debug("Capped timeout for security",
+			"aws_timeout", authResp.ExpiresIn, "actual_timeout", timeoutSeconds)
+	}
+
+	timeout := time.After(time.Duration(timeoutSeconds) * time.Second)
+
+	// Inform user of timeout duration in user-friendly format
+	timeoutMinutes := float64(timeoutSeconds) / 60.0
+	if timeoutSeconds >= 60 {
+		if timeoutSeconds%60 == 0 {
+			// Exact minutes
+			fmt.Printf("⏰ Authentication timeout: %.0f minutes\n\n", timeoutMinutes)
+		} else {
+			// Minutes with seconds
+			minutes := timeoutSeconds / 60
+			seconds := timeoutSeconds % 60
+			fmt.Printf("⏰ Authentication timeout: %d minutes %d seconds\n\n", minutes, seconds)
+		}
+	} else {
+		// Less than a minute
+		fmt.Printf("⏰ Authentication timeout: %d seconds\n\n", timeoutSeconds)
+	}
 
 	for {
 		select {
 		case <-timeout:
-			return fmt.Errorf("SSO login timed out after %d seconds", authResp.ExpiresIn)
+			return fmt.Errorf("SSO login timed out after %d seconds", timeoutSeconds)
 		case <-ticker.C:
 			tokenResp, err := ssoOIDCClient.CreateToken(ctx, &ssooidc.CreateTokenInput{
 				ClientId:     registerResp.ClientId,
@@ -964,10 +1001,10 @@ func (m *Manager) isProfileAuthenticated(ctx context.Context, profileName string
 
 // printSuccessMessage displays platform-specific instructions after successful authentication
 func (m *Manager) printSuccessMessage(profileName string, account *Account, role *Role, cfg *appconfig.Config) {
-	// Color setup
-	successColor := color.New(color.FgGreen, color.Bold)
-	infoColor := color.New(color.FgCyan)
-	commandColor := color.New(color.FgYellow)
+	// Color setup - using high-intensity colors for better visibility
+	successColor := color.New(color.FgHiGreen, color.Bold)
+	infoColor := color.New(color.FgHiCyan)
+	commandColor := color.New(color.FgHiYellow)
 
 	fmt.Println()
 	successColor.Println("🎉 Successfully configured AWS SSO profile.")

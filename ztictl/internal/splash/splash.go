@@ -100,14 +100,14 @@ func ShowSplash(version string) (bool, error) {
 
 // displaySplash renders the colored splash screen
 func displaySplash(config SplashConfig) {
-	// Blue and white color scheme for butterfly theme
-	titleColor := color.New(color.FgBlue, color.Bold)        // Blue for main elements
-	versionColor := color.New(color.FgCyan, color.Bold)      // Cyan for version
-	descColor := color.New(color.FgWhite)                    // White for description
-	featureColor := color.New(color.FgBlue)                  // Blue for features
-	headerColor := color.New(color.FgBlue, color.Bold)       // Bold blue for headers
-	accentColor := color.New(color.FgCyan, color.Bold)       // Cyan for accents
-	butterflyColor := color.New(color.FgMagenta, color.Bold) // Special color for butterfly elements
+	// High-intensity color scheme for better visibility on dark terminals
+	titleColor := color.New(color.FgHiWhite, color.Bold)    // Bright white for main title
+	versionColor := color.New(color.FgHiGreen, color.Bold)  // Bright green for version
+	descColor := color.New(color.FgWhite)                   // Normal white for description
+	featureColor := color.New(color.FgHiCyan)               // Bright cyan for feature list
+	headerColor := color.New(color.FgHiYellow, color.Bold)  // Bright yellow for section headers
+	accentColor := color.New(color.FgHiMagenta, color.Bold) // Bright magenta for accents or links
+	butterflyColor := color.New(color.FgHiBlue, color.Bold) // Bright blue for butterfly elements
 
 	// Clear screen for better presentation
 	fmt.Print("\033[2J\033[H")
@@ -190,7 +190,7 @@ func displaySplash(config SplashConfig) {
 
 // animateMessage displays a message with a simple animation effect
 func animateMessage(message string) {
-	color := color.New(color.FgCyan)
+	color := color.New(color.FgHiCyan)
 	for i, char := range message {
 		color.Printf("%c", char)
 		if i%10 == 0 {
@@ -202,8 +202,8 @@ func animateMessage(message string) {
 
 // ShowBriefWelcome shows a minimal welcome for subsequent runs
 func ShowBriefWelcome(version string) {
-	butterflyColor := color.New(color.FgMagenta, color.Bold)
-	titleColor := color.New(color.FgBlue, color.Bold)
+	butterflyColor := color.New(color.FgHiBlue, color.Bold)
+	titleColor := color.New(color.FgHiWhite, color.Bold)
 
 	butterflyColor.Print("🦋 ")
 	titleColor.Printf("ztictl v%s", version)

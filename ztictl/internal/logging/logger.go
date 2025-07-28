@@ -42,15 +42,15 @@ func (f *ColorFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 	switch entry.Level {
 	case logrus.DebugLevel:
-		levelColor = color.New(color.FgCyan)
+		levelColor = color.New(color.FgHiCyan)
 	case logrus.InfoLevel:
-		levelColor = color.New(color.FgGreen)
+		levelColor = color.New(color.FgHiGreen)
 	case logrus.WarnLevel:
-		levelColor = color.New(color.FgYellow)
+		levelColor = color.New(color.FgHiYellow)
 	case logrus.ErrorLevel, logrus.FatalLevel, logrus.PanicLevel:
-		levelColor = color.New(color.FgRed)
+		levelColor = color.New(color.FgHiRed)
 	default:
-		levelColor = color.New(color.FgWhite)
+		levelColor = color.New(color.FgHiWhite)
 	}
 
 	var formattedLevel string
