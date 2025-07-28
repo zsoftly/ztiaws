@@ -110,7 +110,8 @@ func NewLogger(debug bool) *Logger {
 func (l *Logger) setupFileLogging(logDir string) {
 	// Create logs directory if it doesn't exist
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		l.Warn("Failed to create log directory", "dir", logDir, "error", err)
+		// Use direct stderr output during initialization to avoid circular dependency
+		fmt.Fprintf(os.Stderr, "[WARN] Failed to create log directory: %s (%v)\n", logDir, err)
 		return
 	}
 
@@ -118,7 +119,8 @@ func (l *Logger) setupFileLogging(logDir string) {
 	logFile := filepath.Join(logDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
 	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
-		l.Warn("Failed to open log file", "file", logFile, "error", err)
+		// Use direct stderr output during initialization to avoid circular dependency
+		fmt.Fprintf(os.Stderr, "[WARN] Failed to open log file: %s (%v)\n", logFile, err)
 		return
 	}
 
@@ -126,7 +128,10 @@ func (l *Logger) setupFileLogging(logDir string) {
 	multiWriter := io.MultiWriter(os.Stdout, file)
 	l.SetOutput(multiWriter)
 
-	l.Debug("File logging enabled", "file", logFile)
+	// Use direct stdout output during initialization to avoid circular dependency
+	if l.Logger.GetLevel() <= logrus.DebugLevel {
+		fmt.Fprintf(os.Stdout, "[DEBUG] File logging enabled: %s\n", logFile)
+	}
 }
 
 // SetLevel sets the logging level

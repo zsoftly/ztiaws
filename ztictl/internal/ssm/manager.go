@@ -14,6 +14,10 @@ import (
 	"strings"
 	"time"
 
+	appconfig "ztictl/internal/config"
+	"ztictl/internal/logging"
+	"ztictl/pkg/errors"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -23,9 +27,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	appconfig "ztictl/internal/config"
-	"ztictl/internal/logging"
-	"ztictl/pkg/errors"
 )
 
 // Manager handles AWS Systems Manager operations
@@ -708,21 +709,30 @@ func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, local
 
 	// Attach S3 permissions to instance IAM role
 	m.logger.Info("Attaching temporary S3 permissions to instance", "instance", instanceID)
-	if err := m.iamManager.AttachS3Permissions(ctx, instanceID, region, bucketName); err != nil {
+	cleanup, err := m.iamManager.AttachS3Permissions(ctx, instanceID, region, bucketName)
+	if err != nil {
 		return fmt.Errorf("failed to attach S3 permissions: %w", err)
 	}
 
 	// Defer cleanup of IAM permissions
 	defer func() {
 		m.logger.Info("Cleaning up temporary IAM permissions", "instance", instanceID)
-		if err := m.iamManager.RemoveS3Permissions(ctx, instanceID, region); err != nil {
-			m.logger.Warn("Failed to clean up IAM permissions: %v", err)
+		if err := cleanup(); err != nil {
+			m.logger.Warn("Failed to clean up IAM permissions", "error", err)
 		}
 	}()
 
 	// Generate unique S3 key for this transfer
 	randomBytes := make([]byte, 8)
-	rand.Read(randomBytes)
+	if _, err := rand.Read(randomBytes); err != nil {
+		// Fallback to pseudo-random bytes based on timestamp and nanoseconds
+		m.logger.Warn("Failed to generate random bytes for S3 key, using timestamp-based fallback", "error", err)
+		nano := time.Now().UnixNano()
+		// Generate pseudo-random bytes from timestamp and nanoseconds
+		for i := 0; i < 8; i++ {
+			randomBytes[i] = byte((nano >> (i * 8)) ^ (nano >> (i * 4)))
+		}
+	}
 	timestamp := time.Now().Unix()
 	s3Key := fmt.Sprintf("uploads/%d-%s-%s", timestamp, hex.EncodeToString(randomBytes), filepath.Base(localPath))
 
@@ -799,21 +809,30 @@ func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, rem
 
 	// Attach S3 permissions to instance IAM role
 	m.logger.Info("Attaching temporary S3 permissions to instance", "instance", instanceID)
-	if err := m.iamManager.AttachS3Permissions(ctx, instanceID, region, bucketName); err != nil {
+	cleanup, err := m.iamManager.AttachS3Permissions(ctx, instanceID, region, bucketName)
+	if err != nil {
 		return fmt.Errorf("failed to attach S3 permissions: %w", err)
 	}
 
 	// Defer cleanup of IAM permissions
 	defer func() {
 		m.logger.Info("Cleaning up temporary IAM permissions", "instance", instanceID)
-		if err := m.iamManager.RemoveS3Permissions(ctx, instanceID, region); err != nil {
-			m.logger.Warn("Failed to clean up IAM permissions: %v", err)
+		if err := cleanup(); err != nil {
+			m.logger.Warn("Failed to clean up IAM permissions", "error", err)
 		}
 	}()
 
 	// Generate unique S3 key for this transfer
 	randomBytes := make([]byte, 8)
-	rand.Read(randomBytes)
+	if _, err := rand.Read(randomBytes); err != nil {
+		// Fallback to pseudo-random bytes based on timestamp and nanoseconds
+		m.logger.Warn("Failed to generate random bytes for S3 key, using timestamp-based fallback", "error", err)
+		nano := time.Now().UnixNano()
+		// Generate pseudo-random bytes from timestamp and nanoseconds
+		for i := 0; i < 8; i++ {
+			randomBytes[i] = byte((nano >> (i * 8)) ^ (nano >> (i * 4)))
+		}
+	}
 	timestamp := time.Now().Unix()
 	s3Key := fmt.Sprintf("downloads/%d-%s-%s", timestamp, hex.EncodeToString(randomBytes), filepath.Base(remotePath))
 
@@ -881,14 +900,14 @@ func (m *Manager) EmergencyCleanup(ctx context.Context, region string) error {
 	// Initialize managers if not already done
 	if m.iamManager == nil || m.s3LifecycleManager == nil {
 		if err := m.initializeManagers(ctx, region); err != nil {
-			m.logger.Warn("Failed to initialize managers for emergency cleanup: %v", err)
+			m.logger.Warn("Failed to initialize managers for emergency cleanup", "error", err)
 			return err
 		}
 	}
 
 	// Perform IAM emergency cleanup
 	if err := m.iamManager.EmergencyCleanup(ctx, region); err != nil {
-		m.logger.Warn("Failed to perform IAM emergency cleanup: %v", err)
+		m.logger.Warn("Failed to perform IAM emergency cleanup", "error", err)
 	}
 
 	m.logger.Info("Emergency cleanup completed")
@@ -902,11 +921,6 @@ func (m *Manager) Cleanup(ctx context.Context, region string) error {
 		if err := m.initializeManagers(ctx, region); err != nil {
 			return fmt.Errorf("failed to initialize managers: %w", err)
 		}
-	}
-
-	// Clean up stale registry entries
-	if err := m.iamManager.cleanupStaleRegistryEntries(); err != nil {
-		m.logger.Warn("Failed to cleanup stale registry entries: %v", err)
 	}
 
 	return nil
