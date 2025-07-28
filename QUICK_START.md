@@ -2,23 +2,62 @@
 
 ## 🚀 Quick Install
 
-### Linux/macOS
+> **Choose Your Version**: ZTiAWS offers both stable shell scripts and a new unified Go binary
+
+### 🐚 Shell Scripts (Production Stable)
 ```bash
-# Download and install latest version
-curl -L -o ztictl "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/')"
-chmod +x ztictl
-sudo mv ztictl /usr/local/bin/
+# Download production-stable shell scripts
+curl -L -o ssm https://raw.githubusercontent.com/zsoftly/ztiaws/main/ssm
+curl -L -o authaws https://raw.githubusercontent.com/zsoftly/ztiaws/main/authaws
+chmod +x ssm authaws
+sudo mv ssm authaws /usr/local/bin/
+
+# Download support files
+sudo mkdir -p /usr/local/bin/src
+for file in 00_utils.sh 01_regions.sh 02_ssm_instance_resolver.sh 03_ssm_command_runner.sh 04_ssm_file_transfer.sh; do
+  curl -L -o "/tmp/$file" "https://raw.githubusercontent.com/zsoftly/ztiaws/main/src/$file"
+  sudo mv "/tmp/$file" "/usr/local/bin/src/"
+done
 ```
 
-### Windows (PowerShell)
+### 🚀 Go Binary (New Unified Tool)
+
+#### Linux/macOS
+```bash
+# Download and install latest ztictl
+platform="linux"  # or "darwin" for macOS
+arch="amd64"       # or "arm64"
+
+curl -L -o ztictl.tar.gz "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-${platform}-${arch}.tar.gz"
+tar -xzf ztictl.tar.gz
+chmod +x ztictl-${platform}-${arch}
+sudo mv ztictl-${platform}-${arch} /usr/local/bin/ztictl
+rm ztictl.tar.gz
+```
+
+#### Windows (PowerShell)
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.exe" -OutFile "ztictl.exe"
+# Download and install latest ztictl
+Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.zip" -OutFile "ztictl.zip"
+Expand-Archive -Path "ztictl.zip" -DestinationPath "." -Force
+$installDir = "$env:USERPROFILE\bin"
+New-Item -ItemType Directory -Force -Path $installDir
+Move-Item ztictl-windows-amd64.exe "$installDir\ztictl.exe"
+Remove-Item ztictl.zip
 ```
 
 ### Verify Installation
 ```bash
+# Shell scripts
+ssm --version
+authaws --version
+
+# Go binary  
 ztictl --version
-ztictl ssm list --region us-east-1
+
+# Test functionality
+ssm list --region us-east-1        # Shell script
+ztictl ssm list --region us-east-1 # Go binary
 ```
 
 ## 📦 Quick Release Process

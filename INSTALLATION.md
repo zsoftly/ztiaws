@@ -2,6 +2,12 @@
 
 ztictl is a cross-platform command-line tool for AWS Systems Manager operations. This guide covers installation on Windows, macOS, and Linux.
 
+> **📋 Note**: ZTiAWS provides **two versions**:
+> - **Shell Scripts** (`ssm` & `authaws`) - Production stable version (v1.4.x)
+> - **Go Binary** (`ztictl`) - New unified tool in testing/preview (v2.0.x)
+> 
+> You can install both or choose the one that fits your needs.
+
 ## Quick Install (Recommended)
 
 ### Prerequisites
@@ -10,18 +16,67 @@ ztictl is a cross-platform command-line tool for AWS Systems Manager operations.
 
 ## Installation Methods
 
-### 📦 Method 1: Download Pre-built Binaries (Recommended)
+### � Option A: Shell Scripts (Production Stable)
+
+The original shell-based tools that are currently in production use.
+
+#### Download Shell Scripts
+```bash
+# Download both scripts
+curl -L -o ssm https://raw.githubusercontent.com/zsoftly/ztiaws/main/ssm
+curl -L -o authaws https://raw.githubusercontent.com/zsoftly/ztiaws/main/authaws
+
+# Make executable
+chmod +x ssm authaws
+
+# Install system-wide (optional)
+sudo mv ssm authaws /usr/local/bin/
+
+# Download supporting files
+sudo mkdir -p /usr/local/bin/src
+curl -L -o /tmp/utils.sh https://raw.githubusercontent.com/zsoftly/ztiaws/main/src/00_utils.sh
+curl -L -o /tmp/regions.sh https://raw.githubusercontent.com/zsoftly/ztiaws/main/src/01_regions.sh
+curl -L -o /tmp/instance_resolver.sh https://raw.githubusercontent.com/zsoftly/ztiaws/main/src/02_ssm_instance_resolver.sh
+curl -L -o /tmp/command_runner.sh https://raw.githubusercontent.com/zsoftly/ztiaws/main/src/03_ssm_command_runner.sh
+curl -L -o /tmp/file_transfer.sh https://raw.githubusercontent.com/zsoftly/ztiaws/main/src/04_ssm_file_transfer.sh
+sudo mv /tmp/*.sh /usr/local/bin/src/
+
+# Verify installation
+ssm --version
+authaws --version
+```
+
+#### Shell Scripts Usage
+```bash
+# List instances
+ssm list
+
+# Connect to instance
+ssm connect i-1234567890abcdef0
+
+# Run command
+ssm command i-1234567890abcdef0 "uptime"
+
+# Configure AWS SSO
+authaws configure
+```
+
+### 🚀 Option B: Go Binary (New Unified Tool)
+
+The new Go-based unified tool that combines both `ssm` and `authaws` functionality.
 
 #### For Linux (x86_64/AMD64)
 ```bash
-# Download latest release
-curl -L -o ztictl https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-amd64
+# Download and extract
+curl -L -o ztictl.tar.gz https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-amd64.tar.gz
+tar -xzf ztictl.tar.gz
 
-# Make executable
-chmod +x ztictl
+# Make executable and install
+chmod +x ztictl-linux-amd64
+sudo mv ztictl-linux-amd64 /usr/local/bin/ztictl
 
-# Install system-wide (optional)
-sudo mv ztictl /usr/local/bin/
+# Clean up
+rm ztictl.tar.gz
 
 # Verify installation
 ztictl --version
@@ -30,11 +85,11 @@ ztictl --version
 #### For Linux (ARM64)
 ```bash
 # Download ARM64 version
-curl -L -o ztictl https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-arm64
-
-# Make executable and install
-chmod +x ztictl
-sudo mv ztictl /usr/local/bin/
+curl -L -o ztictl.tar.gz https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-arm64.tar.gz
+tar -xzf ztictl.tar.gz
+chmod +x ztictl-linux-arm64
+sudo mv ztictl-linux-arm64 /usr/local/bin/ztictl
+rm ztictl.tar.gz
 
 # Verify installation
 ztictl --version
@@ -43,13 +98,15 @@ ztictl --version
 #### For macOS (Intel)
 ```bash
 # Download Intel version
-curl -L -o ztictl https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-darwin-amd64
+curl -L -o ztictl.tar.gz https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-darwin-amd64.tar.gz
+tar -xzf ztictl.tar.gz
 
 # Make executable
-chmod +x ztictl
+chmod +x ztictl-darwin-amd64
 
 # Install system-wide (optional)
-sudo mv ztictl /usr/local/bin/
+sudo mv ztictl-darwin-amd64 /usr/local/bin/ztictl
+rm ztictl.tar.gz
 
 # Verify installation
 ztictl --version
@@ -58,13 +115,15 @@ ztictl --version
 #### For macOS (Apple Silicon - M1/M2/M3)
 ```bash
 # Download Apple Silicon version
-curl -L -o ztictl https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-darwin-arm64
+curl -L -o ztictl.tar.gz https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-darwin-arm64.tar.gz
+tar -xzf ztictl.tar.gz
 
 # Make executable
-chmod +x ztictl
+chmod +x ztictl-darwin-arm64
 
 # Install system-wide (optional)
-sudo mv ztictl /usr/local/bin/
+sudo mv ztictl-darwin-arm64 /usr/local/bin/ztictl
+rm ztictl.tar.gz
 
 # Verify installation
 ztictl --version
@@ -75,14 +134,20 @@ ztictl --version
 **Option A: PowerShell (Recommended)**
 ```powershell
 # Download latest release
-Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.exe" -OutFile "ztictl.exe"
+Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.zip" -OutFile "ztictl.zip"
+
+# Extract
+Expand-Archive -Path "ztictl.zip" -DestinationPath "." -Force
 
 # Add to PATH (optional) - creates directory and adds to user PATH
 $installDir = "$env:USERPROFILE\bin"
 New-Item -ItemType Directory -Force -Path $installDir
-Move-Item ztictl.exe "$installDir\ztictl.exe"
+Move-Item ztictl-windows-amd64.exe "$installDir\ztictl.exe"
 $env:PATH += ";$installDir"
 [Environment]::SetEnvironmentVariable("PATH", $env:PATH, [EnvironmentVariableTarget]::User)
+
+# Clean up
+Remove-Item ztictl.zip
 
 # Verify installation
 ztictl --version
@@ -90,19 +155,20 @@ ztictl --version
 
 **Option B: Manual Download**
 1. Go to [Releases](https://github.com/zsoftly/ztiaws/releases/latest)
-2. Download `ztictl-windows-amd64.exe`
-3. Rename to `ztictl.exe`
-4. Place in a directory in your PATH or create a new directory and add it to PATH
+2. Download `ztictl-windows-amd64.zip`
+3. Extract the ZIP file
+4. Rename the binary to `ztictl.exe`
+5. Place in a directory in your PATH or create a new directory and add it to PATH
 
 #### For Windows (ARM64)
 ```powershell
 # Download ARM64 version for ARM-based Windows systems
-Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-arm64.exe" -OutFile "ztictl.exe"
+Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-arm64.zip" -OutFile "ztictl.zip"
 
-# Follow same installation steps as above
+# Follow same extraction and installation steps as above
 ```
 
-### 🛠️ Method 2: Build from Source
+### 🛠️ Option C: Build from Source
 
 #### Prerequisites
 - Go 1.24+ installed
@@ -132,6 +198,18 @@ make build
 GOOS=windows GOARCH=amd64 go build -o ztictl-windows.exe ./cmd/ztictl
 GOOS=darwin GOARCH=arm64 go build -o ztictl-macos-arm64 ./cmd/ztictl
 ```
+
+## Version Comparison
+
+| Feature | Shell Scripts (`ssm`/`authaws`) | Go Binary (`ztictl`) |
+|---------|--------------------------------|---------------------|
+| **Status** | ✅ Production stable | 🧪 Testing/Preview |
+| **Version** | v1.4.x | v2.0.x |
+| **Installation** | Individual scripts | Single binary |
+| **Dependencies** | Bash, AWS CLI | None (self-contained) |
+| **Commands** | `ssm list`, `authaws configure` | `ztictl ssm list`, `ztictl auth configure` |
+| **Platforms** | Linux/macOS (bash) | Linux/macOS/Windows |
+| **Maintenance** | Separate tools | Unified tool |
 
 ## Post-Installation Setup
 
@@ -163,6 +241,29 @@ ztictl ssm list --region us-east-1
 ```
 
 ### 3. Basic Usage
+
+#### Shell Scripts
+```bash
+# List SSM-enabled instances
+ssm list
+
+# Connect to an instance
+ssm connect i-1234567890abcdef0
+
+# Execute a command
+ssm command i-1234567890abcdef0 "uptime"
+
+# Configure AWS SSO
+authaws configure
+
+# Upload a file
+ssm upload i-1234567890abcdef0 local-file.txt /tmp/remote-file.txt
+
+# Download a file  
+ssm download i-1234567890abcdef0 /tmp/remote-file.txt downloaded-file.txt
+```
+
+#### Go Binary (ztictl)
 ```bash
 # List SSM-enabled instances
 ztictl ssm list
@@ -172,6 +273,9 @@ ztictl ssm connect i-1234567890abcdef0
 
 # Execute a command
 ztictl ssm command i-1234567890abcdef0 "uptime"
+
+# Configure AWS SSO
+ztictl auth configure
 
 # Upload a file
 ztictl ssm transfer upload i-1234567890abcdef0 local-file.txt /tmp/remote-file.txt

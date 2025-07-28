@@ -270,15 +270,19 @@ jobs:
       with:
         path: artifacts/
     
-    - name: Create release archives
+    - name: Prepare release binaries
       run: |
         mkdir -p release/
         
+        # Copy binaries directly for easier installation
         for dir in artifacts/*/; do
           platform=$(basename "$dir")
           cd "$dir"
           
-          # Create tarball for Unix systems, zip for Windows
+          # Copy binary directly (users expect direct download)
+          cp ./* "../../release/"
+          
+          # Also create archives for those who prefer them
           if [[ "$platform" == *"windows"* ]]; then
             zip -r "../../release/${platform}.zip" ./*
           else
@@ -288,6 +292,7 @@ jobs:
           cd - > /dev/null
         done
         
+        echo "Direct binaries and archives:"
         ls -la release/
     
     - name: Create GitHub Release
