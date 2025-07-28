@@ -1,26 +1,26 @@
-# ztictl Installation Guide
+# ZTiAWS Installation Guide
 
-ztictl is a cross-platform command-line tool for AWS Systems Manager operations. This guide covers installation on Windows, macOS, and Linux.
+ZTiAWS provides AWS Systems Manager operations through two complementary tools:
 
-> **📋 Note**: ZTiAWS provides **two versions**:
-> - **Shell Scripts** (`ssm` & `authaws`) - Production stable version (v1.4.x)
-> - **Go Binary** (`ztictl`) - New unified tool in testing/preview (v2.0.x)
+> **🏗️ Dual Installation Strategy**:
+> - **Shell Scripts** (`ssm` & `authaws`) - **Production Stable** (v1.4.x) - Battle-tested, in active production use
+> - **Go Binary** (`ztictl`) - **Preview/Testing** (v2.0.x) - New unified tool with enhanced features
 > 
-> You can install both or choose the one that fits your needs.
+> **Recommendation**: Install both versions. Use shell scripts for production workflows, test `ztictl` for new features.
 
-## Quick Install (Recommended)
-
-### Prerequisites
+## Prerequisites
 - AWS CLI configured with appropriate credentials
 - EC2 instances with SSM agent installed and proper IAM roles
 
 ## Installation Methods
 
-### � Option A: Shell Scripts (Production Stable)
+### 📜 Shell Scripts (Production Stable - Recommended for Production)
 
-The original shell-based tools that are currently in production use.
+**Status**: ✅ Production stable, actively maintained, battle-tested  
+**Version**: v1.4.x series  
+**Use Case**: Production workflows, established environments
 
-#### Download Shell Scripts
+#### Quick Install
 ```bash
 # Download both scripts
 curl -L -o ssm https://raw.githubusercontent.com/zsoftly/ztiaws/main/ssm
@@ -46,7 +46,7 @@ ssm --version
 authaws --version
 ```
 
-#### Shell Scripts Usage
+#### Usage Examples
 ```bash
 # List instances
 ssm list
@@ -61,67 +61,71 @@ ssm command i-1234567890abcdef0 "uptime"
 authaws configure
 ```
 
-### 🚀 Option B: Go Binary (New Unified Tool)
+---
 
-The new Go-based unified tool that combines both `ssm` and `authaws` functionality.
+### 🚀 Go Binary (Preview/Testing - New Features)
 
-#### For Linux (x86_64/AMD64)
+**Status**: 🧪 Preview/Testing phase, active development  
+**Version**: v2.0.x series  
+**Use Case**: Testing new features, development environments, future migration
+
+The new Go-based unified tool that combines both `ssm` and `authaws` functionality with enhanced features and better performance.
+
+#### Quick Install Options
+
+**Option A: Direct Binary Download (Recommended - No extraction needed)**
 ```bash
-# Download and extract
-curl -L -o ztictl.tar.gz https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-amd64.tar.gz
-tar -xzf ztictl.tar.gz
+# Linux AMD64
+curl -L -o ztictl https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-amd64
+chmod +x ztictl
+sudo mv ztictl /usr/local/bin/
 
-# Make executable and install
-chmod +x ztictl-linux-amd64
-sudo mv ztictl-linux-amd64 /usr/local/bin/ztictl
+# Linux ARM64  
+curl -L -o ztictl https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-arm64
+chmod +x ztictl
+sudo mv ztictl /usr/local/bin/
 
-# Clean up
-rm ztictl.tar.gz
+# macOS Intel
+curl -L -o ztictl https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-darwin-amd64
+chmod +x ztictl
+sudo mv ztictl /usr/local/bin/
+
+# macOS Apple Silicon (M1/M2/M3)
+curl -L -o ztictl https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-darwin-arm64
+chmod +x ztictl
+sudo mv ztictl /usr/local/bin/
 
 # Verify installation
 ztictl --version
 ```
 
-#### For Linux (ARM64)
+**Option B: Archive Download (If you prefer archives)**
 ```bash
-# Download ARM64 version
+# Linux AMD64
+curl -L -o ztictl.tar.gz https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-amd64.tar.gz
+tar -xzf ztictl.tar.gz
+chmod +x ztictl-linux-amd64
+sudo mv ztictl-linux-amd64 /usr/local/bin/ztictl
+rm ztictl.tar.gz
+
+# Linux ARM64
 curl -L -o ztictl.tar.gz https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-arm64.tar.gz
 tar -xzf ztictl.tar.gz
 chmod +x ztictl-linux-arm64
 sudo mv ztictl-linux-arm64 /usr/local/bin/ztictl
 rm ztictl.tar.gz
 
-# Verify installation
-ztictl --version
-```
-
-#### For macOS (Intel)
-```bash
-# Download Intel version
+# macOS Intel
 curl -L -o ztictl.tar.gz https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-darwin-amd64.tar.gz
 tar -xzf ztictl.tar.gz
-
-# Make executable
 chmod +x ztictl-darwin-amd64
-
-# Install system-wide (optional)
 sudo mv ztictl-darwin-amd64 /usr/local/bin/ztictl
 rm ztictl.tar.gz
 
-# Verify installation
-ztictl --version
-```
-
-#### For macOS (Apple Silicon - M1/M2/M3)
-```bash
-# Download Apple Silicon version
+# macOS Apple Silicon
 curl -L -o ztictl.tar.gz https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-darwin-arm64.tar.gz
 tar -xzf ztictl.tar.gz
-
-# Make executable
 chmod +x ztictl-darwin-arm64
-
-# Install system-wide (optional)
 sudo mv ztictl-darwin-arm64 /usr/local/bin/ztictl
 rm ztictl.tar.gz
 
@@ -129,258 +133,172 @@ rm ztictl.tar.gz
 ztictl --version
 ```
 
-#### For Windows (x86_64/AMD64)
+#### Windows Installation
 
-**Option A: PowerShell (Recommended)**
+**Option A: Direct Binary Download**
 ```powershell
-# Download latest release
+# Windows AMD64
+Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.exe" -OutFile "ztictl.exe"
+
+# Windows ARM64
+Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-arm64.exe" -OutFile "ztictl.exe"
+
+# Move to a directory in your PATH (optional)
+Move-Item ztictl.exe $env:USERPROFILE\bin\ztictl.exe
+
+# Verify installation
+ztictl --version
+```
+
+**Option B: Archive Download**
+```powershell
+# Windows AMD64
 Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.zip" -OutFile "ztictl.zip"
-
-# Extract
-Expand-Archive -Path "ztictl.zip" -DestinationPath "." -Force
-
-# Add to PATH (optional) - creates directory and adds to user PATH
-$installDir = "$env:USERPROFILE\bin"
-New-Item -ItemType Directory -Force -Path $installDir
-Move-Item ztictl-windows-amd64.exe "$installDir\ztictl.exe"
-$env:PATH += ";$installDir"
-[Environment]::SetEnvironmentVariable("PATH", $env:PATH, [EnvironmentVariableTarget]::User)
-
-# Clean up
+Expand-Archive ztictl.zip -DestinationPath .
+Move-Item .\ztictl-windows-amd64.exe $env:USERPROFILE\bin\ztictl.exe
 Remove-Item ztictl.zip
 
 # Verify installation
 ztictl --version
 ```
 
-**Option B: Manual Download**
-1. Go to [Releases](https://github.com/zsoftly/ztiaws/releases/latest)
-2. Download `ztictl-windows-amd64.zip`
-3. Extract the ZIP file
-4. Rename the binary to `ztictl.exe`
-5. Place in a directory in your PATH or create a new directory and add it to PATH
-
-#### For Windows (ARM64)
-```powershell
-# Download ARM64 version for ARM-based Windows systems
-Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-arm64.zip" -OutFile "ztictl.zip"
-
-# Follow same extraction and installation steps as above
-```
-
-### 🛠️ Option C: Build from Source
-
-#### Prerequisites
-- Go 1.24+ installed
-- Git
-
-#### Steps
+#### ztictl Usage Examples
 ```bash
-# Clone repository
-git clone https://github.com/zsoftly/ztiaws.git
-cd ztiaws/ztictl
-
-# Build for your platform
-make build-local
-
-# Install (Linux/macOS)
-sudo cp ztictl /usr/local/bin/
-
-# Or on Windows, copy ztictl.exe to a directory in PATH
-```
-
-#### Cross-compile for other platforms
-```bash
-# Build all platforms
-make build
-
-# Individual platform builds
-GOOS=windows GOARCH=amd64 go build -o ztictl-windows.exe ./cmd/ztictl
-GOOS=darwin GOARCH=arm64 go build -o ztictl-macos-arm64 ./cmd/ztictl
-```
-
-## Version Comparison
-
-| Feature | Shell Scripts (`ssm`/`authaws`) | Go Binary (`ztictl`) |
-|---------|--------------------------------|---------------------|
-| **Status** | ✅ Production stable | 🧪 Testing/Preview |
-| **Version** | v1.4.x | v2.0.x |
-| **Installation** | Individual scripts | Single binary |
-| **Dependencies** | Bash, AWS CLI | None (self-contained) |
-| **Commands** | `ssm list`, `authaws configure` | `ztictl ssm list`, `ztictl auth configure` |
-| **Platforms** | Linux/macOS (bash) | Linux/macOS/Windows |
-| **Maintenance** | Separate tools | Unified tool |
-
-## Post-Installation Setup
-
-### 1. AWS Configuration
-Ensure AWS credentials are configured:
-```bash
-# Using AWS CLI
-aws configure
-
-# Or using environment variables
-export AWS_ACCESS_KEY_ID="your-access-key"
-export AWS_SECRET_ACCESS_KEY="your-secret-key"
-export AWS_DEFAULT_REGION="us-east-1"
-
-# Or using AWS profiles
-export AWS_PROFILE="your-profile"
-```
-
-### 2. Test Installation
-```bash
-# Check version
-ztictl --version
-
-# List available regions
-ztictl auth regions
-
-# Test SSM connectivity (replace with your region)
-ztictl ssm list --region us-east-1
-```
-
-### 3. Basic Usage
-
-#### Shell Scripts
-```bash
-# List SSM-enabled instances
-ssm list
-
-# Connect to an instance
-ssm connect i-1234567890abcdef0
-
-# Execute a command
-ssm command i-1234567890abcdef0 "uptime"
-
-# Configure AWS SSO
-authaws configure
-
-# Upload a file
-ssm upload i-1234567890abcdef0 local-file.txt /tmp/remote-file.txt
-
-# Download a file  
-ssm download i-1234567890abcdef0 /tmp/remote-file.txt downloaded-file.txt
-```
-
-#### Go Binary (ztictl)
-```bash
-# List SSM-enabled instances
-ztictl ssm list
-
-# Connect to an instance
-ztictl ssm connect i-1234567890abcdef0
-
-# Execute a command
-ztictl ssm command i-1234567890abcdef0 "uptime"
-
-# Configure AWS SSO
+# Configure (replaces authaws configure)
 ztictl auth configure
 
-# Upload a file
-ztictl ssm transfer upload i-1234567890abcdef0 local-file.txt /tmp/remote-file.txt
+# List instances (replaces ssm list)
+ztictl ssm list
 
-# Download a file
-ztictl ssm transfer download i-1234567890abcdef0 /tmp/remote-file.txt downloaded-file.txt
+# Connect to instance (replaces ssm connect)
+ztictl ssm connect i-1234567890abcdef0
+
+# Run command (replaces ssm command)
+ztictl ssm exec i-1234567890abcdef0 "uptime"
+
+# Transfer files (replaces ssm transfer)
+ztictl ssm transfer local-file.txt i-1234567890abcdef0:/tmp/
+
+# Enhanced features (new in ztictl)
+ztictl config show          # Show current configuration
+ztictl config validate      # Validate setup
+ztictl ssm manage           # Advanced SSM management
+ztictl cleanup             # Cleanup resources
 ```
 
-## Platform-Specific Notes
+---
 
-### Linux
-- Requires `session-manager-plugin` for SSM sessions:
-  ```bash
-  # Ubuntu/Debian
-  curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb"
-  sudo dpkg -i session-manager-plugin.deb
-  
-  # RHEL/CentOS/Amazon Linux
-  curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.rpm" -o "session-manager-plugin.rpm"
-  sudo yum install -y session-manager-plugin.rpm
-  ```
+## Migration Guide
 
-### macOS
-- Install Session Manager plugin:
-  ```bash
-  # Using Homebrew (recommended)
-  brew install --cask session-manager-plugin
-  
-  # Or manual installation
-  curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/mac/sessionmanager-bundle.zip" -o "sessionmanager-bundle.zip"
-  unzip sessionmanager-bundle.zip
-  sudo ./sessionmanager-bundle/install -i /usr/local/sessionmanagerplugin -b /usr/local/bin/session-manager-plugin
-  ```
+### For Shell Script Users
 
-### Windows
-- Install Session Manager plugin:
-  1. Download from [AWS Documentation](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html#install-plugin-windows)
-  2. Run the installer
-  3. Add to PATH if needed
+If you're currently using the shell scripts and want to test `ztictl`:
+
+1. **Keep your current shell scripts** - they remain fully supported
+2. **Install `ztictl` alongside** - both can coexist
+3. **Test `ztictl` commands** - use the command mapping above
+4. **Gradually migrate** - move workflows when comfortable
+
+### Command Mapping
+
+| Shell Script Command | ztictl Equivalent | Notes |
+|---------------------|-------------------|-------|
+| `authaws configure` | `ztictl auth configure` | Enhanced configuration |
+| `ssm list` | `ztictl ssm list` | Same functionality |
+| `ssm connect <id>` | `ztictl ssm connect <id>` | Same functionality |
+| `ssm command <id> <cmd>` | `ztictl ssm exec <id> <cmd>` | Enhanced output |
+| `ssm transfer <src> <dst>` | `ztictl ssm transfer <src> <dst>` | Improved progress |
+| N/A | `ztictl config show` | New feature |
+| N/A | `ztictl config validate` | New feature |
+| N/A | `ztictl ssm manage` | New feature |
+| N/A | `ztictl cleanup` | New feature |
+
+---
 
 ## Troubleshooting
 
 ### Common Issues
 
-#### "Command not found"
-- Ensure the binary is in your PATH
-- On Linux/macOS: `echo $PATH`
-- On Windows: `echo $env:PATH`
-
-#### "Permission denied"
-- On Linux/macOS: Ensure binary is executable (`chmod +x ztictl`)
-- Check file permissions and ownership
-
-#### AWS Authentication Issues
+#### Binary Not Found After Download
 ```bash
-# Verify AWS credentials
-ztictl auth whoami
+# Check if binary was downloaded
+ls -la ztictl*
 
-# Check region configuration
-ztictl auth regions
+# Ensure it's executable
+chmod +x ztictl
+
+# Check if it's in PATH
+echo $PATH
+which ztictl
 ```
 
-#### SSM Connection Issues
-- Verify EC2 instances have SSM agent installed
-- Check IAM roles and policies
-- Ensure security groups allow outbound HTTPS (443)
-
-### Getting Help
+#### Permission Denied
 ```bash
-# General help
-ztictl --help
+# Make sure binary is executable
+chmod +x ztictl
 
-# Command-specific help
-ztictl ssm --help
-ztictl ssm transfer --help
-
-# Enable debug logging
-ztictl ssm list --debug --region us-east-1
+# If installing system-wide, use sudo
+sudo mv ztictl /usr/local/bin/
 ```
 
-## Uninstallation
-
-### Linux/macOS
+#### Wrong Architecture
 ```bash
-# Remove binary
-sudo rm /usr/local/bin/ztictl
+# Check your system architecture
+uname -m
+# x86_64 = amd64
+# aarch64 = arm64
 
-# Remove configuration (optional)
-rm -rf ~/.ztictl.yaml
-rm -rf ~/logs/ztictl-*.log
+# Download the correct binary for your architecture
 ```
 
-### Windows
-```powershell
-# Remove binary from PATH location
-Remove-Item "$env:USERPROFILE\bin\ztictl.exe"
+#### Version Check
+```bash
+# For shell scripts
+ssm --version
+authaws --version
 
-# Remove configuration (optional)
-Remove-Item "$env:USERPROFILE\.ztictl.yaml"
-Remove-Item "$env:USERPROFILE\logs\ztictl-*.log"
+# For Go binary
+ztictl --version
 ```
 
-## Next Steps
+---
 
-After installation, see:
-- [User Guide](README.md) - Complete usage documentation
-- [Examples](docs/examples.md) - Common use cases and examples
-- [Troubleshooting](docs/TROUBLESHOOTING.md) - Detailed troubleshooting guide
+## Development Installation
+
+### From Source (Go Binary)
+```bash
+# Clone repository
+git clone https://github.com/zsoftly/ztiaws.git
+cd ztiaws/ztictl
+
+# Build from source
+go mod download
+go build -o ztictl ./cmd/ztictl
+
+# Install
+sudo mv ztictl /usr/local/bin/
+```
+
+### Shell Scripts Development
+```bash
+# Clone repository
+git clone https://github.com/zsoftly/ztiaws.git
+cd ztiaws
+
+# Make scripts executable
+chmod +x ssm authaws
+
+# Symlink for development
+sudo ln -sf "$(pwd)/ssm" /usr/local/bin/ssm
+sudo ln -sf "$(pwd)/authaws" /usr/local/bin/authaws
+```
+
+---
+
+## Support
+
+- 📝 **Issues**: [GitHub Issues](https://github.com/zsoftly/ztiaws/issues)
+- 📖 **Documentation**: [GitHub Wiki](https://github.com/zsoftly/ztiaws/wiki)  
+- 🔄 **Updates**: Watch the repository for releases
+
+For production use, stick with the shell scripts until `ztictl` reaches stable status.
