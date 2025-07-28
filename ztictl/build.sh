@@ -12,10 +12,14 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Version from go.mod or default
-VERSION=${VERSION:-"2.0.0"}
+# Get version information
+BASE_VERSION=${BASE_VERSION:-${VERSION:-"2.0.0"}}
+GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_VERSION="${BASE_VERSION}-${GIT_COMMIT}"
 
-echo -e "${CYAN}Building ztictl v${VERSION} for multiple platforms...${NC}"
+echo -e "${CYAN}Building ztictl v${BUILD_VERSION} for multiple platforms...${NC}"
+echo -e "${YELLOW}Base version: ${BASE_VERSION}${NC}"
+echo -e "${YELLOW}Git commit: ${GIT_COMMIT}${NC}"
 
 # Clean previous builds
 rm -rf builds/
@@ -46,7 +50,7 @@ for build in "${builds[@]}"; do
     
     # Set environment and build
     GOOS=$os GOARCH=$arch go build \
-        -ldflags "-X main.version=${VERSION} -s -w" \
+        -ldflags "-X main.Version=${BUILD_VERSION} -s -w" \
         -o "$output" \
         ./cmd/ztictl
     

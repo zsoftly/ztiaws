@@ -7,14 +7,16 @@
 all: build
 
 # Version - can be overridden via environment
-VERSION ?= 2.0.0
+BASE_VERSION ?= 2.0.0
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+VERSION := $(BASE_VERSION)-$(GIT_COMMIT)
 
 # Build directories
 BUILD_DIR := builds
 CMD_DIR := ./cmd/ztictl
 
 # Go build flags
-LDFLAGS := -ldflags "-X main.version=$(VERSION) -s -w"
+LDFLAGS := -ldflags "-X main.Version=$(VERSION) -s -w"
 
 # Cross-platform commands
 ifeq ($(OS),Windows_NT)

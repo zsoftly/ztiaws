@@ -220,11 +220,16 @@ jobs:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
       run: |
-        # Set version from tag or default
-        VERSION=${GITHUB_REF#refs/tags/v}
-        if [[ "$GITHUB_REF" != refs/tags/* ]]; then
-          VERSION="dev-${GITHUB_SHA::8}"
+        # Set version from tag or default with git commit
+        GIT_COMMIT=${GITHUB_SHA::8}
+        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          BASE_VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION="${BASE_VERSION}-${GIT_COMMIT}"
+        else
+          VERSION="dev-${GIT_COMMIT}"
         fi
+        
+        echo "Building version: ${VERSION}"
         
         # Set output filename
         BINARY_NAME="ztictl-${{ matrix.goos }}-${{ matrix.goarch }}"
@@ -234,7 +239,7 @@ jobs:
         
         # Build with version and optimization flags
         go build \
-          -ldflags "-X main.version=${VERSION} -s -w" \
+          -ldflags "-X main.Version=${VERSION} -s -w" \
           -o "${BINARY_NAME}" \
           ./cmd/ztictl
         

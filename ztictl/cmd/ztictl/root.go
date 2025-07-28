@@ -15,9 +15,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
+var (
 	// Version represents the current version of ztictl
-	Version = "2.0.0"
+	// This can be set at build time using -ldflags "-X main.version=X.Y.Z"
+	Version = "2.0.0" // Default version, overridden at build time
 )
 
 var (
