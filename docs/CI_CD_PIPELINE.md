@@ -48,23 +48,23 @@ on:
 graph TD
     A[Trigger Event] --> B{Event Type?}
     
-    B -->|PR or Feature Push| C[quick-test]
-    B -->|PR to main| D[quick-test + security]
-    B -->|Tag Push| E[build + release]
+    B -->|PR or Feature Push| C[test]
+    B -->|PR to main| D[test → security]
+    B -->|Tag Push| E[build → release]
     B -->|Manual Dispatch| F[build only]
     
     C --> G[Ubuntu + Windows Testing]
     D --> G
-    D --> H[Security Analysis]
+    G --> H[Security Analysis]
     E --> I[6-Platform Build Matrix]
     F --> I
     
-    I --> J[Release Creation]
+    I --> J[GitHub Release]
 ```
 
 ### **Job Details**
 
-#### 1. **quick-test** - Fast Development Feedback
+#### 1. **test** - Test & Validate
 ```yaml
 if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
 strategy:
@@ -87,16 +87,18 @@ strategy:
 - Faster than full 6-platform matrix
 - Sufficient for development validation
 
-#### 2. **security** - SAST Analysis
+#### 2. **security** - Security Analysis
 ```yaml
 if: github.event_name == 'pull_request' && github.base_ref == 'main'
+needs: test
 ```
 
 **Purpose:** Security validation for main branch changes
-**When it runs:** Only PRs targeting main branch
+**When it runs:** Only PRs targeting main branch, after tests pass
+**Dependencies:** Requires `test` job to complete successfully
 **Tools used:**
 - **Trivy**: Comprehensive vulnerability scanner (filesystem, dependencies)
-- **GoSec**: Go-specific security analysis (injection, crypto issues)
+- **GoSec**: Go-specific security analysis (injection, crypto issues) via official GitHub Action
 - **govulncheck**: Official Go vulnerability database
 - **Dependency updates**: Check for outdated packages
 
@@ -105,13 +107,14 @@ if: github.event_name == 'pull_request' && github.base_ref == 'main'
 - Main branch PRs need highest security validation
 - Feature branch work doesn't require full security scan
 - Prevents CI/CD bottlenecks during development
+- **Fail fast**: Only runs if tests pass
 
 **Security Tools Rationale:**
 - **Trivy vs Nancy**: Removed Nancy (redundant with Trivy's capabilities)
-- **GoSec installation**: Uses official installation script from securego/gosec repository
+- **GoSec**: Uses official GitHub Action `securego/gosec@master`
 - **Non-blocking**: All security scans use `continue-on-error: true` for informational purposes
 
-#### 3. **build** - Cross-Platform Production Builds
+#### 3. **build** - Cross-Platform Build
 ```yaml
 if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 strategy:
@@ -138,7 +141,7 @@ strategy:
 - ARM64 support for modern hardware (Apple Silicon, ARM servers)
 - Future-proofing for emerging architectures
 
-#### 4. **release** - Automated Release Management
+#### 4. **release** - GitHub Release
 ```yaml
 if: startsWith(github.ref, 'refs/tags/v')
 needs: [build]
@@ -146,6 +149,7 @@ needs: [build]
 
 **Purpose:** Automated GitHub release creation
 **When it runs:** Only version tags (e.g., `v1.2.0`)
+**Dependencies:** Requires `build` job to complete successfully
 **Process:**
 1. Download all build artifacts
 2. Create platform-specific archives (tar.gz for Unix, zip for Windows)
@@ -154,21 +158,27 @@ needs: [build]
 
 ## Workflow Behavior Matrix
 
-| Scenario | Triggered Jobs | Purpose |
-|----------|---------------|---------|
-| **Feature branch push** | `quick-test` | Fast development feedback |
-| **PR to feature branch** | `quick-test` | Basic validation |
-| **PR to main branch** | `quick-test` + `security` | Comprehensive validation |
-| **Tag push (v1.0.0)** | `build` + `release` | Production release |
-| **Manual dispatch** | `build` | On-demand binary creation |
+| Scenario | Triggered Jobs | Execution Order |
+|----------|---------------|-----------------|
+| **Feature branch push** | `test` | Parallel (Ubuntu + Windows) |
+| **PR to feature branch** | `test` | Parallel (Ubuntu + Windows) |
+| **PR to main branch** | `test` → `security` | Sequential (fail fast) |
+| **Tag push (v1.0.0)** | `build` → `release` | Sequential |
+| **Manual dispatch** | `build` | Single job matrix |
 
 ## Performance Optimizations
+
+### **Fail Fast Strategy**
+- **Tests fail** → Security scans are skipped automatically
+- **Build fails** → Release is skipped automatically
+- **Early feedback** → Developers get test results first
+- **Resource savings** → Expensive jobs only run when prerequisites pass
 
 ### **Resource Efficiency**
 - **Conditional execution**: Jobs run only when needed
 - **Path filtering**: Skip irrelevant changes
-- **Matrix optimization**: Quick tests use 2 platforms, full builds use 6
-- **Parallel execution**: Jobs run concurrently where possible
+- **Matrix optimization**: Tests use 2 platforms, builds use 6
+- **Smart dependencies**: Security analysis only after successful tests
 
 ### **Developer Experience**
 - **Fast feedback loop**: Quick tests complete in ~3-5 minutes
@@ -244,15 +254,15 @@ Previously had separate workflows:
 
 **Common Commands:**
 ```bash
-# Trigger quick test
+# Trigger test validation
 git push origin feature/my-change
 
-# Trigger security scan
+# Trigger comprehensive validation (test + security)
 gh pr create --base main
 
-# Trigger release
+# Trigger production release
 git tag v1.1.0 && git push origin v1.1.0
 
-# Manual build
+# Manual cross-platform build
 gh workflow run build.yml
 ```
