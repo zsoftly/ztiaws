@@ -1,14 +1,22 @@
 name: CI/CD Pipeline
 
+# Git Flow Pattern:
+# 1. Create release branch from main (e.g., release/v2.0.0)
+# 2. Make release preparations (version updates, changelog, etc.)
+# 3. Push tag to trigger this workflow (e.g., v2.0.0)
+# 4. Workflow builds, tests, and creates GitHub release
+# 5. MANUAL: Merge release branch back to main when ready
+# 6. Main branch stays up-to-date with all release changes
+
 on:
   push:
-    branches: [ main, 'feature/*', 'feat/*', 'issue/*' ]
+    branches: [ main, 'feature/*', 'feat/*', 'issue/*', 'release/*' ]
     tags:
       - 'v*'
     paths:
       - 'ztictl/**'
   pull_request:
-    branches: [ main ]
+    branches: [ main, 'release/*' ]
     paths:
       - 'ztictl/**'
   workflow_dispatch:
@@ -220,11 +228,16 @@ jobs:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
       run: |
-        # Set version from tag or default
-        VERSION=${GITHUB_REF#refs/tags/v}
-        if [[ "$GITHUB_REF" != refs/tags/* ]]; then
-          VERSION="dev-${GITHUB_SHA::8}"
+        # Set version from tag or default with git commit
+        GIT_COMMIT=${GITHUB_SHA::8}
+        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          BASE_VERSION=${GITHUB_REF#refs/tags/v}
+          VERSION="${BASE_VERSION}-${GIT_COMMIT}"
+        else
+          VERSION="dev-${GIT_COMMIT}"
         fi
+        
+        echo "Building version: ${VERSION}"
         
         # Set output filename
         BINARY_NAME="ztictl-${{ matrix.goos }}-${{ matrix.goarch }}"
@@ -234,7 +247,7 @@ jobs:
         
         # Build with version and optimization flags
         go build \
-          -ldflags "-X main.version=${VERSION} -s -w" \
+          -ldflags "-X main.Version=${VERSION} -s -w" \
           -o "${BINARY_NAME}" \
           ./cmd/ztictl
         
@@ -265,15 +278,19 @@ jobs:
       with:
         path: artifacts/
     
-    - name: Create release archives
+    - name: Prepare release binaries
       run: |
         mkdir -p release/
         
+        # Copy binaries directly for easier installation
         for dir in artifacts/*/; do
           platform=$(basename "$dir")
           cd "$dir"
           
-          # Create tarball for Unix systems, zip for Windows
+          # Copy binary directly (users expect direct download)
+          cp ./* "../../release/"
+          
+          # Also create archives for those who prefer them
           if [[ "$platform" == *"windows"* ]]; then
             zip -r "../../release/${platform}.zip" ./*
           else
@@ -283,6 +300,7 @@ jobs:
           cd - > /dev/null
         done
         
+        echo "Direct binaries and archives:"
         ls -la release/
     
     - name: Create GitHub Release
