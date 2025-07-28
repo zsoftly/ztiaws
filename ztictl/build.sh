@@ -13,7 +13,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Version from go.mod or default
-VERSION=${VERSION:-"1.0.0"}
+VERSION=${VERSION:-"2.0.0"}
 
 echo -e "${CYAN}Building ztictl v${VERSION} for multiple platforms...${NC}"
 

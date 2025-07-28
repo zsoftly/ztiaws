@@ -17,7 +17,7 @@ import (
 
 const (
 	// Version represents the current version of ztictl
-	Version = "1.0.0"
+	Version = "2.0.0"
 )
 
 var (

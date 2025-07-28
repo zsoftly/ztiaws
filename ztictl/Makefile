@@ -7,7 +7,7 @@
 all: build
 
 # Version - can be overridden via environment
-VERSION ?= 1.0.0
+VERSION ?= 2.0.0
 
 # Build directories
 BUILD_DIR := builds

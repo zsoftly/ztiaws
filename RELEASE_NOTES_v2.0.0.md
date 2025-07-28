@@ -1,10 +1,10 @@
-# ztictl v1.0.0 Release Notes
+# ztictl v2.0.0 Release Notes
 
 **Release Date:** July 28, 2025
 
-## 🎉 Major Milestone: First Release of ztictl
+## 🎉 Major Milestone: ztictl v2.0.0 - Complete Go Rewrite
 
-We're excited to announce the first official release of **ztictl** - the complete Go rewrite of ZTiAWS CLI! This marks a significant milestone in our journey to provide a powerful, cross-platform AWS management tool.
+We're excited to announce **ztictl v2.0.0** - the complete Go rewrite of ZTiAWS CLI! This major version represents a fundamental transformation from shell scripts (v1.4.2) to a modern, cross-platform Go application.
 
 ## 🚀 What is ztictl?
 
@@ -93,7 +93,7 @@ Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/downlo
 ```
 
 ### Manual Download
-Download the appropriate binary for your platform from the [releases page](https://github.com/zsoftly/ztiaws/releases/tag/v1.0.0).
+Download the appropriate binary for your platform from the [releases page](https://github.com/zsoftly/ztiaws/releases/tag/v2.0.0).
 
 ## 🚀 Quick Start
 
@@ -219,7 +219,7 @@ Special thanks to:
 
 ---
 
-**Download ztictl v1.0.0**: [GitHub Releases](https://github.com/zsoftly/ztiaws/releases/tag/v1.0.0)
+**Download ztictl v2.0.0**: [GitHub Releases](https://github.com/zsoftly/ztiaws/releases/tag/v2.0.0)
 
 **Questions or Issues?** Open an issue on [GitHub](https://github.com/zsoftly/ztiaws/issues)
 
