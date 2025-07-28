@@ -5,6 +5,36 @@ All notable changes to the ZTiAWS project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.0.0] - 2025-07-28
+
+### Added
+- **Initial release of ztictl** - the Go version of ZTiAWS CLI
+- **Cross-platform support** - Native binaries for Linux, macOS, Windows (AMD64 and ARM64)
+- **Interactive UI enhancements** - Colorized output, progress bars, and animated splash screens
+- **Enhanced configuration management** - YAML-based configuration with validation
+- **Comprehensive test suite** - Automated testing with >85% coverage
+- **Build automation** - Cross-platform build system with GitHub Actions
+- **Improved logging system** - Structured logging with file and console output
+- **Interactive profile selection** - Enhanced AWS SSO authentication flow
+- **Real-time command feedback** - Live output streaming for remote commands
+- **Enhanced error handling** - Detailed error messages with troubleshooting hints
+
+### Changed
+- **Complete rewrite from shell scripts to Go** for better performance and maintainability
+- **Unified command interface** - Single binary replacing multiple shell scripts
+- **Improved user experience** - Interactive menus, real-time feedback, and better error messages
+- **Enhanced reliability** - Better error handling, validation, and recovery mechanisms
+- **Performance improvements** - Significantly faster execution compared to shell scripts
+
+### Migrated Features
+- AWS SSO authentication (enhanced with interactive selection)
+- SSM Session Manager connections
+- SSM instance listing and management  
+- Remote command execution via SSM (`exec` and `exec-tagged` commands)
+- File transfer through SSM with S3 support for large files
+- Port forwarding through SSM tunnels
+- Multi-region support with region shortcuts
+
 ## [v1.4.2] - 2025-05-10
 
 ### Added
