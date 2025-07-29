@@ -95,3 +95,12 @@ debug_log() {
         _log_to_file "[DEBUG] $*"
     fi
 }
+
+# Validate required AWS CLI command exists
+require_aws_cli() {
+    if ! command -v aws >/dev/null 2>&1; then
+        log_error "AWS CLI not found. Please install and configure it."
+        exit 1
+    fi
+}
+
