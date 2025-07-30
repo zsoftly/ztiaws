@@ -216,7 +216,8 @@ show_credentials() {
   local profile_name="$1"
   
   # Check if export flag is set
-  local export_mode="$(get_auth_export)"
+  local export_mode
+  export_mode="$(get_auth_export)"
   
   if [[ "$export_mode" != "true" ]]; then
     log_info "🔐 Retrieving credentials for profile: $profile_name"
@@ -296,7 +297,8 @@ main() {
   fi
 
   if [[ "$(get_auth_creds)" == "true" ]]; then
-    local cred_profile="$(get_auth_profile)"
+    local cred_profile
+    cred_profile="$(get_auth_profile)"
     if [[ -z "$cred_profile" ]]; then
       # If no profile specified, try to use the current AWS_PROFILE or the default profile
       cred_profile="${AWS_PROFILE:-}"
@@ -349,7 +351,8 @@ main() {
   done
 
   # Set profile name from parsed parameters or use default
-  local profile_name="$(get_auth_profile)"
+  local profile_name
+  profile_name="$(get_auth_profile)"
   if [[ -z "$profile_name" ]]; then
     log_info "No profile specified. Using default: $DEFAULT_PROFILE"
     # Fix SC2162: Add -r flag to read
@@ -368,12 +371,20 @@ main() {
   log_info "Configuring AWS profile: $PROFILE_NAME"
   
   # Use parsed parameters or fall back to .env values
-  local sso_start_url="$(get_auth_sso_url)"
-  local sso_region="$(get_auth_region)"
+  local sso_start_url
+  local sso_region
+  sso_start_url="$(get_auth_sso_url)"
+  sso_region="$(get_auth_region)"
   
   # Use provided values or fall back to .env defaults
-  [[ -z "$sso_start_url" ]] && sso_start_url="$SSO_START_URL"
-  [[ -z "$sso_region" ]] && sso_region="$SSO_REGION"
+  # shellcheck disable=SC2153
+  if [[ -z "$sso_start_url" ]]; then
+    sso_start_url="${SSO_START_URL}"
+  fi
+  # shellcheck disable=SC2153
+  if [[ -z "$sso_region" ]]; then
+    sso_region="${SSO_REGION}"
+  fi
   
   # Fix SC2086: Double quote to prevent globbing and word splitting
   aws configure set "profile.${PROFILE_NAME}.sso_start_url" "$sso_start_url"
