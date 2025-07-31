@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 # AWS SSM Session Manager Helper Script
-# Version: 1.4.0
 # Repository: https://github.com/ZSoftly/ztiaws
 
 set -e  # Exit on error
@@ -69,12 +68,24 @@ else
     log_warn "File transfer module not found. Upload/download commands will not be available."
 fi
 
+# Source version module
+if [ -f "${SCRIPT_DIR}/src/00_version.sh" ]; then
+    # shellcheck source=./src/00_version.sh
+    source "${SCRIPT_DIR}/src/00_version.sh"
+elif [ -f "/usr/local/bin/src/00_version.sh" ]; then
+    # shellcheck source=/dev/null
+    source "/usr/local/bin/src/00_version.sh"
+else
+    # Set fallback version if module not found
+    ZTIAWS_VERSION="unknown"
+fi
+
 # Function to show usage
 usage() {
     cat << EOF
 AWS SSM Session Manager Helper
-Usage: ssm [region] [instance-id]
-       ssm [instance-id]        # Uses default region (Canada Central)
+Usage: $(basename "$0") [region] [instance-id]
+       $(basename "$0") [instance-id]        # Uses default region (Canada Central)
 
 Supported regions:
   cac1  - Canada Central (Montreal) [default]
@@ -85,51 +96,51 @@ Supported regions:
   euw1  - EU West (Ireland)
 
 Commands:
-  ssm install              # Show installation instructions
-  ssm version              # Show version information
-  ssm check                # Check system requirements
-  ssm exec [options]        # Run a command on an instance
-  ssm exec-tagged [options] # Run a command on instances by tag
+  $(basename "$0") install              # Show installation instructions
+  $(basename "$0") version              # Show version information
+  $(basename "$0") check                # Check system requirements
+  $(basename "$0") exec [options]        # Run a command on an instance
+  $(basename "$0") exec-tagged [options] # Run a command on instances by tag
 EOF
 
     if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
         cat << EOF
-  ssm upload [options]      # Upload a file to an instance
-  ssm download [options]    # Download a file from an instance
+  $(basename "$0") upload [options]      # Upload a file to an instance
+  $(basename "$0") download [options]    # Download a file from an instance
 EOF
     fi
 
     cat << EOF
 
 Run Command Options:
-  ssm exec <region> <instance-id> "<command>"
-  ssm exec-tagged <region> <tag-key> <tag-value> "<command>"
+  $(basename "$0") exec <region> <instance-id> "<command>"
+  $(basename "$0") exec-tagged <region> <tag-key> <tag-value> "<command>"
 EOF
 
     if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
         cat << EOF
 
 File Transfer Options:
-  ssm upload <region> <instance-id> <local-file> <remote-path>
-  ssm download <region> <instance-id> <remote-file> <local-path>
+  $(basename "$0") upload <region> <instance-id> <local-file> <remote-path>
+  $(basename "$0") download <region> <instance-id> <remote-file> <local-path>
 EOF
     fi
 
     cat << EOF
 
 Examples:
-  ssm cac1                             # List instances in Canada Central
-  ssm use1 i-1234                      # Connect to instance in US East
-  ssm i-1234                           # Connect to instance in Canada Central
-  ssm exec cac1 i-1234 "systemctl status nginx"   # Run command on instance
-  ssm exec cac1 web-server-prod "systemctl status nginx"  # Run command using instance name
-  ssm exec-tagged use1 Role web "df -h" # Run command on instances with tag Role=web
+  $(basename "$0") cac1                             # List instances in Canada Central
+  $(basename "$0") use1 i-1234                      # Connect to instance in US East
+  $(basename "$0") i-1234                           # Connect to instance in Canada Central
+  $(basename "$0") exec cac1 i-1234 "systemctl status nginx"   # Run command on instance
+  $(basename "$0") exec cac1 web-server-prod "systemctl status nginx"  # Run command using instance name
+  $(basename "$0") exec-tagged use1 Role web "df -h" # Run command on instances with tag Role=web
 EOF
 
     if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
         cat << EOF
-  ssm upload cac1 i-1234 ./config.txt /etc/app/config.txt    # Upload file
-  ssm download cac1 i-1234 /var/log/app.log ./app.log        # Download file
+  $(basename "$0") upload cac1 i-1234 ./config.txt /etc/app/config.txt    # Upload file
+  $(basename "$0") download cac1 i-1234 /var/log/app.log ./app.log        # Download file
 
 File Transfer Notes:
   - Files < 1MB: Direct transfer via SSM (faster)
@@ -141,13 +152,13 @@ EOF
 }
 
 # Version information
-VERSION="1.4.0"
+VERSION="${ZTIAWS_VERSION:-unknown}"
 show_version() {
-    echo "AWS SSM Helper version: $VERSION"
+    echo "ztiaws/ssm v$VERSION - AWS SSM Session Management"
     if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
-        echo "Features: Session Management, Command Execution, File Transfer"
+        echo "Features: Sessions, Commands, File Transfer"
     else
-        echo "Features: Session Management, Command Execution"
+        echo "Features: Sessions, Commands"
     fi
 }
 
@@ -270,7 +281,7 @@ validate_instance_identifier() {
 handle_exec_command() {
     if [ $# -lt 3 ]; then
         log_error "Missing required parameters for exec command"
-        echo "Usage: ssm exec <region> <instance-identifier> \"<command>\""
+        echo "Usage: $(basename "$0") exec <region> <instance-identifier> \"<command>\""
         exit 1
     fi
 
@@ -304,7 +315,7 @@ handle_exec_command() {
 handle_exec_tagged_command() {
     if [ $# -lt 4 ]; then
         log_error "Missing required parameters for exec-tagged command"
-        echo "Usage: ssm exec-tagged <region> <tag-key> <tag-value> \"<command>\""
+        echo "Usage: $(basename "$0") exec-tagged <region> <tag-key> <tag-value> \"<command>\""
         exit 1
     fi
 
@@ -335,7 +346,7 @@ handle_upload_command() {
 
     if [ $# -lt 4 ]; then
         log_error "Missing required parameters for upload command"
-        echo "Usage: ssm upload <region> <instance-identifier> <local-file> <remote-path>"
+        echo "Usage: $(basename "$0") upload <region> <instance-identifier> <local-file> <remote-path>"
         exit 1
     fi
 
@@ -371,7 +382,7 @@ handle_download_command() {
 
     if [ $# -lt 4 ]; then
         log_error "Missing required parameters for download command"
-        echo "Usage: ssm download <region> <instance-identifier> <remote-file> <local-path>"
+        echo "Usage: $(basename "$0") download <region> <instance-identifier> <remote-file> <local-path>"
         exit 1
     fi
 
@@ -414,7 +425,7 @@ main() {
             echo "   Follow the instructions for your platform"
             echo
             log_info "2. Session Manager Plugin:"
-            echo "   Run 'ssm check' to install the plugin interactively"
+            echo "   Run '$(basename "$0") check' to install the plugin interactively"
             echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
             if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
                 echo
@@ -454,17 +465,20 @@ main() {
             ;;
     esac
 
-    # Check requirements before proceeding
+    # Regular command processing - check for no arguments first
+    if [ $# -eq 0 ]; then
+        usage
+        exit 0
+    fi
+
+    # Check requirements before proceeding with actual commands
     if ! check_requirements >/dev/null 2>&1; then
-        log_error "System requirements not met. Run 'ssm check' for details"
+        log_error "System requirements not met. Run '$(basename "$0") check' for details"
         exit 1
     fi
 
-    # Regular command processing
-    if [ $# -eq 0 ]; then
-        usage
-        exit 1
-    elif [ $# -eq 1 ]; then
+    # Process commands that require system requirements
+    if [ $# -eq 1 ]; then
         if [[ "$1" =~ ^(apse1|cac1|caw1|usw1|use1|euw1)$ ]]; then
             if ! validate_region_code "$1" REGION; then
                 log_error "Invalid region code: $1"
@@ -480,7 +494,7 @@ main() {
                     OS: PlatformDetails
                 }" \
                 --output table
-            echo -e "\nUsage: ssm $1 <instance-id>"
+            echo -e "\nUsage: $(basename "$0") $1 <instance-id>"
         else
             if ! validate_instance_identifier "$1"; then
                 exit 1
