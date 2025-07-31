@@ -93,9 +93,9 @@ parse_positional_parameters() {
     local args=("$@")
     
     if [[ ${#args[@]} -eq 0 ]]; then
-        # No arguments - use default profile
-        AUTH_PROFILE=""
-        AUTH_COMMAND=""
+        # No arguments - show help instead of trying to use default profile
+        AUTH_HELP="true"
+        AUTH_COMMAND="help"
         return 0
     fi
     
@@ -318,10 +318,13 @@ validate_parameter_combinations() {
     # Validate region if specified
     if [[ -n "$AUTH_REGION" ]]; then
         # Always use validate_region_code from regions.sh
-        if ! validate_region_code "$AUTH_REGION" region_var; then
+        local validated_region
+        if ! validate_region_code "$AUTH_REGION" validated_region; then
             log_error "Error: Invalid region '$AUTH_REGION'"
             return 1
         fi
+        # Optional: Update AUTH_REGION with the validated full region name
+        AUTH_REGION="$validated_region"
     fi
     
     # Validate SSO URL if specified

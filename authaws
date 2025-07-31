@@ -110,7 +110,7 @@ FLAGS:
 
 EXAMPLES:
   # Power user workflow (current syntax)
-  authaws                                  # Login with default profile
+  authaws                                  # Show help (no profile specified)
   authaws dev-profile                      # Login with specific profile
   authaws check                            # Verify dependencies
   authaws creds dev-profile                # Show credentials for a profile
