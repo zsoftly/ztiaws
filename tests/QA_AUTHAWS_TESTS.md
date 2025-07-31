@@ -21,8 +21,10 @@ This document outlines the comprehensive test suite for the new flag-based param
 ### Test Data Setup
 ```bash
 # Create test .env file
+# ⚠️  WARNING: Replace with your actual SSO configuration values
+# Do not commit real credentials to version control
 cat > .env << 'EOL'
-SSO_START_URL="https://d-xxxxxxxxxx.awsapps.com/start"
+SSO_START_URL="https://your-organization.awsapps.com/start"
 SSO_REGION="us-east-1"
 DEFAULT_PROFILE="test-default-profile"
 EOL

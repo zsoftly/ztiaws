@@ -317,18 +317,10 @@ validate_parameter_combinations() {
     
     # Validate region if specified
     if [[ -n "$AUTH_REGION" ]]; then
-        # Check if validate_region_code function exists (from regions.sh)
-        if type validate_region_code >/dev/null 2>&1; then
-            if ! validate_region_code "$AUTH_REGION" region_var; then
-                log_error "Error: Invalid region '$AUTH_REGION'"
-                return 1
-            fi
-        else
-            # Fallback validation for common AWS regions
-            if ! validate_aws_region "$AUTH_REGION"; then
-                log_error "Error: Invalid region '$AUTH_REGION'"
-                return 1
-            fi
+        # Always use validate_region_code from regions.sh
+        if ! validate_region_code "$AUTH_REGION" region_var; then
+            log_error "Error: Invalid region '$AUTH_REGION'"
+            return 1
         fi
     fi
     
@@ -347,36 +339,15 @@ validate_parameter_combinations() {
 validate_sso_url() {
     local url="$1"
     
-    # Basic URL validation for AWS SSO URLs
-    if [[ "$url" =~ ^https://[a-zA-Z0-9.-]+\.awsapps\.com/start$ ]]; then
+    # Basic URL validation for AWS SSO URLs - supports custom domains and awsapps.com
+    if [[ "$url" =~ ^https://[a-zA-Z0-9.-]+/start$ ]]; then
         return 0
     fi
     
     return 1
 }
 
-# Fallback function to validate AWS regions (when regions.sh is not available)
-validate_aws_region() {
-    local region="$1"
-    
-    # List of common AWS regions for validation
-    local valid_regions=(
-        "us-east-1" "us-east-2" "us-west-1" "us-west-2"
-        "ca-central-1" "ca-west-1"
-        "eu-west-1" "eu-west-2" "eu-west-3" "eu-central-1"
-        "ap-south-1" "ap-southeast-1" "ap-southeast-2"
-        "ap-northeast-1" "ap-northeast-2" "ap-northeast-3"
-        "sa-east-1"
-    )
-    
-    for valid_region in "${valid_regions[@]}"; do
-        if [[ "$region" == "$valid_region" ]]; then
-            return 0
-        fi
-    done
-    
-    return 1
-}
+
 
 # Function to get parsed parameters (for use in main script)
 get_auth_profile() {
