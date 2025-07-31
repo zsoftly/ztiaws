@@ -20,7 +20,7 @@
     - Connect to EC2 instances via AWS Systems Manager Session Manager using intuitive short region codes.
     - Execute commands remotely on a single EC2 instance (`ssm exec`).
     - Execute commands remotely on multiple EC2 instances based on AWS tags (`ssm exec-tagged`).
-- **authaws**: Streamlined AWS SSO authentication with interactive account/role selection.
+- **authaws**: Streamlined AWS SSO authentication with interactive account/role selection. Supports both traditional positional syntax and modern flag-based parameters.
 - Smart interactive listing of available instances (for `ssm <region>`) and accounts/roles (for `authaws`).
 - Automatic validation of AWS CLI and required plugins.
 - Enhanced error reporting: Clear feedback for AWS CLI issues and specific handling for scenarios like no instances matching tags during command execution.
@@ -117,6 +117,8 @@ authaws check       # Check dependencies
 authaws help        # Show help information
 ```
 
+**Available flags**: `--profile`, `--region`, `--sso-url`, `--export`, `--list-profiles`, `--debug`, `--help`, `--version`, `--check`, `--creds`
+
 Before using `authaws`, set up a `.env` file in the same directory with the following content:
 ```
 SSO_START_URL="https://your-sso-url.awsapps.com/start"
@@ -128,8 +130,14 @@ You can create a template file by running `authaws` without a valid .env file.
 
 #### Log in to AWS SSO
 ```bash
+# Traditional syntax (backward compatible)
 authaws             # Use default profile from .env
 authaws myprofile   # Use a specific profile name
+
+# Flag-based syntax (new)
+authaws --profile myprofile                    # Use specific profile
+authaws --profile prod --region us-east-1      # Override region
+authaws --profile dev --sso-url https://alt.awsapps.com/start  # Override SSO URL
 ```
 
 The tool will:
@@ -141,8 +149,14 @@ The tool will:
 
 #### View AWS Credentials
 ```bash
+# Traditional syntax
 authaws creds           # Show credentials for current profile
 authaws creds myprofile # Show credentials for a specific profile
+
+# Flag-based syntax
+authaws --creds                           # Show credentials for current profile
+authaws --creds --profile myprofile       # Show credentials for specific profile
+authaws --creds --profile myprofile --export  # Export format for shell evaluation
 ```
 
 This will display your AWS access key, secret key, and session token for the specified profile.
