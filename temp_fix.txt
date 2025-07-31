@@ -1,0 +1,57 @@
+# Download a file from S3
+s3_get_object() {
+    local bucket_name="$1"
+    local object_key="$2"
+
+    if [[ -z "$bucket_name" ]] || [[ -z "$object_key" ]]; then
+        log_error "Usage: ssm s3 get <bucket-name> <object-key>"
+        return 1
+    fi
+
+    if ! check_s3_config; then
+        return 1
+    fi
+
+    local local_file
+    local_file=$(basename "$object_key")
+
+    log_info "Downloading $object_key from bucket $bucket_name..."
+
+    if aws s3 cp "s3://$bucket_name/$object_key" "./$local_file"; then
+        log_info "✅ Downloaded $object_key as $local_file"
+        log_info "File downloaded successfully"
+    else
+        log_error "Failed to download $object_key"
+        return 1
+    fi
+}
+
+# Upload a file to S3
+s3_put_object() {
+    local bucket_name="$1"
+    local local_file="$2"
+
+    if [[ -z "$bucket_name" ]] || [[ -z "$local_file" ]]; then
+        log_error "Usage: ssm s3 put <bucket-name> <local-file>"
+        return 1
+    fi
+
+    if [[ ! -f "$local_file" ]]; then
+        log_error "File '$local_file' not found"
+        return 1
+    fi
+
+    if ! check_s3_config; then
+        return 1
+    fi
+
+    log_info "Uploading $local_file to bucket $bucket_name..."
+
+    if aws s3 cp "$local_file" "s3://$bucket_name/"; then
+        log_info "✅ Uploaded $local_file successfully"
+        log_info "File available at: s3://$bucket_name/$local_file"
+    else
+        log_error "Failed to upload $local_file"
+        return 1
+    fi
+}

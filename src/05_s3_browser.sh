@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
+# Strict error handling
+set -euo pipefail
+
 # S3 Browser Module for ZTiAWS
 # Provides simplified S3 operations
+# Dependencies: aws-cli, awk, sed
+# Version: 1.0 - Enhanced security and error handling
 
 # Check if AWS CLI is configured for S3
 check_s3_config() {
@@ -17,19 +22,19 @@ check_s3_config() {
 s3_list_buckets() {
     log_info "Listing all S3 buckets..."
     echo
-    
+
     if ! check_s3_config; then
         return 1
     fi
-    
+
     aws s3 ls | while read -r line; do
         if [[ -n "$line" ]]; then
             bucket_date=$(echo "$line" | awk '{print $1, $2}')
             bucket_name=$(echo "$line" | awk '{print $3}')
-            echo "í³¦ $bucket_name (Created: $bucket_date)"
+            echo "[BUCKET] $bucket_name (Created: $bucket_date)"
         fi
     done
-    
+
     bucket_count=$(aws s3 ls | wc -l)
     echo
     log_info "Found $bucket_count bucket(s)"
@@ -38,33 +43,33 @@ s3_list_buckets() {
 # List objects in a specific bucket
 s3_list_objects() {
     local bucket_name="$1"
-    
+
     if [[ -z "$bucket_name" ]]; then
         log_error "Usage: ssm s3 ls <bucket-name>"
         return 1
     fi
-    
+
     if ! check_s3_config; then
         return 1
     fi
-    
+
     log_info "Listing contents of bucket: $bucket_name"
     echo
-    
+
     if ! aws s3 ls "s3://$bucket_name" >/dev/null 2>&1; then
         log_error "Bucket '$bucket_name' not found or access denied"
         return 1
     fi
-    
+
     aws s3 ls "s3://$bucket_name" --recursive --human-readable | while read -r line; do
         if [[ -n "$line" ]]; then
             date_time=$(echo "$line" | awk '{print $1, $2}')
             size=$(echo "$line" | awk '{print $3}')
             file_path=$(echo "$line" | awk '{$1=$2=$3=""; print $0}' | sed 's/^ *//')
-            echo "í³„ $file_path ($size) - $date_time"
+            echo "[FILE] $file_path ($size) - $date_time"
         fi
     done
-    
+
     object_count=$(aws s3 ls "s3://$bucket_name" --recursive | wc -l)
     if [ "$object_count" -eq 0 ]; then
         log_warn "Bucket is empty"
@@ -78,23 +83,40 @@ s3_list_objects() {
 s3_get_object() {
     local bucket_name="$1"
     local object_key="$2"
-    
+
     if [[ -z "$bucket_name" ]] || [[ -z "$object_key" ]]; then
         log_error "Usage: ssm s3 get <bucket-name> <object-key>"
         return 1
     fi
-    
+
+    # Comprehensive path traversal protection
+    if [[ "$object_key" == *"../"* || "$object_key" == "../"* || "$object_key" == *"/.."* || "$object_key" == ".." ]]; then
+        log_error "Invalid object key: path traversal detected"
+        return 1
+    fi
+
+    # Prevent absolute paths
+    if [[ "$object_key" == /* ]]; then
+        log_error "Invalid object key: absolute paths not allowed"
+        return 1
+    fi
+
     if ! check_s3_config; then
         return 1
     fi
+
+    local download_dir="downloads"
+    mkdir -p "$download_dir"
     
-    local local_file
-    local_file=$(basename "$object_key")
-    
+    # Include bucket name to prevent file overwriting
+    local sanitized_bucket="${bucket_name//[^a-zA-Z0-9]/-}"
+    local local_file="$download_dir/${sanitized_bucket}_$(basename "$object_key")"
+
     log_info "Downloading $object_key from bucket $bucket_name..."
-    
-    if aws s3 cp "s3://$bucket_name/$object_key" "./$local_file"; then
-        log_info "âœ… Downloaded $object_key as $local_file"
+
+    if aws s3 cp "s3://$bucket_name/$object_key" "$local_file"; then
+        log_info "Downloaded $object_key as $local_file"
+        log_info "File downloaded successfully"
     else
         log_error "Failed to download $object_key"
         return 1
@@ -105,26 +127,28 @@ s3_get_object() {
 s3_put_object() {
     local bucket_name="$1"
     local local_file="$2"
-    
+
     if [[ -z "$bucket_name" ]] || [[ -z "$local_file" ]]; then
         log_error "Usage: ssm s3 put <bucket-name> <local-file>"
         return 1
     fi
-    
+
     if [[ ! -f "$local_file" ]]; then
         log_error "File '$local_file' not found"
         return 1
     fi
-    
+
     if ! check_s3_config; then
         return 1
     fi
-    
+
     log_info "Uploading $local_file to bucket $bucket_name..."
-    
+
     if aws s3 cp "$local_file" "s3://$bucket_name/"; then
-        log_info "âœ… Uploaded $local_file successfully"
-        log_info "File available at: s3://$bucket_name/$local_file"
+        local file_basename
+        file_basename=$(basename "$local_file")
+        log_info "Uploaded $local_file successfully"
+        log_info "File available at: s3://$bucket_name/$file_basename"
     else
         log_error "Failed to upload $local_file"
         return 1
@@ -135,7 +159,7 @@ s3_put_object() {
 handle_s3_command() {
     local subcommand="$1"
     shift
-    
+
     case "$subcommand" in
         "list")
             s3_list_buckets

@@ -56,8 +56,8 @@ if [ -f "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh" ]; then
 fi
 
 # Import S3 browser functions
-if [ -f "${SCRIPT_DIR}/src/04_s3_browser.sh" ]; then
-    source "${SCRIPT_DIR}/src/04_s3_browser.sh"
+if [ -f "${SCRIPT_DIR}/src/05_s3_browser.sh" ]; then
+    source "${SCRIPT_DIR}/src/05_s3_browser.sh"
 fi
 
 # Function to show usage
