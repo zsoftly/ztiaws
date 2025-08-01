@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 # AWS SSO Authentication Helper Script
-# Version: 1.4.1
 # Repository: https://github.com/ZSoftly/quickssm
 
 set -e  # Exit on error
@@ -48,6 +47,18 @@ else
     echo "[ERROR] src/06_authaws_parameter_parser.sh not found. This script requires the parameter parser module." >&2
     echo "Please ensure src/06_authaws_parameter_parser.sh is present in the script directory or in /usr/local/bin/src/." >&2
     exit 1
+fi
+
+# Source version module
+if [ -f "${SCRIPT_DIR}/src/00_version.sh" ]; then
+    # shellcheck source=./src/00_version.sh
+    source "${SCRIPT_DIR}/src/00_version.sh"
+elif [ -f "/usr/local/bin/src/00_version.sh" ]; then
+    # shellcheck source=/dev/null
+    source "/usr/local/bin/src/00_version.sh"
+else
+    # Set fallback version if module not found
+    ZTIAWS_VERSION="unknown"
 fi
 
 # Get the directory where the script is located
@@ -134,9 +145,10 @@ EOL
 }
 
 # Show version information
-VERSION="1.4.1"
+VERSION="${ZTIAWS_VERSION:-unknown}"
 show_version() {
-  echo "AWS SSO Authentication Helper version: $VERSION"
+  echo "ztiaws/authaws v$VERSION - AWS SSO Authentication"
+  echo "Features: Profiles, Credentials"
   exit 0
 }
 
@@ -162,8 +174,8 @@ list_available_profiles() {
   
   log_info ""
   log_info "To use a profile, run:"
-  log_info "  authaws <profile-name>"
-  log_info "  authaws --profile <profile-name>"
+  log_info "  $(basename "$0") <profile-name>"
+  log_info "  $(basename "$0") --profile <profile-name>"
 }
 
 
@@ -241,7 +253,7 @@ show_credentials() {
     # If it's truly a non-existent profile, there will be no entry in ~/.aws/config
     if ! grep -q "\[profile $profile_name\]" ~/.aws/config 2>/dev/null; then
       log_error "❌ Profile '$profile_name' does not exist"
-      log_info "You can create this profile by running: authaws $profile_name"
+      log_info "You can create this profile by running: $(basename "$0") $profile_name"
       return 1
     fi
   fi
@@ -252,15 +264,15 @@ show_credentials() {
     # Check if this is a credential error or some other issue
     if echo "$creds_output" | grep -q "The SSO session has expired or is invalid"; then
       log_error "❌ Your SSO session for profile '$profile_name' has expired"
-      log_info "Please authenticate first by running: authaws $profile_name"
+      log_info "Please authenticate first by running: $(basename "$0") $profile_name"
       return 1
     elif echo "$creds_output" | grep -q "NoCredentialProviders"; then
       log_error "❌ No credentials found for profile '$profile_name'"
-      log_info "Please authenticate first by running: authaws $profile_name"
+      log_info "Please authenticate first by running: $(basename "$0") $profile_name"
       return 1
     else
       log_error "❌ Failed to export credentials: $creds_output"
-      log_info "Try authenticating with: authaws $profile_name"
+      log_info "Try authenticating with: $(basename "$0") $profile_name"
       return 1
     fi
   fi
@@ -322,7 +334,7 @@ main() {
           cred_profile="$DEFAULT_PROFILE"
         else
           log_error "No profile specified and no default profile found"
-          log_info "Usage: $0 creds [profile-name] or $0 --creds --profile <name>"
+          log_info "Usage: $(basename "$0") creds [profile-name] or $(basename "$0") --creds --profile <name>"
           exit 1
         fi
       fi
@@ -373,7 +385,7 @@ main() {
     if [[ $proceed =~ ^[Yy]$ ]]; then
       PROFILE_NAME="$DEFAULT_PROFILE"
     else
-      log_info "Please run: $0 <profile-name> or $0 --profile <name>"
+      log_info "Please run: $(basename "$0") <profile-name> or $(basename "$0") --profile <name>"
       exit 1
     fi
   else
@@ -437,7 +449,7 @@ main() {
             log_error "  Expected (from .env): $SSO_START_URL"
             log_error "  Found in token file ($token_file): $actual_start_url_in_file"
             log_warn "This often happens if your SSO configuration has changed."
-            log_info "Please run 'aws sso logout' for all relevant profiles, then try 'authaws $PROFILE_NAME' again."
+            log_info "Please run 'aws sso logout' for all relevant profiles, then try '$(basename "$0") $PROFILE_NAME' again."
         else
             log_warn "The token file ($token_file) for $SSO_START_URL does not contain a valid accessToken."
             log_debug "Contents of token file ($token_file) that failed accessToken extraction:"
@@ -445,7 +457,7 @@ main() {
             echo "--- Token File Content ($token_file) ---" >> "$LOG_FILE"
             jq '.' "$token_file" >> "$LOG_FILE" 2>&1 || echo "jq failed to parse token file" >> "$LOG_FILE"
             echo "--- End Token File Content ---" >> "$LOG_FILE"
-            log_info "Consider running 'aws sso logout' and then 'authaws $PROFILE_NAME' again."
+            log_info "Consider running 'aws sso logout' and then '$(basename "$0") $PROFILE_NAME' again."
         fi
     else
         log_debug "Token file $token_file not found during accessToken extraction (this should have been caught earlier)."
@@ -518,7 +530,7 @@ main() {
   log_info "export AWS_PROFILE=$PROFILE_NAME AWS_DEFAULT_REGION=$SSO_REGION"
   log_info ""
   log_info "To view your credentials, run:"
-  log_info "authaws creds $PROFILE_NAME"
+  log_info "$(basename "$0") creds $PROFILE_NAME"
   log_completion "authaws"
 }
 
