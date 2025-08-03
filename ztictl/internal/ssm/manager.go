@@ -149,9 +149,9 @@ func (m *Manager) StartSession(ctx context.Context, instanceIdentifier, region s
 	return nil
 }
 
-// ListInstances lists SSM-enabled instances in a region
+// ListInstances lists all EC2 instances in a region with their SSM status
 func (m *Manager) ListInstances(ctx context.Context, region string, filters *ListFilters) ([]Instance, error) {
-	m.logger.Debug("Listing SSM instances", "region", region)
+	m.logger.Debug("Listing all EC2 instances with SSM status", "region", region)
 
 	// Load AWS config
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
@@ -159,22 +159,69 @@ func (m *Manager) ListInstances(ctx context.Context, region string, filters *Lis
 		return nil, errors.NewAWSError("failed to load AWS config", err)
 	}
 
-	// Get SSM instance information
-	ssmClient := ssm.NewFromConfig(awsCfg)
-	ssmInstances, err := m.getSSMInstances(ctx, ssmClient, filters)
+	// Get all EC2 instances first
+	ec2Client := ec2.NewFromConfig(awsCfg)
+	allInstances, err := m.getAllEC2Instances(ctx, ec2Client, filters)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get SSM instances: %w", err)
+		return nil, fmt.Errorf("failed to get EC2 instances: %w", err)
 	}
 
-	if len(ssmInstances) == 0 {
+	if len(allInstances) == 0 {
 		return []Instance{}, nil
 	}
 
-	// Get EC2 instance details
-	ec2Client := ec2.NewFromConfig(awsCfg)
-	instances, err := m.enrichWithEC2Data(ctx, ec2Client, ssmInstances)
+	// Get SSM status information
+	ssmClient := ssm.NewFromConfig(awsCfg)
+	ssmStatusMap, err := m.getSSMStatusMap(ctx, ssmClient)
 	if err != nil {
-		return nil, fmt.Errorf("failed to enrich with EC2 data: %w", err)
+		m.logger.Warn("Failed to get SSM status information", "error", err)
+		// Continue without SSM status - we'll mark all as "No Agent"
+	}
+
+	// Combine EC2 data with SSM status
+	instances := make([]Instance, 0, len(allInstances))
+	for _, ec2Inst := range allInstances {
+		instanceID := aws.ToString(ec2Inst.InstanceId)
+
+		instance := Instance{
+			InstanceID:       instanceID,
+			State:            string(ec2Inst.State.Name),
+			PrivateIPAddress: aws.ToString(ec2Inst.PrivateIpAddress),
+			Platform:         aws.ToString(ec2Inst.PlatformDetails),
+		}
+
+		// Set public IP if available
+		if ec2Inst.PublicIpAddress != nil {
+			instance.PublicIPAddress = aws.ToString(ec2Inst.PublicIpAddress)
+		}
+
+		// Extract name and tags
+		instance.Tags = make(map[string]string)
+		for _, tag := range ec2Inst.Tags {
+			key := aws.ToString(tag.Key)
+			value := aws.ToString(tag.Value)
+			instance.Tags[key] = value
+			if key == "Name" {
+				instance.Name = value
+			}
+		}
+
+		// Set SSM status information
+		if ssmInfo, exists := ssmStatusMap[instanceID]; exists {
+			instance.SSMStatus = string(ssmInfo.PingStatus)
+			instance.SSMAgentVersion = aws.ToString(ssmInfo.AgentVersion)
+			if ssmInfo.LastPingDateTime != nil {
+				instance.LastPingDateTime = ssmInfo.LastPingDateTime.Format(time.RFC3339)
+			}
+			// Override platform with SSM platform if available (more accurate)
+			if ssmInfo.PlatformName != nil {
+				instance.Platform = aws.ToString(ssmInfo.PlatformName)
+			}
+		} else {
+			instance.SSMStatus = "No Agent"
+		}
+
+		instances = append(instances, instance)
 	}
 
 	return instances, nil
@@ -945,4 +992,81 @@ func (m *Manager) getRemoteFileSize(ctx context.Context, instanceID, region, rem
 	}
 
 	return size, nil
+}
+
+// getAllEC2Instances retrieves all EC2 instances in a region with optional filtering
+func (m *Manager) getAllEC2Instances(ctx context.Context, ec2Client *ec2.Client, filters *ListFilters) ([]types.Instance, error) {
+	input := &ec2.DescribeInstancesInput{}
+
+	// Apply filters
+	var ec2Filters []types.Filter
+
+	if filters != nil {
+		if filters.Status != "" {
+			ec2Filters = append(ec2Filters, types.Filter{
+				Name:   aws.String("instance-state-name"),
+				Values: []string{filters.Status},
+			})
+		}
+
+		if filters.Name != "" {
+			ec2Filters = append(ec2Filters, types.Filter{
+				Name:   aws.String("tag:Name"),
+				Values: []string{"*" + filters.Name + "*"},
+			})
+		}
+
+		if filters.Tag != "" {
+			// Parse tag filter (format: key=value)
+			parts := strings.SplitN(filters.Tag, "=", 2)
+			if len(parts) == 2 {
+				ec2Filters = append(ec2Filters, types.Filter{
+					Name:   aws.String("tag:" + parts[0]),
+					Values: []string{parts[1]},
+				})
+			}
+		}
+	}
+
+	if len(ec2Filters) > 0 {
+		input.Filters = ec2Filters
+	}
+
+	var allInstances []types.Instance
+	paginator := ec2.NewDescribeInstancesPaginator(ec2Client, input)
+
+	for paginator.HasMorePages() {
+		resp, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, reservation := range resp.Reservations {
+			allInstances = append(allInstances, reservation.Instances...)
+		}
+	}
+
+	return allInstances, nil
+}
+
+// getSSMStatusMap retrieves SSM status information for all instances and returns as a map
+func (m *Manager) getSSMStatusMap(ctx context.Context, ssmClient *ssm.Client) (map[string]ssmtypes.InstanceInformation, error) {
+	input := &ssm.DescribeInstanceInformationInput{}
+	statusMap := make(map[string]ssmtypes.InstanceInformation)
+
+	paginator := ssm.NewDescribeInstanceInformationPaginator(ssmClient, input)
+
+	for paginator.HasMorePages() {
+		resp, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, info := range resp.InstanceInformationList {
+			instanceID := aws.ToString(info.InstanceId)
+			statusMap[instanceID] = info
+		}
+	}
+
+	return statusMap, nil
 }

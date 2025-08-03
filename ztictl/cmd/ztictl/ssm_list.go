@@ -6,15 +6,17 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"ztictl/internal/ssm"
+
+	"github.com/spf13/cobra"
 )
 
 // ssmListCmd represents the ssm list command
 var ssmListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List SSM-enabled instances",
-	Long: `List EC2 instances that are available through AWS Systems Manager.
+	Short: "List all EC2 instances with their SSM status",
+	Long: `List all EC2 instances in a region with their SSM agent status.
+Shows all instances regardless of their state or SSM connectivity.
 Optionally filter by tags, status, or name patterns.
 Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-1), etc.`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -43,24 +45,41 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 		}
 
 		if len(instances) == 0 {
-			logger.Info("No SSM-enabled instances found", "region", region)
+			logger.Info("No EC2 instances found", "region", region)
 			return
 		}
 
-		fmt.Printf("\nSSM-Enabled Instances in %s:\n", region)
+		fmt.Printf("\nAll EC2 Instances in %s:\n", region)
 		fmt.Println("=====================================")
-		fmt.Printf("%-20s %-19s %-15s %-10s %s\n", "Name", "Instance ID", "IP Address", "State", "Platform")
-		fmt.Println(strings.Repeat("-", 85))
+		fmt.Printf("%-20s %-19s %-15s %-10s %-15s %s\n", "Name", "Instance ID", "IP Address", "State", "SSM Status", "Platform")
+		fmt.Println(strings.Repeat("-", 100))
 
 		for _, instance := range instances {
 			name := instance.Name
 			if name == "" {
 				name = "N/A"
 			}
-			fmt.Printf("%-20s %-19s %-15s %-10s %s\n",
-				name, instance.InstanceID, instance.PrivateIPAddress, instance.State, instance.Platform)
+
+			// Format SSM status with color indicators
+			ssmStatus := instance.SSMStatus
+			switch ssmStatus {
+			case "Online":
+				ssmStatus = "✓ Online"
+			case "ConnectionLost":
+				ssmStatus = "⚠ Lost"
+			case "No Agent":
+				ssmStatus = "✗ No Agent"
+			default:
+				if ssmStatus == "" {
+					ssmStatus = "✗ No Agent"
+				}
+			}
+
+			fmt.Printf("%-20s %-19s %-15s %-10s %-15s %s\n",
+				name, instance.InstanceID, instance.PrivateIPAddress, instance.State, ssmStatus, instance.Platform)
 		}
 		fmt.Printf("\nTotal: %d instances\n", len(instances))
+		fmt.Printf("Note: Only instances with '✓ Online' SSM status can be connected to via SSM\n")
 		fmt.Printf("Usage: ztictl ssm connect <instance-id-or-name>\n")
 	},
 }
