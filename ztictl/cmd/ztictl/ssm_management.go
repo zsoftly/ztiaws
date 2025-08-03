@@ -7,8 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"ztictl/internal/ssm"
+	"ztictl/pkg/colors"
+	"ztictl/pkg/logging"
+
+	"github.com/spf13/cobra"
 )
 
 // ssmForwardCmd represents the ssm forward command
@@ -29,29 +32,29 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 		// Parse port mapping
 		parts := strings.Split(portMapping, ":")
 		if len(parts) != 2 {
-			logger.Error("Invalid port format. Use local-port:remote-port (e.g., 8080:80)")
+			logging.LogError("Invalid port format. Use local-port:remote-port (e.g., 8080:80)")
 			os.Exit(1)
 		}
 
 		localPort, err := strconv.Atoi(parts[0])
 		if err != nil {
-			logger.Error("Invalid local port", "port", parts[0])
+			logging.LogError("Invalid local port: %s", parts[0])
 			os.Exit(1)
 		}
 
 		remotePort, err := strconv.Atoi(parts[1])
 		if err != nil {
-			logger.Error("Invalid remote port", "port", parts[1])
+			logging.LogError("Invalid remote port: %s", parts[1])
 			os.Exit(1)
 		}
 
-		logger.Info("Starting port forwarding", "instance", instanceIdentifier, "local", localPort, "remote", remotePort)
+		logging.LogInfo("Starting port forwarding %d:%d on instance %s in region: %s", localPort, remotePort, instanceIdentifier, region)
 
 		ssmManager := ssm.NewManager(logger)
 		ctx := context.Background()
 
 		if err := ssmManager.ForwardPort(ctx, instanceIdentifier, region, localPort, remotePort); err != nil {
-			logger.Error("Port forwarding failed", "error", err)
+			logging.LogError("Port forwarding failed: %v", err)
 			os.Exit(1)
 		}
 	},
@@ -81,38 +84,40 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 			// Show status for specific instance
 			status, err := ssmManager.GetInstanceStatus(ctx, instanceIdentifier, region)
 			if err != nil {
-				logger.Error("Failed to get instance status", "error", err)
+				logging.LogError("Failed to get instance status: %v", err)
 				os.Exit(1)
 			}
 
-			fmt.Printf("\nSSM Agent Status for %s:\n", instanceIdentifier)
-			fmt.Println("==========================")
-			fmt.Printf("Instance ID: %s\n", status.InstanceID)
-			fmt.Printf("SSM Status: %s\n", status.SSMStatus)
-			fmt.Printf("Last Ping: %s\n", status.LastPingDateTime)
-			fmt.Printf("Agent Version: %s\n", status.SSMAgentVersion)
-			fmt.Printf("Platform: %s\n", status.Platform)
-			fmt.Printf("State: %s\n", status.State)
+			fmt.Printf("\n")
+			colors.PrintHeader("SSM Agent Status for %s:\n", instanceIdentifier)
+			colors.PrintHeader("==========================\n")
+			colors.PrintData("Instance ID: %s\n", status.InstanceID)
+			colors.PrintData("SSM Status: %s\n", status.SSMStatus)
+			colors.PrintData("Last Ping: %s\n", status.LastPingDateTime)
+			colors.PrintData("Agent Version: %s\n", status.SSMAgentVersion)
+			colors.PrintData("Platform: %s\n", status.Platform)
+			colors.PrintData("State: %s\n", status.State)
 		} else {
 			// Show status for all instances
 			statuses, err := ssmManager.ListInstanceStatuses(ctx, region)
 			if err != nil {
-				logger.Error("Failed to list instance statuses", "error", err)
+				logging.LogError("Failed to list instance statuses: %v", err)
 				os.Exit(1)
 			}
 
 			if len(statuses) == 0 {
-				logger.Info("No SSM-managed instances found", "region", region)
+				logging.LogInfo("No SSM-managed instances found in region: %s", region)
 				return
 			}
 
-			fmt.Printf("\nSSM Agent Status in %s:\n", region)
-			fmt.Println("==============================")
-			fmt.Printf("%-20s %-15s %-20s %s\n", "Instance ID", "Status", "Last Ping", "Agent Version")
-			fmt.Println(strings.Repeat("-", 75))
+			fmt.Printf("\n")
+			colors.PrintHeader("SSM Agent Status in %s:\n", region)
+			colors.PrintHeader("==============================\n")
+			colors.PrintHeader("%-20s %-15s %-20s %s\n", "Instance ID", "Status", "Last Ping", "Agent Version")
+			colors.PrintHeader("%s\n", strings.Repeat("-", 75))
 
 			for _, status := range statuses {
-				fmt.Printf("%-20s %-15s %-20s %s\n",
+				colors.PrintData("%-20s %-15s %-20s %s\n",
 					status.InstanceID, status.SSMStatus, status.LastPingDateTime, status.SSMAgentVersion)
 			}
 		}

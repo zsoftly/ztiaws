@@ -30,6 +30,7 @@
 - **Native binaries**: No runtime dependencies or script interpretation
 - **Optimized transfers**: Efficient handling of large files via S3 intermediary
 - **Concurrent operations**: Safe multi-instance operations with filesystem locking
+- **Centralized logging**: Thread-safe timestamped logs with platform-specific locations
 
 ## Quick Start
 
@@ -149,8 +150,17 @@ ztictl ssm emergency-cleanup --region us-east-1
 # Enable debug logging
 ztictl ssm list --debug --region us-east-1
 
-# Check log files
-tail -f ~/logs/ztictl-$(date +%Y-%m-%d).log
+# Cross-platform log locations:
+# Linux:   ~/.local/share/ztictl/logs/ztictl-YYYY-MM-DD.log
+# macOS:   ~/Library/Logs/ztictl/ztictl-YYYY-MM-DD.log  
+# Windows: %LOCALAPPDATA%\ztictl\logs\ztictl-YYYY-MM-DD.log
+
+# Custom log directory (all platforms)
+export ZTICTL_LOG_DIR="/custom/path"
+ztictl ssm list --region us-east-1
+
+# View timestamped logs
+tail -f ~/.local/share/ztictl/logs/ztictl-$(date +%Y-%m-%d).log
 ```
 
 ## Migration Path

@@ -6,8 +6,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"ztictl/internal/ssm"
+	"ztictl/pkg/colors"
+	"ztictl/pkg/logging"
+
+	"github.com/spf13/cobra"
 )
 
 // ssmExecCmd represents the exec command for single instance command execution
@@ -29,27 +32,27 @@ Examples:
 
 		region := resolveRegion(regionCode)
 
-		logger.Info("Executing command on instance",
-			"identifier", instanceIdentifier,
-			"region", region,
-			"command", command)
+		logging.LogInfo("Executing command '%s' on instance %s in region: %s", command, instanceIdentifier, region)
 
 		ssmManager := ssm.NewManager(logger)
 		ctx := context.Background()
 
 		result, err := ssmManager.ExecuteCommand(ctx, instanceIdentifier, region, command, "")
 		if err != nil {
-			logger.Error("Failed to execute command", "error", err)
+			colors.PrintError("✗ Failed to execute command on instance %s\n", instanceIdentifier)
+			logging.LogError("Failed to execute command: %v", err)
 			os.Exit(1)
 		}
 
-		fmt.Printf("Command executed successfully:\n%s\n", result.Output)
+		colors.PrintHeader("Command executed successfully:\n")
+		colors.PrintData("%s\n", result.Output)
 		if result.ErrorOutput != "" {
-			fmt.Printf("Error output:\n%s\n", result.ErrorOutput)
+			colors.PrintHeader("Error output:\n")
+			colors.PrintData("%s\n", result.ErrorOutput)
 		}
 
 		if result.ExitCode != nil && *result.ExitCode != 0 {
-			logger.Warn("Command exited with non-zero status", "exitCode", *result.ExitCode)
+			logging.LogWarn("Command exited with non-zero status: %d", *result.ExitCode)
 			os.Exit(int(*result.ExitCode))
 		}
 	},
@@ -74,10 +77,7 @@ Examples:
 
 		region := resolveRegion(regionCode)
 
-		logger.Info("Executing command on tagged instances",
-			"tag", fmt.Sprintf("%s=%s", tagKey, tagValue),
-			"region", region,
-			"command", command)
+		logging.LogInfo("Executing command '%s' on instances tagged %s=%s in region: %s", command, tagKey, tagValue, region)
 
 		ssmManager := ssm.NewManager(logger)
 		ctx := context.Background()
@@ -89,37 +89,38 @@ Examples:
 
 		instances, err := ssmManager.ListInstances(ctx, region, filters)
 		if err != nil {
-			logger.Error("Failed to list instances", "error", err)
+			colors.PrintError("✗ Failed to list instances in region %s\n", region)
+			logging.LogError("Failed to list instances: %v", err)
 			os.Exit(1)
 		}
 
 		if len(instances) == 0 {
-			logger.Info("No instances found with specified tag", "tag", fmt.Sprintf("%s=%s", tagKey, tagValue))
+			logging.LogInfo("No instances found with tag %s=%s", tagKey, tagValue)
 			return
 		}
 
-		logger.Info("Found instances", "count", len(instances))
+		logging.LogInfo("Found %d instances to execute command on", len(instances))
 
 		// Execute command on each instance
 		successCount := 0
 		for _, instance := range instances {
-			logger.Info("Executing on instance", "instanceId", instance.InstanceID, "name", instance.Name)
+			logging.LogInfo("Executing command on instance %s (%s)", instance.InstanceID, instance.Name)
 
 			result, err := ssmManager.ExecuteCommand(ctx, instance.InstanceID, region, command, "")
 			if err != nil {
-				logger.Error("Failed to execute command on instance",
-					"instanceId", instance.InstanceID,
-					"name", instance.Name,
-					"error", err)
+				logging.LogError("Failed to execute command on instance %s (%s): %v", instance.InstanceID, instance.Name, err)
 				continue
 			}
 
-			fmt.Printf("\n=== Instance: %s (%s) ===\n", instance.Name, instance.InstanceID)
-			fmt.Printf("Command: %s\n", command)
-			fmt.Printf("Output:\n%s\n", result.Output)
+			fmt.Printf("\n")
+			colors.PrintHeader("=== Instance: %s (%s) ===\n", instance.Name, instance.InstanceID)
+			colors.PrintHeader("Command: %s\n", command)
+			colors.PrintHeader("Output:\n")
+			colors.PrintData("%s\n", result.Output)
 
 			if result.ErrorOutput != "" {
-				fmt.Printf("Error output:\n%s\n", result.ErrorOutput)
+				colors.PrintHeader("Error output:\n")
+				colors.PrintData("%s\n", result.ErrorOutput)
 			}
 
 			if result.ExitCode == nil || *result.ExitCode == 0 {
@@ -128,16 +129,13 @@ Examples:
 				if result.ExitCode != nil {
 					exitCode = int(*result.ExitCode)
 				}
-				fmt.Printf("✓ Success (exit code: %d)\n", exitCode)
+				colors.PrintSuccess("✓ Success (exit code: %d)\n", exitCode)
 			} else {
-				fmt.Printf("✗ Failed (exit code: %d)\n", int(*result.ExitCode))
+				colors.PrintError("✗ Failed (exit code: %d)\n", int(*result.ExitCode))
 			}
 		}
 
-		logger.Info("Command execution completed",
-			"total", len(instances),
-			"successful", successCount,
-			"failed", len(instances)-successCount)
+		logging.LogInfo("Command execution completed: %d successful, %d failed", successCount, len(instances)-successCount)
 
 		if successCount < len(instances) {
 			os.Exit(1)

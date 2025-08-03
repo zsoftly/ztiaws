@@ -6,8 +6,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"ztictl/internal/ssm"
+	"ztictl/pkg/colors"
+	"ztictl/pkg/logging"
+
+	"github.com/spf13/cobra"
 )
 
 // ssmCommandCmd represents the ssm command command
@@ -26,29 +29,31 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 		command := strings.Join(args[1:], " ")
 		comment, _ := cmd.Flags().GetString("comment")
 
-		logger.Info("Executing command", "instance", instanceIdentifier, "command", command, "region", region)
+		logging.LogInfo("Executing command '%s' on instance %s in region: %s", command, instanceIdentifier, region)
 
 		ssmManager := ssm.NewManager(logger)
 		ctx := context.Background()
 
 		result, err := ssmManager.ExecuteCommand(ctx, instanceIdentifier, region, command, comment)
 		if err != nil {
-			logger.Error("Command execution failed", "error", err)
+			colors.PrintError("✗ Command execution failed on instance %s\n", instanceIdentifier)
+			logging.LogError("Command execution failed: %v", err)
 			os.Exit(1)
 		}
 
-		fmt.Printf("\n=== Command Execution Result ===\n")
-		fmt.Printf("Instance: %s\n", result.InstanceID)
-		fmt.Printf("Command: %s\n", result.Command)
-		fmt.Printf("Status: %s\n", result.Status)
+		fmt.Printf("\n")
+		colors.PrintHeader("=== Command Execution Result ===\n")
+		colors.PrintData("Instance: %s\n", result.InstanceID)
+		colors.PrintData("Command: %s\n", result.Command)
+		colors.PrintData("Status: %s\n", result.Status)
 		if result.ExitCode != nil {
-			fmt.Printf("Exit Code: %d\n", *result.ExitCode)
+			colors.PrintData("Exit Code: %d\n", *result.ExitCode)
 		}
-		fmt.Printf("\n--- Output ---\n")
-		fmt.Print(result.Output)
+		colors.PrintHeader("\n--- Output ---\n")
+		colors.PrintData("%s", result.Output)
 		if result.ErrorOutput != "" {
-			fmt.Printf("\n--- Error Output ---\n")
-			fmt.Print(result.ErrorOutput)
+			colors.PrintHeader("\n--- Error Output ---\n")
+			colors.PrintData("%s", result.ErrorOutput)
 		}
 	},
 }

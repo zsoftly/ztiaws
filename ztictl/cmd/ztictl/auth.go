@@ -7,9 +7,12 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"ztictl/internal/auth"
 	"ztictl/internal/config"
+	"ztictl/pkg/colors"
+	"ztictl/pkg/logging"
+
+	"github.com/spf13/cobra"
 )
 
 // authCmd represents the auth command
@@ -42,35 +45,35 @@ If no profile is specified, you will be prompted to confirm using the default pr
 		} else {
 			profileName = cfg.SSO.DefaultProfile
 			if profileName == "" {
-				logger.Error("No profile specified and no default profile configured")
-				logger.Info("Usage: ztictl auth login <profile-name>")
+				logging.LogError("No profile specified and no default profile configured")
+				logging.LogWarn("Usage: ztictl auth login <profile-name>")
 				os.Exit(1)
 			}
 
 			// Prompt user to confirm using default profile (like bash version)
-			logger.Info("No profile specified. Using default: " + profileName)
-			fmt.Print("Proceed with default profile? (y/n): ")
+			logging.LogWarn("No profile specified. Using default: %s", profileName)
+			colors.PrintData("Proceed with default profile? (y/n): ")
 
 			var response string
 			fmt.Scanln(&response)
 
 			if strings.ToLower(strings.TrimSpace(response)) != "y" && strings.ToLower(strings.TrimSpace(response)) != "yes" {
-				logger.Info("Please run: ztictl auth login <profile-name>")
+				logging.LogWarn("Please run: ztictl auth login <profile-name>")
 				os.Exit(0)
 			}
 		}
 
-		logger.Info("Starting AWS SSO authentication", "profile", profileName)
+		logging.LogInfo("Starting AWS SSO authentication for profile: %s", profileName)
 
 		authManager := auth.NewManager(logger)
 		ctx := context.Background()
 
 		if err := authManager.Login(ctx, profileName); err != nil {
-			logger.Error("Authentication failed", "error", err)
+			logging.LogError("Authentication failed for profile %s: %v", profileName, err)
 			os.Exit(1)
 		}
 
-		logger.Info("Authentication successful", "profile", profileName)
+		logging.LogSuccess("Authentication successful for profile: %s", profileName)
 	},
 }
 
@@ -90,14 +93,14 @@ var authLogoutCmd = &cobra.Command{
 		ctx := context.Background()
 
 		if err := authManager.Logout(ctx, profileName); err != nil {
-			logger.Error("Logout failed", "error", err)
+			logging.LogError("Logout failed: %v", err)
 			os.Exit(1)
 		}
 
 		if profileName != "" {
-			logger.Info("Logout successful", "profile", profileName)
+			logging.LogSuccess("Logout successful for profile: %s", profileName)
 		} else {
-			logger.Info("Logout successful for all profiles")
+			logging.LogSuccess("Logout successful for all profiles")
 		}
 	},
 }
@@ -122,19 +125,28 @@ var authProfilesCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Println("\nAWS Profiles:")
-		fmt.Println("=============")
+		fmt.Printf("\n")
+		colors.PrintHeader("AWS Profiles:\n")
+		colors.PrintHeader("=============\n")
 		for _, profile := range profiles {
-			status := "❌ Not authenticated"
+			var status string
 			if profile.IsAuthenticated {
-				status = "✅ Authenticated"
+				status = colors.ColorSuccess("✅ Authenticated")
+			} else {
+				status = colors.ColorError("❌ Not authenticated")
 			}
-			fmt.Printf("%-20s %s\n", profile.Name, status)
+			colors.Data.Printf("%-20s ", profile.Name)
+			fmt.Printf("%s\n", status)
 			if profile.AccountID != "" {
-				fmt.Printf("  Account: %s (%s)\n", profile.AccountID, profile.AccountName)
+				fmt.Printf("  Account: ")
+				colors.Data.Printf("%s ", profile.AccountID)
+				fmt.Printf("(")
+				colors.Data.Printf("%s", profile.AccountName)
+				fmt.Printf(")\n")
 			}
 			if profile.RoleName != "" {
-				fmt.Printf("  Role: %s\n", profile.RoleName)
+				fmt.Printf("  Role: ")
+				colors.Data.Printf("%s\n", profile.RoleName)
 			}
 			fmt.Println()
 		}
@@ -172,45 +184,47 @@ If no profile is specified, uses the current AWS_PROFILE or default profile.`,
 
 		creds, err := authManager.GetCredentials(ctx, profileName)
 		if err != nil {
+			colors.PrintError("✗ Failed to get credentials for profile: %s\n", profileName)
 			logger.Error("Failed to get credentials", "profile", profileName, "error", err)
-			logger.Info("Try authenticating with: ztictl auth login %s", profileName)
+			colors.PrintWarning("💡 Try authenticating with: ztictl auth login %s\n", profileName)
 			os.Exit(1)
 		}
 
-		fmt.Printf("\n🔑 AWS Credentials for profile: %s\n", profileName)
-		fmt.Println("----------------------------------------")
+		fmt.Printf("\n")
+		colors.PrintHeader("🔑 AWS Credentials for profile: %s\n", profileName)
+		colors.PrintHeader("----------------------------------------\n")
 
 		// Platform-specific credential output
 		switch runtime.GOOS {
 		case "windows":
 			// Windows Command Prompt instructions
-			fmt.Println("\nFor Command Prompt (cmd):")
-			fmt.Printf("set AWS_ACCESS_KEY_ID=%s\n", creds.AccessKeyID)
-			fmt.Printf("set AWS_SECRET_ACCESS_KEY=%s\n", creds.SecretAccessKey)
+			colors.PrintHeader("\nFor Command Prompt (cmd):\n")
+			colors.PrintData("set AWS_ACCESS_KEY_ID=%s\n", creds.AccessKeyID)
+			colors.PrintData("set AWS_SECRET_ACCESS_KEY=%s\n", creds.SecretAccessKey)
 			if creds.SessionToken != "" {
-				fmt.Printf("set AWS_SESSION_TOKEN=%s\n", creds.SessionToken)
+				colors.PrintData("set AWS_SESSION_TOKEN=%s\n", creds.SessionToken)
 			}
-			fmt.Printf("set AWS_REGION=%s\n", creds.Region)
+			colors.PrintData("set AWS_REGION=%s\n", creds.Region)
 
-			fmt.Println("\nFor PowerShell:")
-			fmt.Printf("$env:AWS_ACCESS_KEY_ID=\"%s\"\n", creds.AccessKeyID)
-			fmt.Printf("$env:AWS_SECRET_ACCESS_KEY=\"%s\"\n", creds.SecretAccessKey)
+			colors.PrintHeader("\nFor PowerShell:\n")
+			colors.PrintData("$env:AWS_ACCESS_KEY_ID=\"%s\"\n", creds.AccessKeyID)
+			colors.PrintData("$env:AWS_SECRET_ACCESS_KEY=\"%s\"\n", creds.SecretAccessKey)
 			if creds.SessionToken != "" {
-				fmt.Printf("$env:AWS_SESSION_TOKEN=\"%s\"\n", creds.SessionToken)
+				colors.PrintData("$env:AWS_SESSION_TOKEN=\"%s\"\n", creds.SessionToken)
 			}
-			fmt.Printf("$env:AWS_REGION=\"%s\"\n", creds.Region)
+			colors.PrintData("$env:AWS_REGION=\"%s\"\n", creds.Region)
 
 		default:
 			// Unix/Linux/macOS instructions
-			fmt.Printf("export AWS_ACCESS_KEY_ID=%s\n", creds.AccessKeyID)
-			fmt.Printf("export AWS_SECRET_ACCESS_KEY=%s\n", creds.SecretAccessKey)
+			colors.PrintData("export AWS_ACCESS_KEY_ID=%s\n", creds.AccessKeyID)
+			colors.PrintData("export AWS_SECRET_ACCESS_KEY=%s\n", creds.SecretAccessKey)
 			if creds.SessionToken != "" {
-				fmt.Printf("export AWS_SESSION_TOKEN=%s\n", creds.SessionToken)
+				colors.PrintData("export AWS_SESSION_TOKEN=%s\n", creds.SessionToken)
 			}
-			fmt.Printf("export AWS_REGION=%s\n", creds.Region)
-			fmt.Println("----------------------------------------")
+			colors.PrintData("export AWS_REGION=%s\n", creds.Region)
+			colors.PrintHeader("----------------------------------------\n")
 			fmt.Printf("To use these credentials in your current shell, run:\n")
-			fmt.Printf("eval $(ztictl auth creds %s)\n", profileName)
+			colors.PrintSuccess("eval $(ztictl auth creds %s)\n", profileName)
 		}
 	},
 }
