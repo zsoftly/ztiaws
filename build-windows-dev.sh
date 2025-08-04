@@ -16,7 +16,7 @@ init_logging "build-windows-dev.sh"
 # Get dynamic version from git
 cd "$PROJECT_DIR"
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
-VERSION="2.0.$GIT_COMMIT"
+VERSION="2.1.$GIT_COMMIT"
 
 log_info "Building $BUILD_NAME for Windows development..."
 log_info "Project directory: $PROJECT_DIR"
