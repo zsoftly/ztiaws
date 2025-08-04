@@ -299,7 +299,7 @@ EOF
     
     # Add installation link if GitHub repo detected
     if [[ -n "$github_repo" ]]; then
-        echo "**Installation:** [Installation Guide](https://github.com/$github_repo/blob/main/INSTALLATION.md)" >> RELEASE_NOTES.txt
+        echo "**Installation:** [Installation Guide](https://github.com/$github_repo/blob/release/$VERSION/INSTALLATION.md)" >> RELEASE_NOTES.txt
     else
         echo "**Installation:** See INSTALLATION.md in the repository" >> RELEASE_NOTES.txt
     fi
