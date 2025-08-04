@@ -80,13 +80,19 @@ Example CHANGELOG.md format:
 
 ### 2. Version Tagging
 
-#### Create and Push Tag
+#### Create Release Branch and Tag
 ```bash
-# Ensure you're on main branch and up to date
-git checkout main
-git pull origin main
+# Create a new release branch from main
+git checkout -b release/v2.1.0 main
 
-# Create annotated tag
+# Commit changelog updates
+git add CHANGELOG.md
+git commit -m "docs: update changelog for v2.1.0"
+
+# Push the release branch
+git push -u origin release/v2.1.0
+
+# Create annotated tag on release branch
 git tag -a v1.1.0 -m "Release version 1.1.0
 
 ### Added
