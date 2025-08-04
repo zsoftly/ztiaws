@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"ztictl/internal/config"
-	"ztictl/internal/logging"
+	"ztictl/pkg/logging"
 	"ztictl/internal/splash"
 
 	"github.com/spf13/cobra"
@@ -18,10 +18,8 @@ import (
 var (
 	// Version represents the current version of ztictl
 	// This can be set at build time using -ldflags "-X main.version=X.Y.Z"
-	Version = "2.0.0" // Default version, overridden at build time
-)
-
-var (
+	// Default version is "2.0.0"; override at build time with -ldflags "-X main.Version=X.Y.Z"
+	Version    = "2.0.0"
 	configFile string
 	debug      bool
 	showSplash bool
@@ -79,8 +77,8 @@ Features:
 		}
 
 		if err != nil {
-			logger.Debug("Failed to show splash screen", "error", err)
-			return // Don't exit, just continue
+			// Don't exit, just continue - splash errors are not critical
+			return
 		}
 
 		// If this is the first run, show helpful message instead of automatic setup
@@ -116,7 +114,7 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	// Initialize logger early
+	// Initialize logger with our adapter
 	logger = logging.NewLogger(debug)
 
 	if configFile != "" {
@@ -141,7 +139,9 @@ func initConfig() {
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
-		logger.Debug("Using config file", "file", viper.ConfigFileUsed())
+		if debug {
+			logger.Debug("Using config file", "file", viper.ConfigFileUsed())
+		}
 	}
 
 	// Load configuration
@@ -149,15 +149,13 @@ func initConfig() {
 		logger.Error("Failed to load configuration", "error", err)
 		os.Exit(1)
 	}
-
-	// Update logger with configuration
-	if viper.GetBool("debug") {
-		logger.SetLevel(logging.DebugLevel)
-	}
 }
 
-// GetLogger returns the global logger instance
+// GetLogger returns a compatibility logger instance
 func GetLogger() *logging.Logger {
+	if logger == nil {
+		logger = logging.NewLogger(debug)
+	}
 	return logger
 }
 

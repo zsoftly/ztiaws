@@ -63,9 +63,7 @@ If no profile is specified, you will be prompted to confirm using the default pr
 			}
 		}
 
-		logging.LogInfo("Starting AWS SSO authentication for profile: %s", profileName)
-
-		authManager := auth.NewManager(logger)
+		authManager := auth.NewManager()
 		ctx := context.Background()
 
 		if err := authManager.Login(ctx, profileName); err != nil {
@@ -89,7 +87,7 @@ var authLogoutCmd = &cobra.Command{
 			profileName = args[0]
 		}
 
-		authManager := auth.NewManager(logger)
+		authManager := auth.NewManager()
 		ctx := context.Background()
 
 		if err := authManager.Logout(ctx, profileName); err != nil {
@@ -111,17 +109,17 @@ var authProfilesCmd = &cobra.Command{
 	Short: "List and manage AWS profiles",
 	Long:  `List all configured AWS profiles and their status.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		authManager := auth.NewManager(logger)
+		authManager := auth.NewManager()
 		ctx := context.Background()
 
 		profiles, err := authManager.ListProfiles(ctx)
 		if err != nil {
-			logger.Error("Failed to list profiles", "error", err)
+			logging.LogError("Failed to list profiles: %v", err)
 			os.Exit(1)
 		}
 
 		if len(profiles) == 0 {
-			logger.Info("No AWS profiles found")
+			logging.LogInfo("No AWS profiles found")
 			return
 		}
 
@@ -173,19 +171,19 @@ If no profile is specified, uses the current AWS_PROFILE or default profile.`,
 				profileName = cfg.SSO.DefaultProfile
 			}
 			if profileName == "" {
-				logger.Error("No profile specified and no default profile found")
-				logger.Info("Usage: ztictl auth creds [profile-name]")
+				logging.LogError("No profile specified and no default profile found")
+				logging.LogInfo("Usage: ztictl auth creds [profile-name]")
 				os.Exit(1)
 			}
 		}
 
-		authManager := auth.NewManager(logger)
+		authManager := auth.NewManager()
 		ctx := context.Background()
 
 		creds, err := authManager.GetCredentials(ctx, profileName)
 		if err != nil {
 			colors.PrintError("✗ Failed to get credentials for profile: %s\n", profileName)
-			logger.Error("Failed to get credentials", "profile", profileName, "error", err)
+			logging.LogError("Failed to get credentials for profile %s: %v", profileName, err)
 			colors.PrintWarning("💡 Try authenticating with: ztictl auth login %s\n", profileName)
 			os.Exit(1)
 		}

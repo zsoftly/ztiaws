@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"ztictl/internal/logging"
+	"ztictl/pkg/logging"
 )
 
 func TestNewManager(t *testing.T) {

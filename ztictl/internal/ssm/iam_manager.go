@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"ztictl/internal/logging"
+	"ztictl/pkg/logging"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"

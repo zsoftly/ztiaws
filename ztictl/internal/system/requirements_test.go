@@ -2,7 +2,7 @@ package system
 
 import (
 	"testing"
-	"ztictl/internal/logging"
+	"ztictl/pkg/logging"
 )
 
 func TestNewRequirementsChecker(t *testing.T) {
