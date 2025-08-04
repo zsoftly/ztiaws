@@ -223,7 +223,6 @@ func (l *Logger) formatFields(fields ...interface{}) string {
 			parts = append(parts, fmt.Sprintf("%v=%v", fields[i], fields[i+1]))
 		} else {
 			parts = append(parts, fmt.Sprintf("%v=<no_value>", fields[i]))
-			parts = append(parts, fmt.Sprintf("%v=<missing>", fields[i]))
 		}
 	}
 

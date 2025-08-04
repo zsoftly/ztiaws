@@ -196,7 +196,7 @@ func (m *S3LifecycleManager) EnsureS3Bucket(ctx context.Context, bucketName, reg
 			} else {
 				// For existing buckets, we'll continue even if lifecycle config fails
 				// as the bucket may have other lifecycle rules or permissions issues
-				m.logger.Warn("Failed to apply lifecycle configuration to existing bucket (continuing anyway)", "error", err)
+				m.logger.Warn("Failed to apply lifecycle configuration to existing bucket (continuing anyway): %v", err)
 			}
 		}
 	} else {
@@ -222,7 +222,7 @@ func (m *S3LifecycleManager) CleanupS3Object(ctx context.Context, bucketName, ob
 	})
 	if err != nil {
 		// Don't fail the entire operation for cleanup errors
-		m.logger.Warn("Failed to cleanup S3 object", "bucket", bucketName, "key", objectKey, "error", err)
+		m.logger.Warn("Failed to cleanup S3 object %s/%s: %v", bucketName, objectKey, err)
 		return nil
 	}
 

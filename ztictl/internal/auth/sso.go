@@ -86,22 +86,18 @@ type Role struct {
 	AccountID string `json:"account_id"`
 }
 
-// NewManager creates a new authentication manager
-// If no logger is provided, uses a no-op logger
-func NewManager(logger ...*logging.Logger) *Manager {
-	var l *logging.Logger
-	if len(logger) > 0 && logger[0] != nil {
-		l = logger[0]
-	} else {
-		l = logging.NewNoOpLogger()
-	}
+// NewManager creates a new authentication manager with a no-op logger
+func NewManager() *Manager {
 	return &Manager{
-		logger: l,
+		logger: logging.NewNoOpLogger(),
 	}
 }
 
 // NewManagerWithLogger creates a new authentication manager with a logger
 func NewManagerWithLogger(logger *logging.Logger) *Manager {
+	if logger == nil {
+		logger = logging.NewNoOpLogger()
+	}
 	return &Manager{
 		logger: logger,
 	}
