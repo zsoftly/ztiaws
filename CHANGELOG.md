@@ -5,6 +5,29 @@ All notable changes to the ZTiAWS project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v2.1.0] - 2025-08-04
+
+### Added
+- New table formatting system for better output display
+- Colors support for enhanced CLI experience
+- Version management script for better version control
+- AuthAWS parameter parser for improved command-line handling
+
+### Changed
+- Enhanced SSM instance listing with improved status handling
+- Migrated logging system to pkg/logging for better reusability
+- Improved error handling and logging patterns
+- Updated build and test workflows
+- Restructured project layout for better organization
+
+### Fixed
+- Structured logging field consistency
+- Various code quality improvements
+- Build script optimizations
+
+### Security
+- Updated dependencies
+
 ## [v2.0.0] - 2025-07-28
 
 ### Added
