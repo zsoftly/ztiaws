@@ -49,7 +49,7 @@ func TestShowSplash(t *testing.T) {
 	}
 
 	// Test with new version - should return true
-	shown, err = ShowSplash("2.1.0-test")
+	shown, err = ShowSplash("2.2.0-test")
 	if err != nil {
 		t.Fatalf("ShowSplash failed with new version: %v", err)
 	}
