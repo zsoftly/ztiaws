@@ -29,7 +29,7 @@ func TestShowSplash(t *testing.T) {
 	}
 
 	// Test first run - should return true (splash shown)
-	shown, err := ShowSplash("2.0.0-test")
+	shown, err := ShowSplash("2.1.0-test")
 	if err != nil {
 		t.Fatalf("ShowSplash failed: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestShowSplash(t *testing.T) {
 	}
 
 	// Test subsequent run with same version - should return false
-	shown, err = ShowSplash("2.0.0-test")
+	shown, err = ShowSplash("2.1.0-test")
 	if err != nil {
 		t.Fatalf("ShowSplash failed on second call: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestShowSplash(t *testing.T) {
 
 func TestShowBriefWelcome(t *testing.T) {
 	// Test that ShowBriefWelcome doesn't panic
-	ShowBriefWelcome("2.0.0-test")
+	ShowBriefWelcome("2.1.0-test")
 }
 
 func TestAnimateMessage(t *testing.T) {
