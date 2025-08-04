@@ -33,32 +33,102 @@ jobs:
         
     - name: Generate CHANGELOG.md
       run: |
-        echo "# Changelog" > CHANGELOG.md
-        echo "" >> CHANGELOG.md
-        echo "## [${{ steps.version.outputs.version }}] - $(date +%Y-%m-%d)" >> CHANGELOG.md
-        echo "" >> CHANGELOG.md
+        # Create new changelog content
+        echo "# Changelog" > CHANGELOG_NEW.md
+        echo "" >> CHANGELOG_NEW.md
+        echo "## [${{ steps.version.outputs.version }}] - $(date +%Y-%m-%d)" >> CHANGELOG_NEW.md
+        echo "" >> CHANGELOG_NEW.md
         
         if [ -n "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
-          # Get commits since last tag
-          git log --pretty=format:"- %s" --no-merges ${{ steps.latest_tag.outputs.latest_tag }}..HEAD >> CHANGELOG.md
+          # Get commits since last tag and categorize them
+          COMMITS=$(git log --pretty=format:"%s" --no-merges ${{ steps.latest_tag.outputs.latest_tag }}..HEAD)
         else
           # Get all commits if no previous tag
-          git log --pretty=format:"- %s" --no-merges >> CHANGELOG.md
+          COMMITS=$(git log --pretty=format:"%s" --no-merges)
         fi
+        
+        # Categorize commits
+        FEATURES=""
+        FIXES=""
+        OTHER=""
+        
+        while IFS= read -r commit; do
+          if [[ "$commit" =~ ^(feat|feature|add) ]]; then
+            FEATURES="$FEATURES- $commit"$'\n'
+          elif [[ "$commit" =~ ^(fix|bug) ]]; then
+            FIXES="$FIXES- $commit"$'\n'
+          else
+            OTHER="$OTHER- $commit"$'\n'
+          fi
+        done <<< "$COMMITS"
+        
+        # Add categorized changes
+        if [ -n "$FEATURES" ]; then
+          echo "### Added" >> CHANGELOG_NEW.md
+          echo "$FEATURES" >> CHANGELOG_NEW.md
+        fi
+        
+        if [ -n "$FIXES" ]; then
+          echo "### Fixed" >> CHANGELOG_NEW.md
+          echo "$FIXES" >> CHANGELOG_NEW.md
+        fi
+        
+        if [ -n "$OTHER" ]; then
+          echo "### Changed" >> CHANGELOG_NEW.md
+          echo "$OTHER" >> CHANGELOG_NEW.md
+        fi
+        
+        echo "" >> CHANGELOG_NEW.md
+        
+        # Append existing changelog content (skip first 2 lines if it exists)
+        if [ -f CHANGELOG.md ]; then
+          tail -n +3 CHANGELOG.md >> CHANGELOG_NEW.md 2>/dev/null || true
+        fi
+        
+        mv CHANGELOG_NEW.md CHANGELOG.md
         
     - name: Generate RELEASE_NOTES.txt
       run: |
-        echo "Release Notes for ${{ steps.version.outputs.version }}" > RELEASE_NOTES.txt
-        echo "========================================" >> RELEASE_NOTES.txt
+        echo "# Release Notes - ${{ steps.version.outputs.version }}" > RELEASE_NOTES.txt
         echo "" >> RELEASE_NOTES.txt
-        echo "Release Date: $(date +%Y-%m-%d)" >> RELEASE_NOTES.txt
+        echo "**Release Date:** $(date '+%B %d, %Y')" >> RELEASE_NOTES.txt
         echo "" >> RELEASE_NOTES.txt
-        echo "Changes:" >> RELEASE_NOTES.txt
         
         if [ -n "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
-          git log --pretty=format:"• %s" --no-merges ${{ steps.latest_tag.outputs.latest_tag }}..HEAD >> RELEASE_NOTES.txt
+          COMMITS=$(git log --pretty=format:"%s" --no-merges ${{ steps.latest_tag.outputs.latest_tag }}..HEAD)
         else
-          git log --pretty=format:"• %s" --no-merges >> RELEASE_NOTES.txt
+          COMMITS=$(git log --pretty=format:"%s" --no-merges)
+        fi
+        
+        # Categorize commits for release notes
+        FEATURES=""
+        FIXES=""
+        OTHER=""
+        
+        while IFS= read -r commit; do
+          if [[ "$commit" =~ ^(feat|feature|add) ]]; then
+            FEATURES="$FEATURES• $commit"$'\n'
+          elif [[ "$commit" =~ ^(fix|bug) ]]; then
+            FIXES="$FIXES• $commit"$'\n'
+          else
+            OTHER="$OTHER• $commit"$'\n'
+          fi
+        done <<< "$COMMITS"
+        
+        # Add sections with emojis
+        if [ -n "$FEATURES" ]; then
+          echo "## 🚀 New Features" >> RELEASE_NOTES.txt
+          echo "$FEATURES" >> RELEASE_NOTES.txt
+        fi
+        
+        if [ -n "$FIXES" ]; then
+          echo "## 🐛 Bug Fixes" >> RELEASE_NOTES.txt
+          echo "$FIXES" >> RELEASE_NOTES.txt
+        fi
+        
+        if [ -n "$OTHER" ]; then
+          echo "## 📝 Other Changes" >> RELEASE_NOTES.txt
+          echo "$OTHER" >> RELEASE_NOTES.txt
         fi
         
     - name: Commit generated documentation
