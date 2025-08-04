@@ -309,6 +309,6 @@ jobs:
         files: release/*
         draft: false
         prerelease: false
-        generate_release_notes: true
+        body_path: RELEASE_NOTES.txt
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
