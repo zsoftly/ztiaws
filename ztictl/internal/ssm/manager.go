@@ -15,8 +15,8 @@ import (
 	"time"
 
 	appconfig "ztictl/internal/config"
-	"ztictl/pkg/logging"
 	"ztictl/pkg/errors"
+	"ztictl/pkg/logging"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"

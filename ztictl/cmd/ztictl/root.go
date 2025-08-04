@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"ztictl/internal/config"
-	"ztictl/pkg/logging"
 	"ztictl/internal/splash"
+	"ztictl/pkg/logging"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
