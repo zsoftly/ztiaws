@@ -1,4 +1,29 @@
-# ztictl v2.0.0 Release Notes
+# ztictl v2.1.0 Release Notes
+
+**Release Date:** August 4, 2025
+
+## 🚀 New Features and Improvements
+
+### Added
+- New table formatting system for better output display and readability
+- Colors support for enhanced CLI experience and visual feedback
+- Version management script for better version control
+- AuthAWS parameter parser for improved command-line handling
+
+### Changed
+- Enhanced SSM instance listing with improved status handling
+- Migrated logging system to pkg/logging for better reusability
+- Improved error handling and logging patterns
+- Updated build and test workflows
+- Restructured project layout for better organization
+
+### Fixed
+- Structured logging field consistency across the application
+- Various code quality improvements
+- Build script optimizations
+
+### Security
+- Updated dependencies to latest stable versions
 
 **Release Date:** July 28, 2025
 

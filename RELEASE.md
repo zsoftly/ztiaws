@@ -44,13 +44,23 @@ make test
 # Build all platforms locally to verify
 make build
 
-# Test key functionality
-./ztictl --version
-./ztictl ssm list --region us-east-1  # Replace with valid region
+# Test the binary for your OS (example uses linux-amd64)
+./builds/ztictl-linux-amd64 --version
+./builds/ztictl-linux-amd64 ssm list --region ca-central-1
 ```
 
-#### Update CHANGELOG.md
-Create or update `CHANGELOG.md` with:
+#### Update Release Documentation
+1. Update `CHANGELOG.md` with the new version and changes
+2. Update `RELEASE_NOTES.txt` with detailed release information
+3. Commit these changes before creating the tag
+
+```bash
+# Commit the changelog and release notes
+git add CHANGELOG.md RELEASE_NOTES.txt
+git commit -m "docs: update changelog and release notes for v2.1.0"
+```
+
+Example CHANGELOG.md format:
 ```markdown
 ## [1.1.0] - 2025-07-26
 
