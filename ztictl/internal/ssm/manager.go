@@ -132,7 +132,7 @@ func (m *Manager) StartSession(ctx context.Context, instanceIdentifier, region s
 		return fmt.Errorf("failed to resolve instance: %w", err)
 	}
 
-	m.logger.Info("Starting SSM session for instance %s in region %s", instanceID, region)
+	m.logger.Info("Starting SSM session for instance", "instanceID", instanceID, "region", region)
 
 	// Use AWS CLI for session manager (Go SDK doesn't support interactive sessions)
 	cmd := exec.CommandContext(ctx, getAWSCommand(), "ssm", "start-session",
@@ -151,7 +151,7 @@ func (m *Manager) StartSession(ctx context.Context, instanceIdentifier, region s
 
 // ListInstances lists all EC2 instances in a region with their SSM status
 func (m *Manager) ListInstances(ctx context.Context, region string, filters *ListFilters) ([]Instance, error) {
-	m.logger.Debug("Listing all EC2 instances with SSM status in region: %s", region)
+	m.logger.Debug("Listing all EC2 instances with SSM status in region", "region", region)
 
 	// Load AWS config
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
@@ -174,7 +174,7 @@ func (m *Manager) ListInstances(ctx context.Context, region string, filters *Lis
 	ssmClient := ssm.NewFromConfig(awsCfg)
 	ssmStatusMap, err := m.getSSMStatusMap(ctx, ssmClient)
 	if err != nil {
-		m.logger.Warn("Failed to get SSM status information: %v", err)
+		m.logger.Warn("Failed to get SSM status information", "error", err)
 		// Continue without SSM status - we'll mark all as "No Agent"
 	}
 
@@ -235,7 +235,7 @@ func (m *Manager) ExecuteCommand(ctx context.Context, instanceIdentifier, region
 		return nil, fmt.Errorf("failed to resolve instance: %w", err)
 	}
 
-	m.logger.Info("Executing command on instance %s: %s", instanceID, command)
+	m.logger.Info("Executing command on instance", "instanceID", instanceID, "command", command)
 
 	// Load AWS config
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
@@ -265,10 +265,10 @@ func (m *Manager) ExecuteCommand(ctx context.Context, instanceIdentifier, region
 	}
 
 	commandID := aws.ToString(sendResp.Command.CommandId)
-	m.logger.Debug("Command sent with ID: %s", commandID)
+	m.logger.Debug("Command sent with ID", "commandID", commandID)
 
 	// Wait for command completion
-	result, err := m.waitForCommandCompletion(ctx, ssmClient, commandID, instanceID, region)
+	result, err := m.waitForCommandCompletion(ctx, ssmClient, commandID, instanceID)
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +296,7 @@ func (m *Manager) UploadFile(ctx context.Context, instanceIdentifier, region, lo
 
 	cfg := appconfig.Get()
 
-	m.logger.Info("Uploading file to instance %s: %s -> %s (size: %d bytes)", instanceID, localPath, remotePath, fileInfo.Size())
+	m.logger.Info("Uploading file to instance", "instanceID", instanceID, "localPath", localPath, "remotePath", remotePath, "size", fileInfo.Size())
 
 	// Choose transfer method based on file size
 	if fileInfo.Size() < cfg.System.FileSizeThreshold {
@@ -314,7 +314,7 @@ func (m *Manager) DownloadFile(ctx context.Context, instanceIdentifier, region, 
 		return fmt.Errorf("failed to resolve instance: %w", err)
 	}
 
-	m.logger.Info("Downloading file from instance %s: %s -> %s", instanceID, remotePath, localPath)
+	m.logger.Info("Downloading file from instance", "instanceID", instanceID, "remotePath", remotePath, "localPath", localPath)
 
 	// First, get file size to determine transfer method
 	fileSize, err := m.getRemoteFileSize(ctx, instanceID, region, remotePath)
@@ -340,7 +340,7 @@ func (m *Manager) ForwardPort(ctx context.Context, instanceIdentifier, region st
 		return fmt.Errorf("failed to resolve instance: %w", err)
 	}
 
-	m.logger.Info("Starting port forwarding for instance %s: localhost:%d -> remote:%d", instanceID, localPort, remotePort)
+	m.logger.Info("Starting port forwarding for instance", "instanceID", instanceID, "localPort", localPort, "remotePort", remotePort)
 
 	// Use AWS CLI for port forwarding (Go SDK doesn't support this directly)
 	cmd := exec.CommandContext(ctx, getAWSCommand(), "ssm", "start-session",
@@ -456,7 +456,7 @@ func (m *Manager) resolveInstanceIdentifier(ctx context.Context, identifier, reg
 		return "", err
 	}
 
-	m.logger.Info("Resolved instance name '%s' to ID: %s", identifier, instanceID)
+	m.logger.Info("Resolved instance name to ID", "identifier", identifier, "instanceID", instanceID)
 	return instanceID, nil
 }
 
@@ -523,97 +523,8 @@ func (m *Manager) findInstanceByName(ctx context.Context, name, region string) (
 	return instances[0], nil
 }
 
-// getSSMInstances retrieves SSM-enabled instances
-func (m *Manager) getSSMInstances(ctx context.Context, ssmClient *ssm.Client, filters *ListFilters) ([]ssmtypes.InstanceInformation, error) {
-	input := &ssm.DescribeInstanceInformationInput{}
-
-	// Apply filters
-	if filters != nil && filters.Status != "" {
-		input.Filters = append(input.Filters, ssmtypes.InstanceInformationStringFilter{
-			Key:    aws.String("PingStatus"),
-			Values: []string{filters.Status},
-		})
-	}
-
-	resp, err := ssmClient.DescribeInstanceInformation(ctx, input)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp.InstanceInformationList, nil
-}
-
-// enrichWithEC2Data adds EC2 instance data to SSM instances
-func (m *Manager) enrichWithEC2Data(ctx context.Context, ec2Client *ec2.Client, ssmInstances []ssmtypes.InstanceInformation) ([]Instance, error) {
-	if len(ssmInstances) == 0 {
-		return []Instance{}, nil
-	}
-
-	// Extract instance IDs
-	instanceIDs := make([]string, len(ssmInstances))
-	for i, inst := range ssmInstances {
-		instanceIDs[i] = aws.ToString(inst.InstanceId)
-	}
-
-	// Get EC2 data
-	resp, err := ec2Client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
-		InstanceIds: instanceIDs,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Create mapping
-	ec2Data := make(map[string]types.Instance)
-	for _, reservation := range resp.Reservations {
-		for _, instance := range reservation.Instances {
-			ec2Data[aws.ToString(instance.InstanceId)] = instance
-		}
-	}
-
-	// Combine data
-	instances := make([]Instance, 0, len(ssmInstances))
-	for _, ssmInst := range ssmInstances {
-		instanceID := aws.ToString(ssmInst.InstanceId)
-		instance := Instance{
-			InstanceID:       instanceID,
-			SSMStatus:        string(ssmInst.PingStatus),
-			SSMAgentVersion:  aws.ToString(ssmInst.AgentVersion),
-			LastPingDateTime: ssmInst.LastPingDateTime.Format(time.RFC3339),
-			Platform:         aws.ToString(ssmInst.PlatformName),
-		}
-
-		// Add EC2 data if available
-		if ec2Inst, exists := ec2Data[instanceID]; exists {
-			instance.State = string(ec2Inst.State.Name)
-			instance.PrivateIPAddress = aws.ToString(ec2Inst.PrivateIpAddress)
-			if ec2Inst.PublicIpAddress != nil {
-				instance.PublicIPAddress = aws.ToString(ec2Inst.PublicIpAddress)
-			}
-
-			// Extract name from tags
-			for _, tag := range ec2Inst.Tags {
-				if aws.ToString(tag.Key) == "Name" {
-					instance.Name = aws.ToString(tag.Value)
-					break
-				}
-			}
-
-			// Store all tags
-			instance.Tags = make(map[string]string)
-			for _, tag := range ec2Inst.Tags {
-				instance.Tags[aws.ToString(tag.Key)] = aws.ToString(tag.Value)
-			}
-		}
-
-		instances = append(instances, instance)
-	}
-
-	return instances, nil
-}
-
 // waitForCommandCompletion waits for a command to complete and returns the result
-func (m *Manager) waitForCommandCompletion(ctx context.Context, ssmClient *ssm.Client, commandID, instanceID, region string) (*CommandResult, error) {
+func (m *Manager) waitForCommandCompletion(ctx context.Context, ssmClient *ssm.Client, commandID, instanceID string) (*CommandResult, error) {
 	maxWait := 5 * time.Minute
 	pollInterval := 2 * time.Second
 	deadline := time.Now().Add(maxWait)
@@ -729,7 +640,7 @@ func (m *Manager) downloadFileSmall(ctx context.Context, instanceID, region, rem
 }
 
 func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, localPath, remotePath string) error {
-	m.logger.Info("Starting large file upload via S3 for instance %s: %s", instanceID, localPath)
+	m.logger.Info("Starting large file upload via S3 for instance", "instanceID", instanceID, "localPath", localPath)
 
 	// Initialize managers if not already done
 	if m.iamManager == nil || m.s3LifecycleManager == nil {
@@ -755,7 +666,7 @@ func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, local
 	}
 
 	// Attach S3 permissions to instance IAM role
-	m.logger.Info("Attaching temporary S3 permissions to instance: %s", instanceID)
+	m.logger.Info("Attaching temporary S3 permissions to instance", "instanceID", instanceID)
 	cleanup, err := m.iamManager.AttachS3Permissions(ctx, instanceID, region, bucketName)
 	if err != nil {
 		return fmt.Errorf("failed to attach S3 permissions: %w", err)
@@ -763,9 +674,9 @@ func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, local
 
 	// Defer cleanup of IAM permissions
 	defer func() {
-		m.logger.Info("Cleaning up temporary IAM permissions for instance: %s", instanceID)
+		m.logger.Info("Cleaning up temporary IAM permissions for instance", "instanceID", instanceID)
 		if err := cleanup(); err != nil {
-			m.logger.Warn("Failed to clean up IAM permissions: %v", err)
+			m.logger.Warn("Failed to clean up IAM permissions", "error", err)
 		}
 	}()
 
@@ -773,7 +684,7 @@ func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, local
 	randomBytes := make([]byte, 8)
 	if _, err := rand.Read(randomBytes); err != nil {
 		// Fallback to pseudo-random bytes based on timestamp and nanoseconds
-		m.logger.Warn("Failed to generate random bytes for S3 key, using timestamp-based fallback: %v", err)
+		m.logger.Warn("Failed to generate random bytes for S3 key, using timestamp-based fallback", "error", err)
 		nano := time.Now().UnixNano()
 		// Generate pseudo-random bytes from timestamp and nanoseconds
 		for i := 0; i < 8; i++ {
@@ -793,7 +704,7 @@ func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, local
 		return fmt.Errorf("failed to upload to S3: %w", err)
 	}
 
-	m.logger.Info("File uploaded to S3, now downloading on instance: %s", instanceID)
+	m.logger.Info("File uploaded to S3, now downloading on instance", "instanceID", instanceID)
 
 	// Create the remote directory if it doesn't exist
 	remoteDir := filepath.Dir(remotePath)
@@ -824,12 +735,12 @@ func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, local
 		return fmt.Errorf("file download failed on instance: %s", result.ErrorOutput)
 	}
 
-	m.logger.Info("Large file upload completed successfully for instance %s: %s", instanceID, remotePath)
+	m.logger.Info("Large file upload completed successfully for instance", "instanceID", instanceID, "remotePath", remotePath)
 	return nil
 }
 
 func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, remotePath, localPath string) error {
-	m.logger.Info("Starting large file download via S3 for instance %s: %s", instanceID, remotePath)
+	m.logger.Info("Starting large file download via S3 for instance", "instanceID", instanceID, "remotePath", remotePath)
 
 	// Initialize managers if not already done
 	if m.iamManager == nil || m.s3LifecycleManager == nil {
@@ -855,7 +766,7 @@ func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, rem
 	}
 
 	// Attach S3 permissions to instance IAM role
-	m.logger.Info("Attaching temporary S3 permissions to instance: %s", instanceID)
+	m.logger.Info("Attaching temporary S3 permissions to instance", "instanceID", instanceID)
 	cleanup, err := m.iamManager.AttachS3Permissions(ctx, instanceID, region, bucketName)
 	if err != nil {
 		return fmt.Errorf("failed to attach S3 permissions: %w", err)
@@ -863,9 +774,9 @@ func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, rem
 
 	// Defer cleanup of IAM permissions
 	defer func() {
-		m.logger.Info("Cleaning up temporary IAM permissions for instance: %s", instanceID)
+		m.logger.Info("Cleaning up temporary IAM permissions for instance", "instanceID", instanceID)
 		if err := cleanup(); err != nil {
-			m.logger.Warn("Failed to clean up IAM permissions: %v", err)
+			m.logger.Warn("Failed to clean up IAM permissions", "error", err)
 		}
 	}()
 
@@ -873,7 +784,7 @@ func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, rem
 	randomBytes := make([]byte, 8)
 	if _, err := rand.Read(randomBytes); err != nil {
 		// Fallback to pseudo-random bytes based on timestamp and nanoseconds
-		m.logger.Warn("Failed to generate random bytes for S3 key, using timestamp-based fallback: %v", err)
+		m.logger.Warn("Failed to generate random bytes for S3 key, using timestamp-based fallback", "error", err)
 		nano := time.Now().UnixNano()
 		// Generate pseudo-random bytes from timestamp and nanoseconds
 		for i := 0; i < 8; i++ {
@@ -888,7 +799,7 @@ func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, rem
 		m.s3LifecycleManager.CleanupS3Object(ctx, bucketName, s3Key, region)
 	}()
 
-	m.logger.Info("Uploading file from instance to S3 bucket: %s, key: %s", bucketName, s3Key)
+	m.logger.Info("Uploading file from instance to S3 bucket", "bucketName", bucketName, "s3Key", s3Key)
 
 	// Create command to upload to S3 from the instance and then clean up
 	uploadCommand := fmt.Sprintf(`
@@ -936,25 +847,25 @@ func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, rem
 		return fmt.Errorf("failed to download from S3: %w", err)
 	}
 
-	m.logger.Info("Large file download completed successfully to: %s", localPath)
+	m.logger.Info("Large file download completed successfully", "localPath", localPath)
 	return nil
 }
 
 // EmergencyCleanup performs emergency cleanup of IAM policies and resources
 func (m *Manager) EmergencyCleanup(ctx context.Context, region string) error {
-	m.logger.Info("Performing emergency cleanup in region: %s", region)
+	m.logger.Info("Performing emergency cleanup in region", "region", region)
 
 	// Initialize managers if not already done
 	if m.iamManager == nil || m.s3LifecycleManager == nil {
 		if err := m.initializeManagers(ctx, region); err != nil {
-			m.logger.Warn("Failed to initialize managers for emergency cleanup: %v", err)
+			m.logger.Warn("Failed to initialize managers for emergency cleanup", "error", err)
 			return err
 		}
 	}
 
 	// Perform IAM emergency cleanup
 	if err := m.iamManager.EmergencyCleanup(ctx, region); err != nil {
-		m.logger.Warn("Failed to perform IAM emergency cleanup: %v", err)
+		m.logger.Warn("Failed to perform IAM emergency cleanup", "error", err)
 	}
 
 	m.logger.Info("Emergency cleanup completed")

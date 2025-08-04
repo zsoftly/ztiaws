@@ -76,7 +76,7 @@ func (c *RequirementsChecker) FixIssues(results []RequirementResult) error {
 					return fmt.Errorf("failed to install jq: %w", err)
 				}
 			default:
-				c.logger.Warn("Cannot automatically fix requirement: %s", result.Name)
+				c.logger.Warn("Cannot automatically fix requirement", "name", result.Name)
 			}
 		}
 	}
@@ -350,7 +350,7 @@ func (c *RequirementsChecker) installSSMPluginMacOS() error {
 func (c *RequirementsChecker) installJQUbuntu() error {
 	cmd := exec.Command("sudo", "apt-get", "update")
 	if err := cmd.Run(); err != nil {
-		c.logger.Warn("Failed to update package list: %v", err)
+		c.logger.Warn("Failed to update package list", "error", err)
 	}
 
 	cmd = exec.Command("sudo", "apt-get", "install", "-y", "jq")
