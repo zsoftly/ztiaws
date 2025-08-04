@@ -7,20 +7,27 @@ PROJECT_DIR="$SCRIPT_DIR/ztictl"
 WINDOWS_TOOLS_DIR="/mnt/c/Tools"
 BUILD_NAME="ztictl.exe"
 
+# Source logging utilities
+source "$SCRIPT_DIR/src/00_utils.sh"
+
+# Initialize logging for this script
+init_logging "build-windows-dev.sh"
+
 # Get dynamic version from git
 cd "$PROJECT_DIR"
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
-VERSION="1.0.$GIT_COMMIT"
+VERSION="2.0.$GIT_COMMIT"
 
-echo "Building $BUILD_NAME for Windows development..."
-echo "Project directory: $PROJECT_DIR"
-echo "Target directory: $WINDOWS_TOOLS_DIR"
+log_info "Building $BUILD_NAME for Windows development..."
+log_info "Project directory: $PROJECT_DIR"
+log_info "Target directory: $WINDOWS_TOOLS_DIR"
+log_info "Version: $VERSION"
 echo ""
 
 cd "$PROJECT_DIR"
 
 # Build with flags that might reduce antivirus detection
-echo "Building with antivirus-friendly flags..."
+log_info "Building with antivirus-friendly flags..."
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build \
     -a \
     -installsuffix cgo \
@@ -30,22 +37,26 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build \
     ./cmd/ztictl
 
 if [ $? -eq 0 ]; then
-    echo "Build successful"
+    log_info "Build successful"
     
     # Copy to Windows Tools directory
     cp "builds/$BUILD_NAME" "$WINDOWS_TOOLS_DIR/$BUILD_NAME"
-    echo "Copied to $WINDOWS_TOOLS_DIR\\$BUILD_NAME"
+    log_info "Copied to $WINDOWS_TOOLS_DIR\\$BUILD_NAME"
     
     # Show file info
     ls -la "$WINDOWS_TOOLS_DIR/$BUILD_NAME"
     echo ""
-    echo "To avoid antivirus issues:"
+    log_warn "To avoid antivirus issues:"
     echo "1. Add C:\\Tools to Windows Defender exclusions"
     echo "2. Or run: Unblock-File -Path 'C:\\Tools\\$BUILD_NAME'"
     echo ""
-    echo "Ready to test on Windows!"
-    echo "Run: cd C:\\Tools && .\\$BUILD_NAME --help"
+    log_info "Ready to test on Windows!"
+    log_info "Run: cd C:\\Tools && .\\$BUILD_NAME --help"
 else
-    echo "Build failed"
+    log_error "Build failed"
+    log_completion
     exit 1
 fi
+
+# Log completion
+log_completion

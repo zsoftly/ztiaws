@@ -789,13 +789,14 @@ func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
 
 	idx, err := fuzzyfinder.Find(displayItems,
 		func(i int) string {
-			if i == 0 {
+			switch i {
+			case 0:
 				// Header row
 				return headerRow
-			} else if i == 1 {
+			case 1:
 				// Separator row
 				return separatorRow
-			} else {
+			default:
 				// Account data
 				account := displayItems[i].(Account)
 				return formatAccountRow(account, idWidth, nameWidth, emailWidth)
@@ -826,19 +827,6 @@ func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
 	color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s (%s)\n", accounts[actualIdx].AccountName, accounts[actualIdx].AccountID)
 
 	return &accounts[actualIdx], nil
-
-	if err != nil {
-		if err.Error() == "abort" {
-			color.New(color.FgRed).Printf("❌ Account selection cancelled\n")
-			return nil, fmt.Errorf("account selection cancelled")
-		}
-		return nil, fmt.Errorf("account selection failed: %w", err)
-	}
-
-	// Display selection confirmation
-	color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s (%s)\n", accounts[idx].AccountName, accounts[idx].AccountID)
-
-	return &accounts[idx], nil
 }
 
 // listAccountRoles retrieves available roles for an account
@@ -913,13 +901,14 @@ func (m *Manager) selectRoleFuzzy(roles []Role, account *Account) (*Role, error)
 
 	idx, err := fuzzyfinder.Find(displayItems,
 		func(i int) string {
-			if i == 0 {
+			switch i {
+			case 0:
 				// Header row
 				return headerRow
-			} else if i == 1 {
+			case 1:
 				// Separator row
 				return separatorRow
-			} else {
+			default:
 				// Role data
 				role := displayItems[i].(Role)
 				return formatRoleRow(role, account, roleWidth, accountWidth)
