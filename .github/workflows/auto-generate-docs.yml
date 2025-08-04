@@ -33,17 +33,12 @@ jobs:
         
     - name: Generate CHANGELOG.md
       run: |
-        # Create new changelog content
-        echo "# Changelog" > CHANGELOG_NEW.md
-        echo "" >> CHANGELOG_NEW.md
-        echo "## [${{ steps.version.outputs.version }}] - $(date +%Y-%m-%d)" >> CHANGELOG_NEW.md
-        echo "" >> CHANGELOG_NEW.md
+        # Build new version entry
+        NEW_VERSION="## [${{ steps.version.outputs.version }}] - $(date +%Y-%m-%d)"
         
         if [ -n "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
-          # Get commits since last tag and categorize them
           COMMITS=$(git log --pretty=format:"%s" --no-merges ${{ steps.latest_tag.outputs.latest_tag }}..HEAD)
         else
-          # Get all commits if no previous tag
           COMMITS=$(git log --pretty=format:"%s" --no-merges)
         fi
         
@@ -62,33 +57,46 @@ jobs:
           fi
         done <<< "$COMMITS"
         
-        # Add categorized changes
+        # Create temp file with new entry
+        echo "$NEW_VERSION" > temp_entry.md
+        echo "" >> temp_entry.md
+        
         if [ -n "$FEATURES" ]; then
-          echo "### Added" >> CHANGELOG_NEW.md
-          echo "$FEATURES" >> CHANGELOG_NEW.md
+          echo "### Added" >> temp_entry.md
+          echo "$FEATURES" >> temp_entry.md
         fi
         
         if [ -n "$FIXES" ]; then
-          echo "### Fixed" >> CHANGELOG_NEW.md
-          echo "$FIXES" >> CHANGELOG_NEW.md
+          echo "### Fixed" >> temp_entry.md
+          echo "$FIXES" >> temp_entry.md
         fi
         
         if [ -n "$OTHER" ]; then
-          echo "### Changed" >> CHANGELOG_NEW.md
-          echo "$OTHER" >> CHANGELOG_NEW.md
+          echo "### Changed" >> temp_entry.md
+          echo "$OTHER" >> temp_entry.md
         fi
         
-        echo "" >> CHANGELOG_NEW.md
+        echo "" >> temp_entry.md
         
-        # Append existing changelog content (skip first 2 lines if it exists)
+        # Insert at top of existing CHANGELOG.md or create new one
         if [ -f CHANGELOG.md ]; then
-          tail -n +3 CHANGELOG.md >> CHANGELOG_NEW.md 2>/dev/null || true
+          # Insert after first line (# Changelog)
+          head -n 1 CHANGELOG.md > temp_changelog.md
+          echo "" >> temp_changelog.md
+          cat temp_entry.md >> temp_changelog.md
+          tail -n +2 CHANGELOG.md >> temp_changelog.md
+          mv temp_changelog.md CHANGELOG.md
+        else
+          echo "# Changelog" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          cat temp_entry.md >> CHANGELOG.md
         fi
         
-        mv CHANGELOG_NEW.md CHANGELOG.md
+        rm temp_entry.md
         
     - name: Generate RELEASE_NOTES.txt
       run: |
+        # OVERWRITE release notes (current release only, not cumulative)
         echo "# Release Notes - ${{ steps.version.outputs.version }}" > RELEASE_NOTES.txt
         echo "" >> RELEASE_NOTES.txt
         echo "**Release Date:** $(date '+%B %d, %Y')" >> RELEASE_NOTES.txt
