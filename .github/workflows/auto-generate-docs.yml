@@ -22,123 +22,28 @@ jobs:
       run: |
         VERSION=${GITHUB_REF#refs/heads/release/}
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Version: $VERSION"
         
     - name: Get latest release tag
       id: latest_tag
       run: |
         LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
         echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-        echo "Latest tag: $LATEST_TAG"
         
-    - name: Generate CHANGELOG.md
+    - name: Generate release documentation
       run: |
-        # Build new version entry
-        NEW_VERSION="## [${{ steps.version.outputs.version }}] - $(date +%Y-%m-%d)"
+        # Make script executable
+        chmod +x tools/02_release_docs_generator.sh
         
+        # Run the release documentation generator
         if [ -n "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
-          COMMITS=$(git log --pretty=format:"%s" --no-merges ${{ steps.latest_tag.outputs.latest_tag }}..HEAD)
+          ./tools/02_release_docs_generator.sh \
+            --version "${{ steps.version.outputs.version }}" \
+            --latest-tag "${{ steps.latest_tag.outputs.latest_tag }}" \
+            --force
         else
-          COMMITS=$(git log --pretty=format:"%s" --no-merges)
-        fi
-        
-        # Categorize commits
-        FEATURES=""
-        FIXES=""
-        OTHER=""
-        
-        while IFS= read -r commit; do
-          if [[ "$commit" =~ ^(feat|feature|add) ]]; then
-            FEATURES="$FEATURES- $commit"$'\n'
-          elif [[ "$commit" =~ ^(fix|bug) ]]; then
-            FIXES="$FIXES- $commit"$'\n'
-          else
-            OTHER="$OTHER- $commit"$'\n'
-          fi
-        done <<< "$COMMITS"
-        
-        # Create temp file with new entry
-        echo "$NEW_VERSION" > temp_entry.md
-        echo "" >> temp_entry.md
-        
-        if [ -n "$FEATURES" ]; then
-          echo "### Added" >> temp_entry.md
-          echo "$FEATURES" >> temp_entry.md
-        fi
-        
-        if [ -n "$FIXES" ]; then
-          echo "### Fixed" >> temp_entry.md
-          echo "$FIXES" >> temp_entry.md
-        fi
-        
-        if [ -n "$OTHER" ]; then
-          echo "### Changed" >> temp_entry.md
-          echo "$OTHER" >> temp_entry.md
-        fi
-        
-        echo "" >> temp_entry.md
-        
-        # Insert at top of existing CHANGELOG.md or create new one
-        if [ -f CHANGELOG.md ]; then
-          # Insert after first line (# Changelog)
-          head -n 1 CHANGELOG.md > temp_changelog.md
-          echo "" >> temp_changelog.md
-          cat temp_entry.md >> temp_changelog.md
-          tail -n +2 CHANGELOG.md >> temp_changelog.md
-          mv temp_changelog.md CHANGELOG.md
-        else
-          echo "# Changelog" > CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          cat temp_entry.md >> CHANGELOG.md
-        fi
-        
-        rm temp_entry.md
-        
-    - name: Generate RELEASE_NOTES.txt
-      run: |
-        # OVERWRITE release notes (current release only, not cumulative)
-        echo "# ztictl ${{ steps.version.outputs.version }} Release Notes" > RELEASE_NOTES.txt
-        echo "" >> RELEASE_NOTES.txt
-        echo "**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/${{ github.ref_name }}/INSTALLATION.md)" >> RELEASE_NOTES.txt
-        echo "" >> RELEASE_NOTES.txt
-        echo "**Release Date:** $(date '+%B %d, %Y')" >> RELEASE_NOTES.txt
-        echo "" >> RELEASE_NOTES.txt
-        
-        if [ -n "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
-          COMMITS=$(git log --pretty=format:"%s" --no-merges ${{ steps.latest_tag.outputs.latest_tag }}..HEAD)
-        else
-          COMMITS=$(git log --pretty=format:"%s" --no-merges)
-        fi
-        
-        # Categorize commits for release notes
-        FEATURES=""
-        FIXES=""
-        OTHER=""
-        
-        while IFS= read -r commit; do
-          if [[ "$commit" =~ ^(feat|feature|add) ]]; then
-            FEATURES="$FEATURES• $commit"$'\n'
-          elif [[ "$commit" =~ ^(fix|bug) ]]; then
-            FIXES="$FIXES• $commit"$'\n'
-          else
-            OTHER="$OTHER• $commit"$'\n'
-          fi
-        done <<< "$COMMITS"
-        
-        # Add sections with emojis
-        if [ -n "$FEATURES" ]; then
-          echo "## 🚀 New Features" >> RELEASE_NOTES.txt
-          echo "$FEATURES" >> RELEASE_NOTES.txt
-        fi
-        
-        if [ -n "$FIXES" ]; then
-          echo "## 🐛 Bug Fixes" >> RELEASE_NOTES.txt
-          echo "$FIXES" >> RELEASE_NOTES.txt
-        fi
-        
-        if [ -n "$OTHER" ]; then
-          echo "## 📝 Other Changes" >> RELEASE_NOTES.txt
-          echo "$OTHER" >> RELEASE_NOTES.txt
+          ./tools/02_release_docs_generator.sh \
+            --version "${{ steps.version.outputs.version }}" \
+            --force
         fi
         
     - name: Commit generated documentation

@@ -1,41 +1,226 @@
-# ztictl v2.1.0 Release Notes
+# ztictl v2.0.0 Release Notes
 
-**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.1.0/INSTALLATION.md)
+**Release Date:** July 28, 2025
 
-**Release Date:** August 04, 2025
+## 🎉 Major Milestone: ztictl v2.0.0 - Complete Go Rewrite
 
-## 🚀 New Features
-• feat: Refactor CHANGELOG.md generation to improve structure and clarity
-• feat: Enhance changelog and release notes generation with commit categorization
-• feat: Implement auto-generation of release documentation and changelog
-• feat: Add automated release preparation workflow
-• feat: Enhance SSM list command to display all EC2 instances with their SSM status
-• feat: Introduce version management module and update version references in authaws and ssm scripts
-• feat: Add flag-based parameter support to authaws
+We're excited to announce **ztictl v2.0.0** - the complete Go rewrite of ZTiAWS CLI! This major version represents a fundamental transformation from shell scripts (v1.4.2) to a modern, cross-platform Go application.
 
-## 🐛 Bug Fixes
-• fix: Update help message and improve default behavior for no arguments in authaws
-• fix: Address PR review feedback and improve validation
-• fix: Resolve shellcheck warnings and bash compatibility issues
+## 🚀 What is ztictl?
 
-## 📝 Other Changes
-• Restore RELEASE_NOTES.txt and CHANGELOG.md from main branch
-• Restore RELEASE_NOTES.txt and CHANGELOG.md from main branch
-• Auto-generate changelog and release notes for v2.1.0
-• Auto-generate changelog and release notes for v2.1.0
-• refactor: Improve ANSI code handling and enhance logging error messages
-• refactor: Implement dynamic table formatting for EC2 instance display
-• refactor: Enhance logging messages for clarity and consistency across IAM and S3 lifecycle management
-• refactor: Update test version in ShowSplash test case to 2.2.0-test
-• refactor: Update version to 2.1.0 in documentation, build scripts, and tests
-• refactor: Update version to 2.1.0 in documentation, build scripts, and tests
-• refactor: Simplify NewManager function and enhance logging messages across various components
-• refactor: Update logging in Windows build script and enhance EC2 test manager for cross-platform compatibility
-• refactor: Improve SSO login command and enhance account/role selection with fuzzy finder
-• gofmt -s -w .
-• refactor: Migrate logging to centralized package and remove legacy logger
-• Enhance logging and color output across SSM commands
-• docs: Enhance authaws section with flag-based parameter support and usage examples
-• Enhance branch protection: allow pull requests to main from 'release/*' branches
-• Enhance CI/CD workflow: include 'release/*' branches in push and pull request triggers
+ztictl is a unified command-line interface that transforms your AWS workflow by providing seamless integration with:
+- **AWS SSO Authentication** with interactive profile selection
+- **SSM Session Manager** for secure instance connections
+- **Remote Command Execution** via SSM
+- **File Transfer** capabilities with S3 support
+- **Port Forwarding** through SSM tunnels
+- **Multi-region Support** with convenient shortcuts
 
+## ✨ Key Features
+
+### 🔐 AWS SSO Integration
+- Interactive SSO profile selection
+- Automatic token management and refresh
+- Support for multiple SSO configurations
+- Seamless authentication workflow
+
+### 🖥️ SSM Session Manager
+- Direct terminal connections to EC2 instances
+- No need for SSH keys or security group modifications
+- Secure, audited connections through AWS
+- Support for all SSM-enabled instances
+
+### ⚡ Remote Command Execution
+- Execute commands on single instances: `ztictl ssm exec`
+- Run commands across multiple tagged instances: `ztictl ssm exec-tagged`
+- Real-time output streaming
+- Comprehensive error handling
+
+### 📁 File Transfer
+- Secure file transfers through SSM
+- Automatic S3 integration for large files
+- Cross-platform compatibility
+- Progress tracking for large transfers
+
+### 🌐 Multi-Region Support
+- Easy region switching with shortcuts (e.g., `use1`, `cac1`)
+- Full region name support
+- Region-specific instance listing
+- Automatic region detection
+
+### 🎨 Enhanced User Experience
+- Colorized output and interactive menus
+- Real-time feedback and progress indicators
+- Comprehensive logging system
+- Beautiful splash screens and animations
+
+## 🏗️ Technical Improvements
+
+### Complete Go Rewrite
+- **Performance**: Significantly faster than shell script predecessors
+- **Reliability**: Better error handling and validation
+- **Maintainability**: Clean, testable codebase
+- **Cross-platform**: Native binaries for all major platforms
+
+### Cross-Platform Support
+Built for multiple architectures:
+- **Linux**: AMD64, ARM64
+- **macOS**: Intel (AMD64), Apple Silicon (ARM64)  
+- **Windows**: AMD64, ARM64
+
+### Quality Assurance
+- Comprehensive test suite with >85% coverage
+- Automated CI/CD pipeline
+- Cross-platform build verification
+- Extensive error handling and validation
+
+## 📦 Installation
+
+### Quick Install (Recommended)
+```bash
+# Linux/macOS
+curl -L https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-amd64 -o ztictl
+chmod +x ztictl
+sudo mv ztictl /usr/local/bin/
+
+# macOS (Apple Silicon)
+curl -L https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-darwin-arm64 -o ztictl
+chmod +x ztictl
+sudo mv ztictl /usr/local/bin/
+
+# Windows (PowerShell)
+Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.exe" -OutFile "ztictl.exe"
+```
+
+### Manual Download
+Download the appropriate binary for your platform from the [releases page](https://github.com/zsoftly/ztiaws/releases/tag/v2.0.0).
+
+## 🚀 Quick Start
+
+1. **Verify Installation**
+   ```bash
+   ztictl --version
+   ```
+
+2. **Initial Setup**
+   ```bash
+   ztictl config show  # View current configuration
+   ztictl auth login   # Login to AWS SSO
+   ```
+
+3. **List Your Instances**
+   ```bash
+   ztictl ssm list --region us-east-1
+   # Or use region shortcuts
+   ztictl ssm list --region use1
+   ```
+
+4. **Connect to an Instance**
+   ```bash
+   ztictl ssm connect --region use1 --instance-id i-1234567890abcdef0
+   ```
+
+5. **Execute Remote Commands**
+   ```bash
+   # Single instance
+   ztictl ssm exec --region use1 --instance-id i-1234567890abcdef0 --command "hostname"
+   
+   # Multiple instances by tag
+   ztictl ssm exec-tagged --region use1 --tag-key Environment --tag-value production --command "df -h"
+   ```
+
+## 🔧 Configuration
+
+ztictl uses a YAML configuration file located at `~/.config/ztictl/config.yaml`:
+
+```yaml
+sso:
+  start_url: "https://your-sso-portal.awsapps.com/start"
+  region: "us-east-1"
+  account_id: "123456789012"
+  role_name: "YourRole"
+
+logging:
+  level: "info"
+  file_enabled: true
+  console_enabled: true
+
+ui:
+  show_splash: true
+  color_enabled: true
+```
+
+## 🆚 Migration from Shell Scripts
+
+If you're migrating from the original ZTiAWS shell scripts:
+
+### Command Mapping
+| Old Command | New Command |
+|-------------|-------------|
+| `ssm <region>` | `ztictl ssm list --region <region>` |
+| `ssm <region> <instance-id>` | `ztictl ssm connect --region <region> --instance-id <instance-id>` |
+| `ssm exec <region> <instance-id> "<command>"` | `ztictl ssm exec --region <region> --instance-id <instance-id> --command "<command>"` |
+| `authaws` | `ztictl auth login` |
+
+### Benefits of Migration
+- **Faster execution** - Go binaries vs shell script interpretation
+- **Better error messages** - Clear, actionable error reporting
+- **Cross-platform support** - Works identically on Windows, macOS, and Linux
+- **Enhanced features** - Interactive menus, progress bars, colored output
+- **Improved reliability** - Comprehensive testing and validation
+
+## 🐛 Known Issues
+
+- First-time SSO authentication requires manual browser interaction
+- Large file transfers may timeout on slow connections (will be addressed in future releases)
+- Windows PowerShell execution policy may need adjustment for installation
+
+## 🔮 What's Next?
+
+We're already working on exciting features for future releases:
+- **Enhanced File Management** - Directory synchronization and batch operations
+- **Instance Management** - Start/stop instances, create AMIs
+- **CloudWatch Integration** - Log streaming and metrics
+- **Configuration Templates** - Shareable configuration profiles
+- **Plugin System** - Extensible architecture for custom commands
+
+## 🤝 Contributing
+
+We welcome contributions! Check out our [contribution guide](CONTRIBUTING.md) to get started.
+
+### Areas Where We Need Help
+- Additional region support and testing
+- Windows-specific optimizations
+- Documentation improvements
+- Feature requests and bug reports
+
+## 📚 Documentation
+
+- **Installation Guide**: [docs/INSTALLATION.md](docs/INSTALLATION.md)
+- **User Guide**: [README.md](README.md)
+- **Troubleshooting**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+- **API Reference**: Built-in help via `ztictl --help`
+
+## 🙏 Acknowledgments
+
+Special thanks to:
+- The original ZTiAWS shell script contributors
+- The Go and AWS SDK communities
+- Early beta testers and feedback providers
+- The open-source community for inspiration and tools
+
+## 📈 Release Statistics
+
+- **Development Time**: 6 months
+- **Lines of Code**: ~15,000+ lines of Go
+- **Test Coverage**: >85%
+- **Supported Platforms**: 6 (Linux/macOS/Windows × AMD64/ARM64)
+- **Binary Size**: ~19-20MB per platform
+
+---
+
+**Download ztictl v2.0.0**: [GitHub Releases](https://github.com/zsoftly/ztiaws/releases/tag/v2.0.0)
+
+**Questions or Issues?** Open an issue on [GitHub](https://github.com/zsoftly/ztiaws/issues)
+
+**Follow Updates**: Watch our [repository](https://github.com/zsoftly/ztiaws) for future releases
