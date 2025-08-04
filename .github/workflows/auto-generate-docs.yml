@@ -1,0 +1,70 @@
+name: Auto-Generate Release Documentation
+
+on:
+  push:
+    branches:
+      - 'release/*'
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Need full history for changelog generation
+        
+    - name: Extract version from branch name
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/heads/release/}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+        
+    - name: Get latest release tag
+      id: latest_tag
+      run: |
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+        echo "Latest tag: $LATEST_TAG"
+        
+    - name: Generate CHANGELOG.md
+      run: |
+        echo "# Changelog" > CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        echo "## [${{ steps.version.outputs.version }}] - $(date +%Y-%m-%d)" >> CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        
+        if [ -n "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
+          # Get commits since last tag
+          git log --pretty=format:"- %s" --no-merges ${{ steps.latest_tag.outputs.latest_tag }}..HEAD >> CHANGELOG.md
+        else
+          # Get all commits if no previous tag
+          git log --pretty=format:"- %s" --no-merges >> CHANGELOG.md
+        fi
+        
+    - name: Generate RELEASE_NOTES.txt
+      run: |
+        echo "Release Notes for ${{ steps.version.outputs.version }}" > RELEASE_NOTES.txt
+        echo "========================================" >> RELEASE_NOTES.txt
+        echo "" >> RELEASE_NOTES.txt
+        echo "Release Date: $(date +%Y-%m-%d)" >> RELEASE_NOTES.txt
+        echo "" >> RELEASE_NOTES.txt
+        echo "Changes:" >> RELEASE_NOTES.txt
+        
+        if [ -n "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
+          git log --pretty=format:"• %s" --no-merges ${{ steps.latest_tag.outputs.latest_tag }}..HEAD >> RELEASE_NOTES.txt
+        else
+          git log --pretty=format:"• %s" --no-merges >> RELEASE_NOTES.txt
+        fi
+        
+    - name: Commit generated documentation
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add CHANGELOG.md RELEASE_NOTES.txt
+        git diff --staged --quiet || git commit -m "Auto-generate changelog and release notes for ${{ steps.version.outputs.version }}"
+        git push
