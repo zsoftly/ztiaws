@@ -41,9 +41,9 @@ Choose your installation method:
 **📦 Pre-built Binaries (Recommended)**
 ```bash
 # Linux/macOS - automatic platform detection
-curl -L -o ztictl "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/')"
-chmod +x ztictl
-sudo mv ztictl /usr/local/bin/
+curl -L -o /tmp/ztictl "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')"
+chmod +x /tmp/ztictl
+sudo mv /tmp/ztictl /usr/local/bin/ztictl
 ```
 
 **🪟 Windows (PowerShell)**

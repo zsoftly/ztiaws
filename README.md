@@ -16,83 +16,118 @@
 
 ## 🚀 Key Features
 
-- **ssm**:
-    - Connect to EC2 instances via AWS Systems Manager Session Manager using intuitive short region codes.
-    - Execute commands remotely on a single EC2 instance (`ssm exec`).
-    - Execute commands remotely on multiple EC2 instances based on AWS tags (`ssm exec-tagged`).
-- **authaws**: Streamlined AWS SSO authentication with interactive account/role selection. Supports both traditional positional syntax and modern flag-based parameters.
-- Smart interactive listing of available instances (for `ssm <region>`) and accounts/roles (for `authaws`).
-- Automatic validation of AWS CLI and required plugins.
-- Enhanced error reporting: Clear feedback for AWS CLI issues and specific handling for scenarios like no instances matching tags during command execution.
-- Support for multiple AWS regions with simple shortcodes.
-- Color-coded output for enhanced readability
-- Time-saving workflows designed by AWS practitioners for real-world use
+**ztictl (Primary Tool):**
+- **🌍 Cross-platform**: Native binaries for Linux, macOS, and Windows
+- **⚡ Smart file transfers**: Automatic S3 routing for large files with lifecycle management  
+- **🔒 Advanced IAM management**: Temporary policies with automatic cleanup
+- **🛠️ Modern CLI**: Flag-based interface with comprehensive help and validation
+- **📊 Professional logging**: Thread-safe, timestamped logs with debug capabilities
+- **🔄 Intelligent operations**: Concurrent-safe with filesystem locking
+
+**Legacy bash tools (deprecated):**
+- **ssm**: Connect to EC2 instances, execute commands, tag-based operations
+- **authaws**: AWS SSO authentication with interactive account/role selection
+- Color-coded output and region shortcodes for faster workflows
 
 ## 📋 Prerequisites
 
 - AWS CLI installed ([official installation guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html))
-- AWS Session Manager plugin (can be installed interactively via `ssm check`)
-- AWS credentials configured (`aws configure`)
-- Bash, Zsh, or PowerShell
+- AWS Session Manager plugin (automatically checked by `ztictl config check`)
+- AWS credentials configured (`aws configure` or AWS SSO)
 - Proper IAM permissions for SSM Session Manager and SSO access
-- Additional utilities: `jq` and `fzf` (required for `authaws`)
 
-## ⚡ Quick Start
+## ⚡ Installation
 
-One-liner to download, install, and start using both tools:
+**Quick Install (Recommended):**
 
-**Bash users:**
+See [INSTALLATION.md](INSTALLATION.md) for comprehensive installation instructions including:
+- One-liner installers for Linux/macOS/Windows
+- Platform-specific instructions
+- Windows PATH setup (detailed)
+- Legacy bash tools installation
+- Troubleshooting guide
+
+**Essential commands after installation:**
 ```bash
-git clone https://github.com/zsoftly/ztiaws.git && cd ztiaws && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add ZTiAWS to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.bashrc && source ~/.bashrc
+# Verify installation
+ztictl --version
+
+# Check system requirements
+ztictl config check
+
+# Get started
+ztictl --help
 ```
-
-**Zsh users:**
-```bash
-git clone https://github.com/zsoftly/ztiaws.git && cd ztiaws && chmod +x ssm authaws && ./ssm check && echo -e "\n# Add ZTiAWS to PATH\nexport PATH=\"\$PATH:$(pwd)\"" >> ~/.zshrc && source ~/.zshrc
-```
-
-**PowerShell users:**
-```powershell
-git clone https://github.com/zsoftly/ztiaws.git
-cd ztiaws
-# Follow the PowerShell setup in the detailed installation section
-```
-
-After running the appropriate command for your shell, you can use the tools by simply typing `ssm` or `authaws` from anywhere.
-
-For detailed installation instructions, see [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
 ## 🔄 Updating ZTiAWS
 
-To update ZTiAWS to the latest version, navigate to your cloned repository directory and run:
-```bash
-git pull origin main
-# Ensure scripts remain executable (if needed)
-chmod +x ssm authaws
-```
-If you are updating from a version prior to March 2025 (when the repository was named "quickssm"), please see [docs/deprecated_update_instructions.md](docs/deprecated_update_instructions.md) for specific instructions.
+To update to the latest version, see the update instructions in [INSTALLATION.md](INSTALLATION.md).
+
+**Quick update:**
+- **ztictl**: Re-run the installation command from INSTALLATION.md
+- **Bash tools**: `git pull origin main` in your cloned directory
 
 ## 📘 Usage
 
-### SSM Session Manager Tool
+### ztictl (Recommended)
 
-#### Check System Requirements
+#### Quick Start
+```bash
+# Check system requirements
+ztictl config check
+
+# Configure AWS authentication
+ztictl auth configure
+
+# List instances in a region
+ztictl ssm list --region ca-central-1
+
+# Connect to an instance
+ztictl ssm connect i-1234567890abcdef0 --region ca-central-1
+
+# Execute commands remotely
+ztictl ssm exec i-1234567890abcdef0 "systemctl status nginx" --region ca-central-1
+
+# Advanced file transfers (with automatic S3 routing for large files)
+ztictl ssm transfer upload i-1234567890abcdef0 large-file.zip /opt/data.zip --region ca-central-1
+```
+
+#### Configuration Management
+```bash
+# Show current configuration
+ztictl config show
+
+# Validate setup
+ztictl config validate
+
+# Get comprehensive help
+ztictl --help
+ztictl ssm --help
+```
+
+### Legacy Bash Tools (Deprecated)
+
+> **⚠️ Deprecation Notice:** The bash tools are being phased out. New users should use `ztictl` above.
+
+#### SSM Session Manager Tool
+
+##### Check System Requirements
 ```bash
 ssm check
 ```
 
-#### List Instances in a Region
+##### List Instances in a Region
 ```bash
 ssm cac1  # Lists instances in Canada Central
 ```
 
-#### Connect to an Instance
+##### Connect to an Instance
 ```bash
 ssm i-1234abcd              # Connect to instance in default region (Canada Central)
 ssm use1 i-1234abcd         # Connect to instance in US East
 ```
 
-#### Execute Commands Remotely
+##### Execute Commands Remotely
 Execute commands on a single instance:
 ```bash
 ssm exec cac1 i-1234 "systemctl status nginx"
@@ -104,12 +139,12 @@ ssm exec-tagged use1 Role web "df -h"
 ```
 This will run `df -h` on all instances in the `us-east-1` region that have a tag with `Key=Role` and `Value=web`. The script provides clear feedback if no instances match the specified tags.
 
-#### Show Help
+##### Show Help
 ```bash
 ssm help
 ```
 
-### AWS SSO Authentication Tool
+#### AWS SSO Authentication Tool
 
 #### First-time Setup
 ```bash
@@ -161,33 +196,39 @@ authaws --creds --profile myprofile --export  # Export format for shell evaluati
 
 This will display your AWS access key, secret key, and session token for the specified profile.
 
-## 🚀 Next Generation: ztictl
+## 🚀 Production Tool: ztictl
 
-**ztictl** is the modern Go implementation of AWS SSM operations, designed to eventually replace the current bash-based tools with enhanced features and cross-platform support.
+**ztictl** is our **recommended production tool** - a modern Go implementation of AWS SSM operations with enhanced features and full cross-platform support.
 
-> **⚠️ Current Status:** The bash tools (`ssm` and `authaws`) above remain the **production tools**. ztictl is under active development and testing.
+> **✅ Production Ready:** ztictl is now the primary tool. The bash tools are maintained for legacy compatibility but new features are only added to ztictl.
 
-### Key Advantages of ztictl:
+### Why Choose ztictl:
 - **🌍 Cross-platform**: Native binaries for Linux, macOS, and Windows (AMD64/ARM64)
 - **⚡ Enhanced performance**: Intelligent file transfer routing and S3 integration
 - **🔒 Advanced security**: Comprehensive IAM lifecycle management and automatic cleanup
 - **🛠️ Professional tooling**: Built-in logging, debugging, and resource management
+- **🏗️ Modern CLI**: Flag-based interface with comprehensive help and validation
 
-### Quick Example:
+### Get Started:
+
+**Installation:** See [INSTALLATION.md](INSTALLATION.md) for complete setup instructions.
+
+**Usage Examples:**
 ```bash
-# Install (Linux/macOS)
-curl -L -o ztictl "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/')"
-chmod +x ztictl && sudo mv ztictl /usr/local/bin/
+# Check system requirements
+ztictl config check
 
-# Use (enhanced capabilities)
+# List instances and connect
 ztictl ssm list --region ca-central-1
 ztictl ssm connect i-1234567890abcdef0 --region ca-central-1
-ztictl ssm transfer upload i-1234567890abcdef0 large-file.zip /opt/data.zip  # Advanced file transfers
+
+# Advanced file transfers with S3 routing
+ztictl ssm transfer upload i-1234567890abcdef0 large-file.zip /opt/data.zip
 ```
 
 **📚 Complete Documentation:** [ztictl/README.md](ztictl/README.md) | [Installation Guide](INSTALLATION.md) | [Release Process](RELEASE.md)
 
-## 🌎 Supported Regions (for SSM tool)
+## 🌎 Supported Regions
 
 For a complete list of regions and their status, see [docs/REGIONS.md](docs/REGIONS.md).
 
