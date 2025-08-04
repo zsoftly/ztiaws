@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"ztictl/pkg/logging"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"ztictl/internal/logging"
 )
 
 // RequirementsChecker checks system requirements and dependencies

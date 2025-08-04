@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"ztictl/internal/logging"
+	"ztictl/pkg/logging"
 )
 
 func TestNewManager(t *testing.T) {
 	logger := logging.NewLogger(false)
-	manager := NewManager(logger)
+	manager := NewManagerWithLogger(logger)
 
 	if manager == nil {
 		t.Error("Expected manager to be created, got nil")
@@ -136,7 +136,7 @@ func TestCredentialsStructure(t *testing.T) {
 func TestListProfilesWithoutAWS(t *testing.T) {
 	// Test that ListProfiles handles missing AWS config gracefully
 	logger := logging.NewLogger(false)
-	manager := NewManager(logger)
+	manager := NewManagerWithLogger(logger)
 
 	ctx := context.Background()
 	profiles, err := manager.ListProfiles(ctx)

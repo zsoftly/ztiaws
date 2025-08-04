@@ -13,7 +13,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Get version information
-BASE_VERSION=${BASE_VERSION:-${VERSION:-"2.0.0"}}
+BASE_VERSION=${BASE_VERSION:-${VERSION:-"2.1.0"}}
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_VERSION="${BASE_VERSION}-${GIT_COMMIT}"
 

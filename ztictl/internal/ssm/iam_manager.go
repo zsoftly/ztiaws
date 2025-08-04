@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"ztictl/internal/logging"
+	"ztictl/pkg/logging"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -81,8 +81,8 @@ func (m *IAMManager) generateUniqueID() string {
 }
 
 // getInstanceProfileRole gets the IAM role name for an EC2 instance
-func (m *IAMManager) getInstanceProfileRole(ctx context.Context, instanceID, region string) (string, error) {
-	m.logger.Debug("Getting instance profile role for instance", "instance", instanceID)
+func (m *IAMManager) getInstanceProfileRole(ctx context.Context, instanceID string) (string, error) {
+	m.logger.Debug("Getting instance profile role for instance", "instanceID", instanceID)
 
 	// Get instance profile name
 	describeResult, err := m.ec2Client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
@@ -158,15 +158,15 @@ func (m *IAMManager) createS3PolicyDocument(bucketName string) (string, error) {
 
 // AttachS3Permissions attaches S3 permissions to an instance's IAM role and returns a cleanup function
 func (m *IAMManager) AttachS3Permissions(ctx context.Context, instanceID, region, bucketName string) (PolicyCleanupFunc, error) {
-	m.logger.Debug("Attaching S3 permissions for bucket", "bucket", bucketName, "instance", instanceID)
+	m.logger.Debug("Attaching S3 permissions", "bucketName", bucketName, "instanceID", instanceID)
 
 	// Get the role name
-	roleName, err := m.getInstanceProfileRole(ctx, instanceID, region)
+	roleName, err := m.getInstanceProfileRole(ctx, instanceID)
 	if err != nil {
 		return nil, err
 	}
 
-	m.logger.Debug("Found role", "role", roleName)
+	m.logger.Debug("Found role", "roleName", roleName)
 
 	// Create unique policy name with timestamp
 	uniqueID := m.generateUniqueID()
@@ -189,7 +189,7 @@ func (m *IAMManager) AttachS3Permissions(ctx context.Context, instanceID, region
 	}
 
 	policyARN := *createPolicyResult.Policy.Arn
-	m.logger.Debug("Created policy", "policy_arn", policyARN)
+	m.logger.Debug("Created policy", "policyARN", policyARN)
 
 	// Attach policy to role
 	if _, err := m.iamClient.AttachRolePolicy(ctx, &iam.AttachRolePolicyInput{
@@ -201,15 +201,15 @@ func (m *IAMManager) AttachS3Permissions(ctx context.Context, instanceID, region
 		return nil, fmt.Errorf("failed to attach policy to role: %w", err)
 	}
 
-	m.logger.Debug("Attached policy to role", "role", roleName)
+	m.logger.Debug("Attached policy to role", "roleName", roleName)
 
 	// Wait for IAM propagation
-	m.logger.Debug("Waiting for IAM changes to propagate", "duration", IAMPropagationDelay)
+	m.logger.Debug("Waiting for IAM changes to propagate", "delay", IAMPropagationDelay)
 	time.Sleep(IAMPropagationDelay)
 
 	// Return cleanup function
 	cleanupFunc := func() error {
-		m.logger.Debug("Cleaning up IAM policy", "policy_arn", policyARN, "role", roleName)
+		m.logger.Debug("Cleaning up IAM policy", "policyARN", policyARN, "roleName", roleName)
 
 		// Detach policy from role
 		if _, err := m.iamClient.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
@@ -218,17 +218,17 @@ func (m *IAMManager) AttachS3Permissions(ctx context.Context, instanceID, region
 		}); err != nil {
 			m.logger.Warn("Failed to detach policy from role (may already be detached)", "error", err)
 		} else {
-			m.logger.Debug("Detached policy from role", "role", roleName)
+			m.logger.Debug("Detached policy from role", "roleName", roleName)
 		}
 
 		// Delete the policy
 		if _, err := m.iamClient.DeletePolicy(ctx, &iam.DeletePolicyInput{
 			PolicyArn: aws.String(policyARN),
 		}); err != nil {
-			m.logger.Warn("Failed to delete policy", "policy_arn", policyARN, "error", err)
+			m.logger.Warn("Failed to delete policy", "policyARN", policyARN, "error", err)
 			return err
 		} else {
-			m.logger.Debug("Deleted policy", "policy_arn", policyARN)
+			m.logger.Debug("Deleted policy", "policyARN", policyARN)
 		}
 
 		return nil
@@ -239,13 +239,13 @@ func (m *IAMManager) AttachS3Permissions(ctx context.Context, instanceID, region
 
 // RemoveS3Permissions is deprecated - use the cleanup function returned by AttachS3Permissions instead
 func (m *IAMManager) RemoveS3Permissions(ctx context.Context, instanceID, region string) error {
-	m.logger.Warn("RemoveS3Permissions called - this method is deprecated, use cleanup function instead", "instance", instanceID)
+	m.logger.Warn("RemoveS3Permissions called - this method is deprecated, use cleanup function instead", "instanceID", instanceID)
 	return nil
 }
 
 // ValidateInstanceIAMSetup validates that an instance has the required IAM setup
 func (m *IAMManager) ValidateInstanceIAMSetup(ctx context.Context, instanceID, region string) error {
-	m.logger.Debug("Validating IAM setup for instance", "instance", instanceID)
+	m.logger.Debug("Validating IAM setup for instance", "instanceID", instanceID)
 
 	// Check if instance has IAM instance profile
 	describeResult, err := m.ec2Client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
@@ -267,12 +267,12 @@ func (m *IAMManager) ValidateInstanceIAMSetup(ctx context.Context, instanceID, r
 	m.logger.Debug("Instance has IAM instance profile", "arn", *instance.IamInstanceProfile.Arn)
 
 	// Get and validate role exists
-	roleName, err := m.getInstanceProfileRole(ctx, instanceID, region)
+	roleName, err := m.getInstanceProfileRole(ctx, instanceID)
 	if err != nil {
 		return err
 	}
 
-	m.logger.Debug("IAM validation successful for instance", "instance", instanceID, "role", roleName)
+	m.logger.Debug("IAM validation successful", "instanceID", instanceID, "roleName", roleName)
 	return nil
 }
 

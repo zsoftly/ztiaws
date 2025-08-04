@@ -2,7 +2,7 @@ package system
 
 import (
 	"testing"
-	"ztictl/internal/logging"
+	"ztictl/pkg/logging"
 )
 
 func TestNewRequirementsChecker(t *testing.T) {
@@ -19,7 +19,7 @@ func TestRequirementResult(t *testing.T) {
 	result := RequirementResult{
 		Name:    "Test",
 		Passed:  true,
-		Version: "2.0.0",
+		Version: "2.1.0",
 	}
 
 	if result.Name != "Test" {
@@ -30,8 +30,8 @@ func TestRequirementResult(t *testing.T) {
 		t.Error("Expected Passed to be true")
 	}
 
-	if result.Version != "2.0.0" {
-		t.Errorf("Expected version '2.0.0', got %q", result.Version)
+	if result.Version != "2.1.0" {
+		t.Errorf("Expected version '2.1.0', got %q", result.Version)
 	}
 }
 

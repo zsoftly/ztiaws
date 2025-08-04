@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"ztictl/internal/logging"
+	"ztictl/pkg/logging"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -100,7 +100,7 @@ func (m *S3LifecycleManager) createLifecycleConfiguration() *s3types.BucketLifec
 
 // ApplyLifecycleConfig applies lifecycle configuration to ensure auto-cleanup
 func (m *S3LifecycleManager) ApplyLifecycleConfig(ctx context.Context, bucketName, region string) error {
-	m.logger.Debug("Applying lifecycle configuration to bucket: %s", bucketName)
+	m.logger.Debug("Applying lifecycle configuration to bucket", "bucketName", bucketName)
 
 	lifecycleConfig := m.createLifecycleConfiguration()
 
@@ -112,13 +112,13 @@ func (m *S3LifecycleManager) ApplyLifecycleConfig(ctx context.Context, bucketNam
 		return fmt.Errorf("failed to apply lifecycle configuration to bucket %s: %w", bucketName, err)
 	}
 
-	m.logger.Debug("Lifecycle configuration applied successfully to bucket: %s", bucketName)
+	m.logger.Debug("Lifecycle configuration applied successfully to bucket", "bucketName", bucketName)
 	return nil
 }
 
 // VerifyLifecycleConfig verifies that lifecycle configuration is active
 func (m *S3LifecycleManager) VerifyLifecycleConfig(ctx context.Context, bucketName, region string) error {
-	m.logger.Debug("Verifying lifecycle configuration for bucket: %s", bucketName)
+	m.logger.Debug("Verifying lifecycle configuration for bucket", "bucketName", bucketName)
 
 	result, err := m.s3Client.GetBucketLifecycleConfiguration(ctx, &s3.GetBucketLifecycleConfigurationInput{
 		Bucket: aws.String(bucketName),
@@ -126,7 +126,7 @@ func (m *S3LifecycleManager) VerifyLifecycleConfig(ctx context.Context, bucketNa
 	if err != nil {
 		// Check if it's a NoSuchLifecycleConfiguration error
 		if strings.Contains(err.Error(), "NoSuchLifecycleConfiguration") {
-			m.logger.Debug("No lifecycle configuration found for bucket: %s", bucketName)
+			m.logger.Debug("No lifecycle configuration found for bucket", "bucketName", bucketName)
 			return fmt.Errorf("no lifecycle configuration found")
 		}
 		return fmt.Errorf("failed to get lifecycle configuration: %w", err)
@@ -136,7 +136,7 @@ func (m *S3LifecycleManager) VerifyLifecycleConfig(ctx context.Context, bucketNa
 	for _, rule := range result.Rules {
 		if rule.ID != nil && *rule.ID == LifecycleRuleID {
 			if rule.Status == s3types.ExpirationStatusEnabled {
-				m.logger.Debug("Lifecycle configuration verified as enabled for bucket: %s", bucketName)
+				m.logger.Debug("Lifecycle configuration verified as enabled for bucket", "bucketName", bucketName)
 				return nil
 			} else {
 				return fmt.Errorf("lifecycle configuration exists but is not enabled for bucket: %s", bucketName)
@@ -149,7 +149,7 @@ func (m *S3LifecycleManager) VerifyLifecycleConfig(ctx context.Context, bucketNa
 
 // EnsureS3Bucket creates S3 bucket if it doesn't exist and ensures lifecycle configuration
 func (m *S3LifecycleManager) EnsureS3Bucket(ctx context.Context, bucketName, region string) error {
-	m.logger.Info("Checking S3 bucket: %s", bucketName)
+	m.logger.Info("Checking S3 bucket", "bucketName", bucketName)
 
 	bucketCreated := false
 
@@ -158,7 +158,7 @@ func (m *S3LifecycleManager) EnsureS3Bucket(ctx context.Context, bucketName, reg
 		Bucket: aws.String(bucketName),
 	})
 	if err != nil {
-		m.logger.Info("Creating S3 bucket: %s", bucketName)
+		m.logger.Info("Creating S3 bucket", "bucketName", bucketName)
 
 		// Create bucket with appropriate configuration
 		createBucketInput := &s3.CreateBucketInput{
@@ -179,7 +179,7 @@ func (m *S3LifecycleManager) EnsureS3Bucket(ctx context.Context, bucketName, reg
 
 		bucketCreated = true
 	} else {
-		m.logger.Info("S3 bucket already exists: %s", bucketName)
+		m.logger.Info("S3 bucket already exists", "bucketName", bucketName)
 	}
 
 	// Ensure lifecycle configuration is applied (for both existing and new buckets)
@@ -200,13 +200,13 @@ func (m *S3LifecycleManager) EnsureS3Bucket(ctx context.Context, bucketName, reg
 			}
 		}
 	} else {
-		m.logger.Debug("Lifecycle configuration already properly configured for bucket: %s", bucketName)
+		m.logger.Debug("Lifecycle configuration already properly configured for bucket", "bucketName", bucketName)
 	}
 
 	if bucketCreated {
-		m.logger.Info("S3 bucket created successfully with lifecycle configuration: %s", bucketName)
+		m.logger.Info("S3 bucket created successfully with lifecycle configuration", "bucketName", bucketName)
 	} else {
-		m.logger.Info("S3 bucket verified and configured: %s", bucketName)
+		m.logger.Info("S3 bucket verified and configured", "bucketName", bucketName)
 	}
 
 	return nil
@@ -214,7 +214,7 @@ func (m *S3LifecycleManager) EnsureS3Bucket(ctx context.Context, bucketName, reg
 
 // CleanupS3Object removes an object from S3 bucket
 func (m *S3LifecycleManager) CleanupS3Object(ctx context.Context, bucketName, objectKey, region string) error {
-	m.logger.Debug("Cleaning up S3 object: s3://%s/%s", bucketName, objectKey)
+	m.logger.Debug("Cleaning up S3 object", "bucket", fmt.Sprintf("s3://%s/%s", bucketName, objectKey))
 
 	_, err := m.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(bucketName),
@@ -222,17 +222,17 @@ func (m *S3LifecycleManager) CleanupS3Object(ctx context.Context, bucketName, ob
 	})
 	if err != nil {
 		// Don't fail the entire operation for cleanup errors
-		m.logger.Warn("Failed to cleanup S3 object", "bucket", bucketName, "key", objectKey, "error", err)
+		m.logger.Warn("Failed to cleanup S3 object", "bucketName", bucketName, "objectKey", objectKey, "error", err)
 		return nil
 	}
 
-	m.logger.Debug("Successfully cleaned up S3 object: s3://%s/%s", bucketName, objectKey)
+	m.logger.Debug("Successfully cleaned up S3 object", "bucket", fmt.Sprintf("s3://%s/%s", bucketName, objectKey))
 	return nil
 }
 
 // UploadToS3 uploads a file to S3
 func (m *S3LifecycleManager) UploadToS3(ctx context.Context, bucketName, objectKey, filePath, region string) error {
-	m.logger.Info("Uploading to S3: s3://%s/%s", bucketName, objectKey)
+	m.logger.Info("Uploading to S3", "bucket", fmt.Sprintf("s3://%s/%s", bucketName, objectKey))
 
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -249,13 +249,13 @@ func (m *S3LifecycleManager) UploadToS3(ctx context.Context, bucketName, objectK
 		return fmt.Errorf("failed to upload file to S3: %w", err)
 	}
 
-	m.logger.Info("Successfully uploaded to S3: s3://%s/%s", bucketName, objectKey)
+	m.logger.Info("Successfully uploaded to S3", "bucket", fmt.Sprintf("s3://%s/%s", bucketName, objectKey))
 	return nil
 }
 
 // DownloadFromS3 downloads a file from S3
 func (m *S3LifecycleManager) DownloadFromS3(ctx context.Context, bucketName, objectKey, filePath, region string) error {
-	m.logger.Info("Downloading from S3: s3://%s/%s", bucketName, objectKey)
+	m.logger.Info("Downloading from S3", "bucket", fmt.Sprintf("s3://%s/%s", bucketName, objectKey))
 
 	result, err := m.s3Client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(bucketName),
@@ -277,6 +277,6 @@ func (m *S3LifecycleManager) DownloadFromS3(ctx context.Context, bucketName, obj
 		return fmt.Errorf("failed to write file content: %w", err)
 	}
 
-	m.logger.Info("Successfully downloaded from S3: s3://%s/%s", bucketName, objectKey)
+	m.logger.Info("Successfully downloaded from S3", "bucket", fmt.Sprintf("s3://%s/%s", bucketName, objectKey))
 	return nil
 }

@@ -14,8 +14,8 @@ import (
 	"time"
 
 	appconfig "ztictl/internal/config"
-	"ztictl/internal/logging"
 	"ztictl/pkg/errors"
+	"ztictl/pkg/logging"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -31,6 +31,11 @@ const (
 	// SSO authentication timeout constraints
 	MinTimeoutSeconds = 60  // 1 minute minimum for user interaction
 	MaxTimeoutSeconds = 180 // 3 minute maximum for security
+
+	// Column formatting constants
+	MinColumnWidth = 12
+	MaxColumnWidth = 40
+	ColumnPadding  = 2
 )
 
 // Manager handles AWS SSO authentication operations
@@ -81,11 +86,185 @@ type Role struct {
 	AccountID string `json:"account_id"`
 }
 
-// NewManager creates a new authentication manager
-func NewManager(logger *logging.Logger) *Manager {
+// NewManager creates a new authentication manager with a no-op logger
+func NewManager() *Manager {
+	return &Manager{
+		logger: logging.NewNoOpLogger(),
+	}
+}
+
+// NewManagerWithLogger creates a new authentication manager with a logger
+func NewManagerWithLogger(logger *logging.Logger) *Manager {
+	if logger == nil {
+		logger = logging.NewNoOpLogger()
+	}
 	return &Manager{
 		logger: logger,
 	}
+}
+
+// Helper functions for dynamic column formatting
+
+// wrapText wraps text to fit within a specified width
+func wrapText(text string, width int) []string {
+	if len(text) <= width {
+		return []string{text}
+	}
+
+	var lines []string
+	words := strings.Fields(text)
+	var currentLine strings.Builder
+
+	for _, word := range words {
+		// If adding this word would exceed width, start a new line
+		if currentLine.Len() > 0 && currentLine.Len()+1+len(word) > width {
+			lines = append(lines, currentLine.String())
+			currentLine.Reset()
+		}
+
+		if currentLine.Len() > 0 {
+			currentLine.WriteString(" ")
+		}
+		currentLine.WriteString(word)
+	}
+
+	if currentLine.Len() > 0 {
+		lines = append(lines, currentLine.String())
+	}
+
+	return lines
+}
+
+// calculateOptimalWidths calculates optimal column widths based on content
+func calculateOptimalWidths(accounts []Account) (int, int, int) {
+	maxIDWidth := MinColumnWidth
+	maxNameWidth := MinColumnWidth
+	maxEmailWidth := MinColumnWidth
+
+	// Find maximum widths
+	for _, account := range accounts {
+		if len(account.AccountID) > maxIDWidth {
+			maxIDWidth = len(account.AccountID)
+		}
+		if len(account.AccountName) > maxNameWidth {
+			maxNameWidth = len(account.AccountName)
+		}
+		if len(account.EmailAddress) > maxEmailWidth {
+			maxEmailWidth = len(account.EmailAddress)
+		}
+	}
+
+	// Apply constraints and padding
+	if maxIDWidth > MaxColumnWidth {
+		maxIDWidth = MaxColumnWidth
+	}
+	if maxNameWidth > MaxColumnWidth {
+		maxNameWidth = MaxColumnWidth
+	}
+	if maxEmailWidth > MaxColumnWidth {
+		maxEmailWidth = MaxColumnWidth
+	}
+
+	return maxIDWidth + ColumnPadding, maxNameWidth + ColumnPadding, maxEmailWidth + ColumnPadding
+}
+
+// formatAccountRow formats an account into a multi-line display with equal column spacing
+func formatAccountRow(account Account, idWidth, nameWidth, emailWidth int) string {
+	// Wrap text for each column
+	idLines := wrapText(account.AccountID, idWidth-ColumnPadding)
+	nameLines := wrapText(account.AccountName, nameWidth-ColumnPadding)
+	emailLines := wrapText(account.EmailAddress, emailWidth-ColumnPadding)
+
+	// Find the maximum number of lines needed
+	maxLines := len(idLines)
+	if len(nameLines) > maxLines {
+		maxLines = len(nameLines)
+	}
+	if len(emailLines) > maxLines {
+		maxLines = len(emailLines)
+	}
+
+	// Pad all slices to the same length
+	for len(idLines) < maxLines {
+		idLines = append(idLines, "")
+	}
+	for len(nameLines) < maxLines {
+		nameLines = append(nameLines, "")
+	}
+	for len(emailLines) < maxLines {
+		emailLines = append(emailLines, "")
+	}
+
+	// Build the formatted string
+	var result strings.Builder
+	for i := 0; i < maxLines; i++ {
+		if i > 0 {
+			result.WriteString("\n")
+		}
+		result.WriteString(fmt.Sprintf("%-*s%-*s%s",
+			idWidth, idLines[i],
+			nameWidth, nameLines[i],
+			emailLines[i]))
+	}
+
+	return result.String()
+}
+
+// calculateOptimalRoleWidths calculates optimal column widths for roles
+func calculateOptimalRoleWidths(roles []Role, account *Account) (int, int) {
+	maxRoleWidth := MinColumnWidth
+	accountInfo := fmt.Sprintf("Account: %s (%s)", account.AccountName, account.AccountID)
+	accountInfoWidth := len(accountInfo)
+
+	// Find maximum role width
+	for _, role := range roles {
+		if len(role.RoleName) > maxRoleWidth {
+			maxRoleWidth = len(role.RoleName)
+		}
+	}
+
+	// Apply constraints and padding
+	if maxRoleWidth > MaxColumnWidth {
+		maxRoleWidth = MaxColumnWidth
+	}
+
+	return maxRoleWidth + ColumnPadding, accountInfoWidth + ColumnPadding
+}
+
+// formatRoleRow formats a role into a multi-line display with equal column spacing
+func formatRoleRow(role Role, account *Account, roleWidth, accountWidth int) string {
+	accountInfo := fmt.Sprintf("Account: %s (%s)", account.AccountName, account.AccountID)
+
+	// Wrap text for each column
+	roleLines := wrapText(role.RoleName, roleWidth-ColumnPadding)
+	accountLines := wrapText(accountInfo, accountWidth-ColumnPadding)
+
+	// Find the maximum number of lines needed
+	maxLines := len(roleLines)
+	if len(accountLines) > maxLines {
+		maxLines = len(accountLines)
+	}
+
+	// Pad all slices to the same length
+	for len(roleLines) < maxLines {
+		roleLines = append(roleLines, "")
+	}
+	for len(accountLines) < maxLines {
+		accountLines = append(accountLines, "")
+	}
+
+	// Build the formatted string
+	var result strings.Builder
+	for i := 0; i < maxLines; i++ {
+		if i > 0 {
+			result.WriteString("\n")
+		}
+		result.WriteString(fmt.Sprintf("%-*s%s",
+			roleWidth, roleLines[i],
+			accountLines[i]))
+	}
+
+	return result.String()
 }
 
 // getAWSConfigDir returns the AWS configuration directory path
@@ -114,19 +293,12 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 		return errors.NewValidationError("SSO start URL not configured. Please run 'ztictl config init' first")
 	}
 
-	m.logger.Info("Starting AWS SSO authentication", "profile", profileName)
-
-	// Debug: Log the configuration being used
-	m.logger.Debug("Using SSO configuration",
-		"start_url", cfg.SSO.StartURL,
-		"sso_region", cfg.SSO.Region,
-		"default_region", cfg.DefaultRegion)
+	logging.LogInfo("Starting AWS SSO authentication | profile=%s", profileName)
 
 	// Step 1: Configure the profile with basic SSO settings first (like bash version)
 	if err := m.configureProfile(profileName, cfg); err != nil {
 		return fmt.Errorf("failed to configure profile: %w", err)
 	}
-	m.logger.Debug("Profile configured successfully", "profile", profileName)
 
 	// Step 2: Load AWS config without specifying the profile (to avoid SSO validation issues)
 	// Create a completely isolated AWS config that bypasses all profile loading
@@ -134,12 +306,11 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 		Region:      cfg.SSO.Region,
 		Credentials: aws.AnonymousCredentials{},
 	}
-	m.logger.Debug("AWS config loaded successfully", "region", cfg.SSO.Region)
 
 	// Step 3: Check for valid cached token
 	token, err := m.getCachedToken(cfg.SSO.StartURL)
 	if err != nil || !m.isTokenValid(token) {
-		m.logger.Info("No valid cached token found, initiating SSO login...")
+		logging.LogInfo("No valid cached token found, initiating SSO login...")
 
 		// Perform SSO login
 		if err := m.performSSOLogin(ctx, awsCfg, cfg); err != nil {
@@ -152,7 +323,7 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 			return fmt.Errorf("failed to get token after login: %w", err)
 		}
 	} else {
-		m.logger.Info("Using valid cached SSO token")
+		logging.LogInfo("Using valid cached SSO token")
 	}
 
 	// Step 4: Get available accounts
@@ -167,7 +338,7 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 		return fmt.Errorf("account selection failed: %w", err)
 	}
 
-	m.logger.Info("Selected account", "id", selectedAccount.AccountID, "name", selectedAccount.AccountName)
+	logging.LogInfo("Selected account | id=%s name=%s", selectedAccount.AccountID, selectedAccount.AccountName)
 
 	// Step 6: Get available roles for the selected account
 	roles, err := m.listAccountRoles(ctx, token.AccessToken, selectedAccount.AccountID)
@@ -181,17 +352,14 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 		return fmt.Errorf("role selection failed: %w", err)
 	}
 
-	m.logger.Info("Selected role", "role", selectedRole.RoleName)
+	logging.LogInfo("Selected role | role=%s", selectedRole.RoleName)
 
 	// Step 8: Update profile with selected account and role
 	if err := m.updateProfileWithSelection(profileName, selectedAccount, selectedRole, cfg); err != nil {
 		return fmt.Errorf("failed to update profile: %w", err)
 	}
 
-	m.logger.Info("AWS SSO authentication completed successfully",
-		"profile", profileName,
-		"account", selectedAccount.AccountName,
-		"role", selectedRole.RoleName)
+	logging.LogInfo("AWS SSO authentication completed successfully | account=%s role=%s profile=%s", selectedAccount.AccountName, selectedRole.RoleName, profileName)
 
 	// Print platform-specific success message
 	m.printSuccessMessage(profileName, selectedAccount, selectedRole, cfg)
@@ -202,11 +370,11 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 // Logout performs AWS SSO logout
 func (m *Manager) Logout(ctx context.Context, profileName string) error {
 	if profileName != "" {
-		m.logger.Info("Logging out from specific profile", "profile", profileName)
+		logging.LogInfo("Logging out from specific profile | profile=%s", profileName)
 		// For now, we'll clear the specific profile's cached credentials
 		// In a full implementation, this would clear SSO cache for the specific profile
 	} else {
-		m.logger.Info("Logging out from all SSO sessions")
+		logging.LogInfo("Logging out from all SSO sessions")
 		// Clear all SSO cache
 		if err := m.clearSSOCache(); err != nil {
 			return fmt.Errorf("failed to clear SSO cache: %w", err)
@@ -239,7 +407,7 @@ func (m *Manager) ListProfiles(ctx context.Context) ([]Profile, error) {
 	for i := range profiles {
 		isAuth, err := m.isProfileAuthenticated(ctx, profiles[i].Name)
 		if err != nil {
-			m.logger.Warn("Failed to check authentication status", "profile", profiles[i].Name, "error", err)
+			logging.LogWarn("Failed to check authentication status | profile=%s error=%v", profiles[i].Name, err)
 		}
 		profiles[i].IsAuthenticated = isAuth
 	}
@@ -271,10 +439,7 @@ func (m *Manager) GetCredentials(ctx context.Context, profileName string) (*Cred
 	}
 
 	// Verify the credentials work by checking the caller identity
-	m.logger.Info("Retrieved credentials",
-		"account", *callerIdentity.Account,
-		"arn", *callerIdentity.Arn,
-		"profile", profileName)
+	logging.LogInfo("Retrieved credentials | account=%s profile=%s", *callerIdentity.Account, profileName)
 
 	return &Credentials{
 		AccessKeyID:     creds.AccessKeyID,
@@ -290,35 +455,28 @@ func (m *Manager) configureProfile(profileName string, cfg *appconfig.Config) er
 	if err != nil {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
-	m.logger.Debug("Using home directory", "path", homeDir)
 
 	configDir := filepath.Join(homeDir, ".aws")
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return fmt.Errorf("failed to create AWS config directory: %w", err)
 	}
-	m.logger.Debug("AWS config directory", "path", configDir)
 
 	configPath := filepath.Join(configDir, "config")
-	m.logger.Debug("AWS config file path", "path", configPath)
 
 	// Read existing config
 	var content string
 	if existing, err := os.ReadFile(configPath); err == nil {
 		content = string(existing)
-		m.logger.Debug("Read existing config", "length", len(content))
 	} else {
-		m.logger.Debug("No existing config file found, will create new one")
 	}
 
 	// Update or add profile configuration
 	content = m.updateProfileInConfig(content, profileName, cfg)
-	m.logger.Debug("Updated profile configuration", "profile", profileName)
 
 	// Write back to file
 	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write AWS config: %w", err)
 	}
-	m.logger.Debug("Wrote AWS config file successfully")
 
 	return nil
 }
@@ -400,7 +558,7 @@ func (m *Manager) isTokenValid(token *SSOToken) bool {
 
 // performSSOLogin initiates the SSO login flow
 func (m *Manager) performSSOLogin(ctx context.Context, awsCfg aws.Config, cfg *appconfig.Config) error {
-	m.logger.Info("Starting SSO device authorization flow...")
+	logging.LogInfo("Starting SSO device authorization flow...")
 
 	// Create SSO OIDC client
 	ssoOIDCClient := ssooidc.NewFromConfig(awsCfg)
@@ -435,7 +593,7 @@ func (m *Manager) performSSOLogin(ctx context.Context, awsCfg aws.Config, cfg *a
 
 	// Attempt to open browser automatically
 	if err := browser.OpenURL(authURL); err != nil {
-		m.logger.Warn("Failed to open browser automatically", "error", err)
+		logging.LogWarn("Failed to open browser automatically | error=%v", err)
 		fmt.Printf("⚠️  Please manually open the URL above in your browser\n")
 	} else {
 		fmt.Printf("✅ Browser opened automatically\n")
@@ -444,7 +602,7 @@ func (m *Manager) performSSOLogin(ctx context.Context, awsCfg aws.Config, cfg *a
 	fmt.Printf("⏳ Waiting for authentication completion (do not close this terminal)...\n\n")
 
 	// Poll for token
-	m.logger.Info("Polling for authentication completion...")
+	logging.LogInfo("Polling for authentication completion...")
 
 	ticker := time.NewTicker(time.Duration(authResp.Interval) * time.Second)
 	defer ticker.Stop()
@@ -455,12 +613,8 @@ func (m *Manager) performSSOLogin(ctx context.Context, awsCfg aws.Config, cfg *a
 
 	if timeoutSeconds < MinTimeoutSeconds {
 		timeoutSeconds = MinTimeoutSeconds
-		m.logger.Debug("Extended timeout for better user experience",
-			"aws_timeout", authResp.ExpiresIn, "actual_timeout", timeoutSeconds)
 	} else if timeoutSeconds > MaxTimeoutSeconds {
 		timeoutSeconds = MaxTimeoutSeconds
-		m.logger.Debug("Capped timeout for security",
-			"aws_timeout", authResp.ExpiresIn, "actual_timeout", timeoutSeconds)
 	}
 
 	timeout := time.After(time.Duration(timeoutSeconds) * time.Second)
@@ -512,7 +666,7 @@ func (m *Manager) performSSOLogin(ctx context.Context, awsCfg aws.Config, cfg *a
 				return fmt.Errorf("failed to save token to cache: %w", err)
 			}
 
-			m.logger.Info("SSO login completed successfully")
+			logging.LogInfo("SSO login completed successfully")
 			return nil
 		}
 	}
@@ -589,7 +743,7 @@ func (m *Manager) listAccounts(ctx context.Context, accessToken string) ([]Accou
 	return accounts, nil
 }
 
-// selectAccount provides interactive account selection using fzf
+// selectAccount provides interactive account selection with fuzzy finder for search capability
 func (m *Manager) selectAccount(accounts []Account) (*Account, error) {
 	if len(accounts) == 0 {
 		return nil, fmt.Errorf("no accounts available")
@@ -599,19 +753,76 @@ func (m *Manager) selectAccount(accounts []Account) (*Account, error) {
 		return &accounts[0], nil
 	}
 
-	// Prepare items for fzf
-	idx, err := fuzzyfinder.Find(accounts, func(i int) string {
-		return fmt.Sprintf("%s | %s", accounts[i].AccountID, accounts[i].AccountName)
-	}, fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-		return fmt.Sprintf("Account ID: %s\nName: %s\nEmail: %s",
-			accounts[i].AccountID, accounts[i].AccountName, accounts[i].EmailAddress)
-	}))
+	// Always use fuzzy finder for multiple accounts to enable search functionality
+	// This provides consistent search experience regardless of account count
+	return m.selectAccountFuzzy(accounts)
+}
 
-	if err != nil {
-		return nil, fmt.Errorf("account selection cancelled: %w", err)
+// selectAccountFuzzy uses fuzzy finder for account selection with full search capabilities
+func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
+	// Calculate optimal column widths for all accounts
+	idWidth, nameWidth, emailWidth := calculateOptimalWidths(accounts)
+
+	// Create header row
+	headerRow := fmt.Sprintf("%-*s%-*s%s",
+		idWidth, "Account ID",
+		nameWidth, "Account Name",
+		"Email Address")
+
+	// Create separator row
+	separatorRow := fmt.Sprintf("%-*s%-*s%s",
+		idWidth, strings.Repeat("-", idWidth-ColumnPadding),
+		nameWidth, strings.Repeat("-", nameWidth-ColumnPadding),
+		strings.Repeat("-", emailWidth-ColumnPadding))
+
+	// Prepare display items (header + separator + accounts)
+	displayItems := make([]interface{}, len(accounts)+2)
+	displayItems[0] = "HEADER"
+	displayItems[1] = "SEPARATOR"
+	for i, account := range accounts {
+		displayItems[i+2] = account
 	}
 
-	return &accounts[idx], nil
+	idx, err := fuzzyfinder.Find(displayItems,
+		func(i int) string {
+			switch i {
+			case 0:
+				// Header row
+				return headerRow
+			case 1:
+				// Separator row
+				return separatorRow
+			default:
+				// Account data
+				account := displayItems[i].(Account)
+				return formatAccountRow(account, idWidth, nameWidth, emailWidth)
+			}
+		},
+		fuzzyfinder.WithPromptString("🔍 "),
+		fuzzyfinder.WithHeader(fmt.Sprintf("Select AWS Account (%d available)", len(accounts))),
+	)
+
+	// Adjust index since we added header and separator
+	if idx < 2 {
+		// User selected header or separator, treat as cancellation
+		color.New(color.FgRed).Printf("❌ Invalid selection\n")
+		return nil, fmt.Errorf("invalid selection")
+	}
+
+	actualIdx := idx - 2
+
+	if err != nil {
+		if err.Error() == "abort" {
+			color.New(color.FgRed).Printf("❌ Account selection cancelled\n")
+			return nil, fmt.Errorf("account selection cancelled")
+		}
+		return nil, fmt.Errorf("account selection failed: %w", err)
+	}
+
+	// Display selection confirmation
+	color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s (%s)\n", accounts[actualIdx].AccountName, accounts[actualIdx].AccountID)
+
+	return &accounts[actualIdx], nil
 }
 
 // listAccountRoles retrieves available roles for an account
@@ -646,7 +857,7 @@ func (m *Manager) listAccountRoles(ctx context.Context, accessToken, accountID s
 	return roles, nil
 }
 
-// selectRole provides interactive role selection
+// selectRole provides interactive role selection with fuzzy finder for search capability
 func (m *Manager) selectRole(roles []Role, account *Account) (*Role, error) {
 	if len(roles) == 0 {
 		return nil, fmt.Errorf("no roles available for account %s", account.AccountID)
@@ -656,19 +867,75 @@ func (m *Manager) selectRole(roles []Role, account *Account) (*Role, error) {
 		return &roles[0], nil
 	}
 
-	// Prepare items for fzf
-	idx, err := fuzzyfinder.Find(roles, func(i int) string {
-		return roles[i].RoleName
-	}, fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-		return fmt.Sprintf("Role: %s\nAccount: %s\nAccount ID: %s",
-			roles[i].RoleName, account.AccountName, account.AccountID)
-	}))
+	// Always use fuzzy finder for multiple roles to enable search functionality
+	// This provides consistent search experience regardless of role count
+	return m.selectRoleFuzzy(roles, account)
+}
 
-	if err != nil {
-		return nil, fmt.Errorf("role selection cancelled: %w", err)
+// selectRoleFuzzy uses fuzzy finder for role selection with full search capabilities
+func (m *Manager) selectRoleFuzzy(roles []Role, account *Account) (*Role, error) {
+	// Calculate optimal column widths for roles and account info
+	roleWidth, accountWidth := calculateOptimalRoleWidths(roles, account)
+
+	// Create header row
+	headerRow := fmt.Sprintf("%-*s%s",
+		roleWidth, "Role Name",
+		"Account Information")
+
+	// Create separator row
+	separatorRow := fmt.Sprintf("%-*s%s",
+		roleWidth, strings.Repeat("-", roleWidth-ColumnPadding),
+		strings.Repeat("-", accountWidth-ColumnPadding))
+
+	// Prepare display items (header + separator + roles)
+	displayItems := make([]interface{}, len(roles)+2)
+	displayItems[0] = "HEADER"
+	displayItems[1] = "SEPARATOR"
+	for i, role := range roles {
+		displayItems[i+2] = role
 	}
 
-	return &roles[idx], nil
+	idx, err := fuzzyfinder.Find(displayItems,
+		func(i int) string {
+			switch i {
+			case 0:
+				// Header row
+				return headerRow
+			case 1:
+				// Separator row
+				return separatorRow
+			default:
+				// Role data
+				role := displayItems[i].(Role)
+				return formatRoleRow(role, account, roleWidth, accountWidth)
+			}
+		},
+		fuzzyfinder.WithPromptString("🎭 "),
+		fuzzyfinder.WithHeader(fmt.Sprintf("Select Role for %s (%d available)",
+			account.AccountName, len(roles))),
+	)
+
+	// Adjust index since we added header and separator
+	if idx < 2 {
+		// User selected header or separator, treat as cancellation
+		color.New(color.FgRed).Printf("❌ Invalid selection\n")
+		return nil, fmt.Errorf("invalid selection")
+	}
+
+	actualIdx := idx - 2
+
+	if err != nil {
+		if err.Error() == "abort" {
+			color.New(color.FgRed).Printf("❌ Role selection cancelled\n")
+			return nil, fmt.Errorf("role selection cancelled")
+		}
+		return nil, fmt.Errorf("role selection failed: %w", err)
+	}
+
+	// Display selection confirmation
+	color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s\n", roles[actualIdx].RoleName)
+
+	return &roles[actualIdx], nil
 }
 
 // updateProfileWithSelection updates the AWS profile with selected account and role
@@ -1047,6 +1314,6 @@ func (m *Manager) printSuccessMessage(profileName string, account *Account, role
 func (m *Manager) clearSSOCache() error {
 	// For Windows compatibility, we'll disable automatic cache clearing
 	// Users can manually clear cache using AWS CLI: aws sso logout
-	m.logger.Info("Cache clearing disabled for security compatibility")
+	logging.LogInfo("Cache clearing disabled for security compatibility")
 	return nil
 }

@@ -4,8 +4,10 @@ import (
 	"context"
 	"os"
 
-	"github.com/spf13/cobra"
 	"ztictl/internal/ssm"
+	"ztictl/pkg/logging"
+
+	"github.com/spf13/cobra"
 )
 
 // ssmConnectCmd represents the ssm connect command
@@ -22,13 +24,13 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 
 		instanceIdentifier := args[0]
 
-		logger.Info("Connecting to instance", "identifier", instanceIdentifier, "region", region)
+		logging.LogInfo("Connecting to instance %s in region: %s", instanceIdentifier, region)
 
 		ssmManager := ssm.NewManager(logger)
 		ctx := context.Background()
 
 		if err := ssmManager.StartSession(ctx, instanceIdentifier, region); err != nil {
-			logger.Error("Failed to start session", "error", err)
+			logging.LogError("Failed to start session: %v", err)
 			os.Exit(1)
 		}
 	},

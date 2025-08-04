@@ -7,7 +7,7 @@
 all: build
 
 # Version - can be overridden via environment
-BASE_VERSION ?= 2.0.0
+BASE_VERSION ?= 2.1.0
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION := $(BASE_VERSION)-$(GIT_COMMIT)
 
@@ -122,7 +122,7 @@ help:
 	@echo "Examples:"
 	@echo "  make                    # Build all platforms"
 	@echo "  make build-local        # Build for current platform"
-	@echo "  VERSION=2.0.0 make      # Build with custom version"
+	@echo "  VERSION=2.1.0 make      # Build with custom version"
 
 # Function to build for a specific platform
 define build_platform

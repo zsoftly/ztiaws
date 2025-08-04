@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 
-	"github.com/spf13/cobra"
 	"ztictl/internal/ssm"
+	"ztictl/pkg/colors"
+	"ztictl/pkg/logging"
+
+	"github.com/spf13/cobra"
 )
 
 // ssmCleanupCmd represents the ssm cleanup command
@@ -26,22 +29,25 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 		region := resolveRegion(regionCode)
 
 		if region == "" {
-			GetLogger().Error("Region is required. Use --region flag or set default region in config")
+			logging.LogError("Region is required. Use --region flag or set default region in config")
 			return
 		}
 
-		GetLogger().Info("Starting cleanup operation", "region", region)
+		logging.LogInfo("Starting cleanup operation in region: %s", region)
 
 		ssmManager := ssm.NewManager(GetLogger())
 		ctx := context.Background()
 
 		// Perform routine cleanup
 		if err := ssmManager.Cleanup(ctx, region); err != nil {
-			GetLogger().Error("Cleanup failed", "error", err)
+			logging.LogError("Cleanup failed: %v", err)
 			return
 		}
 
-		GetLogger().Info("Cleanup completed successfully")
+		logging.LogSuccess("Cleanup completed successfully")
+
+		// Show colored success message
+		colors.PrintSuccess("✓ Cleanup completed successfully\n")
 	},
 }
 
@@ -64,22 +70,25 @@ ensure all temporary resources are removed.`,
 		region := resolveRegion(regionCode)
 
 		if region == "" {
-			GetLogger().Error("Region is required. Use --region flag or set default region in config")
+			logging.LogError("Region is required. Use --region flag or set default region in config")
 			return
 		}
 
-		GetLogger().Info("Starting emergency cleanup operation", "region", region)
+		logging.LogInfo("Starting emergency cleanup operation in region: %s", region)
 
 		ssmManager := ssm.NewManager(GetLogger())
 		ctx := context.Background()
 
 		// Perform emergency cleanup
 		if err := ssmManager.EmergencyCleanup(ctx, region); err != nil {
-			GetLogger().Error("Emergency cleanup failed", "error", err)
+			logging.LogError("Emergency cleanup failed: %v", err)
 			return
 		}
 
-		GetLogger().Info("Emergency cleanup completed successfully")
+		logging.LogSuccess("Emergency cleanup completed successfully")
+
+		// Show colored success message
+		colors.PrintSuccess("✓ Emergency cleanup completed successfully\n")
 	},
 }
 

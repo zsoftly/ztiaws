@@ -7,7 +7,7 @@ This document outlines the complete process for releasing new versions of ztictl
 ztictl uses semantic versioning (SemVer) and automated GitHub Actions for building and releasing cross-platform binaries.
 
 ### Release Types
-- **Major** (1.0.0 → 2.0.0): Breaking changes
+- **Major** (1.0.0 → 2.1.0): Breaking changes
 - **Minor** (1.0.0 → 1.1.0): New features, backward compatible
 - **Patch** (1.0.0 → 1.0.1): Bug fixes, backward compatible
 

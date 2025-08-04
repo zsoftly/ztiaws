@@ -52,7 +52,7 @@ NAME_PREFIX="web-server"
 
 show_help() {
     cat << EOF
-EC2 Test Instance Manager - Efficient Version
+EC2 Test Instance Manager - Cross-Platform Version
 
 Usage: $0 <command> [options]
 
@@ -74,6 +74,10 @@ Environment Variables:
   AMI_ID           Override default AMI ID
   SUBNET_ID        Override default subnet ID (REQUIRED for different environments)
   SECURITY_GROUP   Override default security group ID (REQUIRED for different environments)
+
+Compatibility:
+  This script is compatible with Linux and macOS environments.
+  Requires bash 4.0+ and standard Unix utilities (grep, awk, jq).
 
 Examples:
   $0 create --count 3 --owner John    # Creates: John-web-server-1, John-web-server-2, John-web-server-3
@@ -133,12 +137,52 @@ validate_aws_resources() {
     log_info "AWS resources validated successfully"
 }
 
+# Cross-platform function to read instance IDs from file
+read_instance_ids() {
+    local instance_ids=()
+    local line
+    
+    if [[ ! -f "$INSTANCE_FILE" || ! -s "$INSTANCE_FILE" ]]; then
+        return 1
+    fi
+    
+    # Read file line by line, filtering out empty lines
+    while IFS= read -r line; do
+        # Skip empty lines and whitespace-only lines
+        if [[ -n "${line// }" ]]; then
+            instance_ids+=("$line")
+        fi
+    done < "$INSTANCE_FILE"
+    
+    # Return the array via a global variable
+    INSTANCE_IDS=("${instance_ids[@]}")
+    return 0
+}
+get_file_mtime() {
+    local file="$1"
+    if [[ ! -f "$file" ]]; then
+        echo 0
+        return
+    fi
+    
+    # Cross-platform stat command for modification time
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        stat -f %m "$file" 2>/dev/null || echo 0
+    else
+        # Linux and others
+        stat -c %Y "$file" 2>/dev/null || echo 0
+    fi
+}
+
 # Ensure IAM resources exist (cached check)
 ensure_iam() {
     local cache_file=".iam_ready"
     
-    # Skip if recently checked
-    if [[ -f "$cache_file" && $(($(date +%s) - $(stat -c %Y "$cache_file" 2>/dev/null || echo 0))) -lt 300 ]]; then
+    # Skip if recently checked (within 5 minutes)
+    local current_time=$(date +%s)
+    local file_mtime=$(get_file_mtime "$cache_file")
+    if [[ -f "$cache_file" && $((current_time - file_mtime)) -lt 300 ]]; then
         return 0
     fi
     
@@ -227,19 +271,18 @@ create_instances() {
 
 # Verify instances with efficient batch query
 verify_instances() {
-    [[ -f "$INSTANCE_FILE" && -s "$INSTANCE_FILE" ]] || { log_warn "No instances tracked"; return 0; }
+    # Read all instance IDs using cross-platform function
+    if ! read_instance_ids || [[ ${#INSTANCE_IDS[@]} -eq 0 ]]; then
+        log_warn "No instances tracked or no valid instance IDs found"
+        return 0
+    fi
     
-    # Read all instance IDs
-    local instance_ids
-    mapfile -t instance_ids < <(grep -v '^[[:space:]]*$' "$INSTANCE_FILE")
-    [[ ${#instance_ids[@]} -gt 0 ]] || { log_warn "No valid instance IDs found"; return 0; }
-    
-    log_info "Checking ${#instance_ids[@]} instance(s)..."
+    log_info "Checking ${#INSTANCE_IDS[@]} instance(s)..."
     
     # Batch query all instances
     local result
     result=$(aws ec2 describe-instances \
-        --instance-ids "${instance_ids[@]}" \
+        --instance-ids "${INSTANCE_IDS[@]}" \
         --query 'Reservations[].Instances[].[InstanceId,State.Name,Tags[?Key==`Name`].Value|[0],Tags[?Key==`Owner`].Value|[0]]' \
         --output json 2>/dev/null)
     
@@ -256,23 +299,22 @@ verify_instances() {
     else
         log_warn "Failed to get instance details"
         # Fallback: show IDs only
-        printf '%s\n' "${instance_ids[@]}"
+        printf '%s\n' "${INSTANCE_IDS[@]}"
     fi
 }
 
 # Delete instances efficiently
 delete_instances() {
-    [[ -f "$INSTANCE_FILE" && -s "$INSTANCE_FILE" ]] || { log_warn "No instances to delete"; return 0; }
+    # Read all instance IDs using cross-platform function
+    if ! read_instance_ids || [[ ${#INSTANCE_IDS[@]} -eq 0 ]]; then
+        log_warn "No instances to delete or no valid instance IDs found"
+        return 0
+    fi
     
-    # Read and validate instance IDs
-    local instance_ids
-    mapfile -t instance_ids < <(grep -v '^[[:space:]]*$' "$INSTANCE_FILE")
-    [[ ${#instance_ids[@]} -gt 0 ]] || { log_warn "No valid instances found"; return 0; }
-    
-    log_info "Terminating ${#instance_ids[@]} instance(s)..."
+    log_info "Terminating ${#INSTANCE_IDS[@]} instance(s)..."
     
     # Batch terminate
-    if aws ec2 terminate-instances --instance-ids "${instance_ids[@]}" >/dev/null 2>&1; then
+    if aws ec2 terminate-instances --instance-ids "${INSTANCE_IDS[@]}" >/dev/null 2>&1; then
         rm -f "$INSTANCE_FILE" ".iam_ready"
         log_info "Terminated all instances and cleaned up"
     else
