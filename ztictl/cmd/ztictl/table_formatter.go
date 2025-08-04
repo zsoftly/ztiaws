@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 )
@@ -64,40 +65,18 @@ func (tf *TableFormatter) calculateColumnWidths() []int {
 	return widths
 }
 
+// ansiRegex is a compiled regex pattern for matching ANSI escape sequences
+// This comprehensive pattern matches:
+// - CSI sequences: ESC [ (parameters) (intermediate) (final)
+// - OSC sequences: ESC ] ... (terminated by BEL or ST)
+// - Simple escape sequences: ESC (letter)
+// - Private mode sequences: ESC [ ? (parameters) (final)
+// - Other control sequences and device control strings
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;?]*[a-zA-Z]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)|\x1b[a-zA-Z]|\x1b\([AB]|\x1b\)[0-9]*[a-zA-Z]|\x1b[=>]|\x1b[PX^_][^\x1b]*\x1b\\|\x1b\[[0-9;?]*[hlm]|\x1b\[[\d;]*[ABCDEFGJKSTX]|\x1b\[[\d;?]*[a-zA-Z]`)
+
 // stripAnsiCodes removes ANSI color codes from a string for accurate width calculation
 func stripAnsiCodes(s string) string {
-	// More robust ANSI escape sequence removal
-	result := s
-
-	// Remove ANSI CSI sequences (Control Sequence Introducer)
-	// Pattern: ESC [ followed by parameters and a final byte
-	for {
-		start := strings.Index(result, "\033[")
-		if start == -1 {
-			break
-		}
-
-		// Find the end of the sequence (letter that ends the sequence)
-		end := start + 2
-		for end < len(result) {
-			char := result[end]
-			// ANSI sequences end with a letter (A-Z, a-z) or certain symbols
-			if (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z') ||
-				char == 'm' || char == 'H' || char == 'J' || char == 'K' {
-				end++
-				break
-			}
-			end++
-		}
-
-		if end <= len(result) {
-			result = result[:start] + result[end:]
-		} else {
-			break
-		}
-	}
-
-	return result
+	return ansiRegex.ReplaceAllString(s, "")
 }
 
 // FormatHeader formats and returns the table header

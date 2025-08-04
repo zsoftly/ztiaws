@@ -93,7 +93,10 @@ func setupFileLogger() {
 	loggerMutex.Lock()
 	// Close previous file if it exists
 	if logFile != nil {
-		logFile.Close()
+		if err := logFile.Close(); err != nil {
+			// Log the error to stderr since we're setting up a new file logger
+			fmt.Fprintf(os.Stderr, "Warning: Error closing previous log file: %v\n", err)
+		}
 	}
 	logFile = file
 	fileLogger = log.New(file, "", 0) // No prefix, we'll add our own timestamp
@@ -107,7 +110,10 @@ func CloseLogger() {
 	defer loggerMutex.Unlock()
 
 	if logFile != nil {
-		logFile.Close()
+		if err := logFile.Close(); err != nil {
+			// Log the error to stderr since the file logger is being closed
+			fmt.Fprintf(os.Stderr, "Warning: Error closing log file: %v\n", err)
+		}
 		logFile = nil
 		fileLogger = nil
 	}

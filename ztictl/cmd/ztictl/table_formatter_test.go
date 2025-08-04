@@ -92,32 +92,84 @@ func TestTableFormatter(t *testing.T) {
 
 func TestStripAnsiCodes(t *testing.T) {
 	testCases := []struct {
+		name     string
 		input    string
 		expected string
 	}{
 		{
+			name:     "Basic color codes",
 			input:    "\033[32m✓ Online\033[0m",
 			expected: "✓ Online",
 		},
 		{
+			name:     "Warning color codes",
 			input:    "\033[33m⚠ Lost\033[0m",
 			expected: "⚠ Lost",
 		},
 		{
+			name:     "Error color codes",
 			input:    "\033[31m✗ No Agent\033[0m",
 			expected: "✗ No Agent",
 		},
 		{
+			name:     "Plain text without ANSI",
 			input:    "Plain text",
 			expected: "Plain text",
+		},
+		{
+			name:     "Multiple ANSI sequences",
+			input:    "\033[1m\033[32mBold Green\033[0m\033[31m Red\033[0m",
+			expected: "Bold Green Red",
+		},
+		{
+			name:     "Complex formatting",
+			input:    "\033[1;32;40mBold Green on Black\033[0m",
+			expected: "Bold Green on Black",
+		},
+		{
+			name:     "Cursor movement sequences",
+			input:    "\033[H\033[2JClear Screen\033[10;20HMove Cursor",
+			expected: "Clear ScreenMove Cursor",
+		},
+		{
+			name:     "OSC sequences (title setting)",
+			input:    "\033]0;Window Title\007Content",
+			expected: "Content",
+		},
+		{
+			name:     "Mixed control sequences",
+			input:    "\033[?25lHide\033[?25hShow\033[KClear line",
+			expected: "HideShowClear line",
+		},
+		{
+			name:     "256 color codes",
+			input:    "\033[38;5;196mRed Text\033[0m",
+			expected: "Red Text",
+		},
+		{
+			name:     "True color (RGB) codes",
+			input:    "\033[38;2;255;0;0mRGB Red\033[0m",
+			expected: "RGB Red",
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Only ANSI codes",
+			input:    "\033[31m\033[1m\033[0m",
+			expected: "",
 		},
 	}
 
 	for _, tc := range testCases {
-		result := stripAnsiCodes(tc.input)
-		if result != tc.expected {
-			t.Errorf("stripAnsiCodes(%q) = %q, expected %q", tc.input, result, tc.expected)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			result := stripAnsiCodes(tc.input)
+			if result != tc.expected {
+				t.Errorf("stripAnsiCodes(%q) = %q, expected %q", tc.input, result, tc.expected)
+			}
+		})
 	}
 }
 
@@ -142,5 +194,28 @@ func TestColumnWidthCalculation(t *testing.T) {
 	expectedWidth := len("very-very-long-content-that-exceeds-header")
 	if widths[0] != expectedWidth {
 		t.Errorf("Expected width %d, got %d", expectedWidth, widths[0])
+	}
+}
+
+// BenchmarkStripAnsiCodes benchmarks the ANSI stripping performance
+func BenchmarkStripAnsiCodes(b *testing.B) {
+	testString := "\033[1m\033[32mBold Green\033[0m \033[31mRed\033[0m \033[38;5;196m256 Color\033[0m \033[38;2;255;128;0mRGB\033[0m"
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		stripAnsiCodes(testString)
+	}
+}
+
+// TestStripAnsiCodesPerformance tests performance with various string lengths
+func TestStripAnsiCodesPerformance(t *testing.T) {
+	// Test with a long string containing many ANSI sequences
+	longString := strings.Repeat("\033[31mRed\033[0m \033[32mGreen\033[0m \033[33mYellow\033[0m ", 100)
+
+	result := stripAnsiCodes(longString)
+	expected := strings.Repeat("Red Green Yellow ", 100)
+
+	if result != expected {
+		t.Errorf("Performance test failed: expected length %d, got length %d", len(expected), len(result))
 	}
 }
