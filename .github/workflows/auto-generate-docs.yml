@@ -22,12 +22,14 @@ jobs:
       run: |
         VERSION=${GITHUB_REF#refs/heads/release/}
         echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extracted version: $VERSION"
         
     - name: Get latest release tag
       id: latest_tag
       run: |
         LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
         echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+        echo "Latest tag: ${LATEST_TAG:-'(none found)'}"
         
     - name: Generate release documentation
       run: |
@@ -51,5 +53,9 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add CHANGELOG.md RELEASE_NOTES.txt
-        git diff --staged --quiet || git commit -m "Auto-generate changelog and release notes for ${{ steps.version.outputs.version }}"
-        git push
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Auto-generate changelog and release notes for ${{ steps.version.outputs.version }}"
+          git push
+        fi

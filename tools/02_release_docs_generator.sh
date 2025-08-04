@@ -1,26 +1,16 @@
 #!/usr/bin/env bash
 
-# Release Documentation Generator
+# Release Documentation Generator - Simplified and Fixed
 # Generates CHANGELOG.md and RELEASE_NOTES.txt for releases
-# Repository: https://github.com/ZSoftly/ztiaws
 
-set -e  # Exit on any error
-
-# Source utility functions
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-source "$PROJECT_ROOT/src/00_utils.sh"
-
-# Initialize logging
-init_logging "release_docs_generator"
+set -e
 
 # Script configuration
-REPO_ROOT="${REPO_ROOT:-$PROJECT_ROOT}"
 VERSION=""
 LATEST_TAG=""
 FORCE_REGENERATE=false
+DEBUG_MODE=false
 
-# Usage information
 usage() {
     cat << EOF
 Usage: $0 [OPTIONS]
@@ -31,49 +21,43 @@ OPTIONS:
     -v, --version VERSION    Release version (required, format: v1.2.3 or 1.2.3)
     -t, --latest-tag TAG     Latest release tag for comparison (auto-detected if not provided)
     -f, --force             Force regeneration even if files exist
+    -d, --debug             Enable debug mode with verbose output
     -h, --help              Show this help message
 
 EXAMPLES:
     $0 --version v2.1.0
-    $0 --version 2.1.0 --latest-tag v2.0.5
-    $0 -v v2.1.0 -f
-
-ENVIRONMENT VARIABLES:
-    REPO_ROOT               Repository root directory (default: auto-detected)
-    LOG_DIR                 Directory for log files (default: \$HOME/logs)
+    $0 --version 2.1.0 --latest-tag v2.0.5 --debug
 
 EOF
+}
+
+debug_log() {
+    if [[ "$DEBUG_MODE" == true ]]; then
+        echo "[DEBUG] $*" >&2
+    fi
+}
+
+log_info() {
+    echo "[INFO] $*" >&2
+}
+
+log_error() {
+    echo "[ERROR] $*" >&2
 }
 
 # Parse command line arguments
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
-            -v|--version)
-                VERSION="$2"
-                shift 2
-                ;;
-            -t|--latest-tag)
-                LATEST_TAG="$2"
-                shift 2
-                ;;
-            -f|--force)
-                FORCE_REGENERATE=true
-                shift
-                ;;
-            -h|--help)
-                usage
-                exit 0
-                ;;
-            *)
-                log_error "Unknown option: $1"
-                usage
-                exit 1
-                ;;
+            -v|--version) VERSION="$2"; shift 2 ;;
+            -t|--latest-tag) LATEST_TAG="$2"; shift 2 ;;
+            -f|--force) FORCE_REGENERATE=true; shift ;;
+            -d|--debug) DEBUG_MODE=true; shift ;;
+            -h|--help) usage; exit 0 ;;
+            *) log_error "Unknown option: $1"; usage; exit 1 ;;
         esac
     done
 
-    # Validate required arguments
     if [[ -z "$VERSION" ]]; then
         log_error "Version is required. Use --version or -v to specify."
         usage
@@ -83,14 +67,10 @@ parse_args() {
 
 # Validate version format
 validate_version() {
-    log_info "Validating version format: $VERSION"
-    
     if [[ ! "$VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         log_error "Invalid version format: $VERSION"
-        log_error "Expected format: v1.2.3 or 1.2.3"
         exit 1
     fi
-    
     log_info "Version format is valid: $VERSION"
 }
 
@@ -101,23 +81,19 @@ get_latest_tag() {
         return
     fi
     
-    log_info "Auto-detecting latest release tag..."
-    
-    cd "$REPO_ROOT"
     LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
     
     if [[ -n "$LATEST_TAG" ]]; then
         log_info "Found latest tag: $LATEST_TAG"
+        debug_log "Tag date: $(git log -1 --format=%ai "$LATEST_TAG" 2>/dev/null || echo "unknown")"
     else
-        log_warn "No previous tags found - will include all commits"
+        log_info "No previous tags found - will include all commits"
     fi
 }
 
-# Get commits for changelog
-get_commits() {
+# Get all commits and generate both files
+generate_documentation() {
     local commit_range
-    
-    cd "$REPO_ROOT"
     
     if [[ -n "$LATEST_TAG" ]]; then
         commit_range="${LATEST_TAG}..HEAD"
@@ -125,233 +101,213 @@ get_commits() {
         commit_range="HEAD"
     fi
     
-    # Get commits with proper error handling and log to stderr to avoid capture
-    log_info "Getting commits for changelog generation..." >&2
-    log_info "Using commit range: $commit_range" >&2
+    log_info "Getting commits using range: $commit_range"
     
-    local commits
-    commits=$(git log --pretty=format:"%s" --no-merges "$commit_range" 2>/dev/null || echo "")
+    # Get raw commits and save to temporary file for processing
+    local commits_file
+    commits_file=$(mktemp)
     
-    if [[ -z "$commits" ]]; then
-        log_warn "No commits found since last tag" >&2
-        echo "No notable changes"
-    else
-        # Filter out automated commits, color codes, and log patterns
-        commits=$(echo "$commits" | grep -v -E "(Auto-generate changelog|Restore RELEASE_NOTES|Restore CHANGELOG|\[0;[0-9]+m|\[INFO\]|\[WARN\]|\[ERROR\]|\[DEBUG\])" || echo "")
-        
-        # Remove any remaining ANSI color codes
-        commits=$(echo "$commits" | sed 's/\x1b\[[0-9;]*m//g' || echo "")
-        
-        if [[ -z "$commits" ]]; then
-            echo "No notable changes"
-        else
-            echo "$commits"
-        fi
+    git log --pretty=format:"%s" --no-merges "$commit_range" 2>/dev/null > "$commits_file" || {
+        log_error "Failed to get git log"
+        rm -f "$commits_file"
+        exit 1
+    }
+    
+    local total_commits
+    total_commits=$(wc -l < "$commits_file")
+    debug_log "Total raw commits: $total_commits"
+    
+    if [[ $total_commits -eq 0 ]]; then
+        log_info "No commits found"
+        rm -f "$commits_file"
+        return
     fi
-}
-
-# Categorize commits based on conventional commit patterns
-categorize_commits() {
-    local commits="$1"
-    local features=""
-    local fixes=""
-    local other=""
     
-    log_info "Categorizing commits using conventional commit patterns..."
+    # Filter out automation commits
+    local filtered_file
+    filtered_file=$(mktemp)
     
-    # Process commits line by line safely
+    grep -v -E "^(Auto-generate changelog|Restore RELEASE_NOTES|Restore CHANGELOG|Merge (branch|pull request))" "$commits_file" > "$filtered_file" || cp "$commits_file" "$filtered_file"
+    
+    local filtered_commits
+    filtered_commits=$(wc -l < "$filtered_file")
+    debug_log "Commits after filtering: $filtered_commits"
+    
+    if [[ $filtered_commits -eq 0 ]]; then
+        log_info "No notable changes after filtering"
+        rm -f "$commits_file" "$filtered_file"
+        return
+    fi
+    
+    # Show first few commits for debugging
+    if [[ "$DEBUG_MODE" == true ]]; then
+        debug_log "First 10 filtered commits:"
+        head -10 "$filtered_file" | nl >&2
+    fi
+    
+    # Create temporary files for each category
+    local features_file fixes_file other_file
+    features_file=$(mktemp)
+    fixes_file=$(mktemp)
+    other_file=$(mktemp)
+    
+    # Categorize commits
     while IFS= read -r commit; do
-        if [[ -z "$commit" ]]; then
-            continue
-        fi
+        [[ -z "$commit" ]] && continue
         
-        # Escape commit message for safe processing
-        commit=$(echo "$commit" | sed 's/["`$\\]/\\&/g')
+        debug_log "Processing: $commit"
         
-        # Improved regex patterns for conventional commits
-        if [[ "$commit" =~ ^(feat|feature|add)(\(.*\))?:?.* ]]; then
-            features="${features}- ${commit}"$'\n'
-        elif [[ "$commit" =~ ^(fix|bug|hotfix)(\(.*\))?:?.* ]]; then
-            fixes="${fixes}- ${commit}"$'\n'
+        if [[ "$commit" =~ ^(feat|feature)(\(.*\))?:?.* ]] || [[ "$commit" =~ ^(Enhance|Add|Implement|Create) ]]; then
+            echo "$commit" >> "$features_file"
+            debug_log "  -> FEATURE"
+        elif [[ "$commit" =~ ^(fix|bug|hotfix)(\(.*\))?:?.* ]] || [[ "$commit" =~ (fix|bug|resolve|correct) ]]; then
+            echo "$commit" >> "$fixes_file"
+            debug_log "  -> FIX"
         else
-            other="${other}- ${commit}"$'\n'
+            echo "$commit" >> "$other_file"
+            debug_log "  -> OTHER"
         fi
-    done <<< "$commits"
+    done < "$filtered_file"
     
-    # Return categorized commits as associative array-like output
-    echo "FEATURES|$features"
-    echo "FIXES|$fixes"
-    echo "OTHER|$other"
+    local feature_count fix_count other_count
+    feature_count=$(wc -l < "$features_file")
+    fix_count=$(wc -l < "$fixes_file")
+    other_count=$(wc -l < "$other_file")
+    
+    debug_log "Final counts: Features=$feature_count, Fixes=$fix_count, Other=$other_count"
+    
+    # Generate CHANGELOG.md
+    generate_changelog "$features_file" "$fixes_file" "$other_file"
+    
+    # Generate RELEASE_NOTES.txt
+    generate_release_notes "$features_file" "$fixes_file" "$other_file"
+    
+    # Cleanup
+    rm -f "$commits_file" "$filtered_file" "$features_file" "$fixes_file" "$other_file"
 }
 
-# Generate CHANGELOG.md
 generate_changelog() {
-    log_info "Generating CHANGELOG.md for $VERSION..."
+    local features_file="$1"
+    local fixes_file="$2"
+    local other_file="$3"
     
-    cd "$REPO_ROOT"
+    log_info "Generating CHANGELOG.md..."
     
-    # Get and categorize commits
-    local commits
-    commits=$(get_commits)
-    
-    local categorized
-    categorized=$(categorize_commits "$commits")
-    
-    # Parse categorized output
-    local features="" fixes="" other=""
-    while IFS='|' read -r category content; do
-        case "$category" in
-            FEATURES) features="$content" ;;
-            FIXES) fixes="$content" ;;
-            OTHER) other="$content" ;;
-        esac
-    done <<< "$categorized"
-    
-    # Build new version entry
-    local new_version="## [$VERSION] - $(date +%Y-%m-%d)"
-    
-    # Create temp file with proper error handling
     local temp_entry
-    temp_entry=$(mktemp) || {
-        log_error "Failed to create temp file"
-        exit 1
-    }
+    temp_entry=$(mktemp)
     
-    echo "$new_version" > "$temp_entry"
+    echo "## [$VERSION] - $(date +%Y-%m-%d)" > "$temp_entry"
     echo "" >> "$temp_entry"
     
-    # Add categorized sections only if they have content
-    if [[ -n "$features" ]]; then
-        log_debug "Adding features section to changelog"
+    # Add features section
+    if [[ -s "$features_file" ]]; then
         echo "### Added" >> "$temp_entry"
-        echo -e "$features" >> "$temp_entry"
+        while IFS= read -r commit; do
+            echo "- $commit" >> "$temp_entry"
+        done < "$features_file"
+        echo "" >> "$temp_entry"
+        debug_log "Added $(wc -l < "$features_file") features to changelog"
     fi
     
-    if [[ -n "$fixes" ]]; then
-        log_debug "Adding fixes section to changelog"
+    # Add fixes section
+    if [[ -s "$fixes_file" ]]; then
         echo "### Fixed" >> "$temp_entry"
-        echo -e "$fixes" >> "$temp_entry"
+        while IFS= read -r commit; do
+            echo "- $commit" >> "$temp_entry"
+        done < "$fixes_file"
+        echo "" >> "$temp_entry"
+        debug_log "Added $(wc -l < "$fixes_file") fixes to changelog"
     fi
     
-    if [[ -n "$other" ]]; then
-        log_debug "Adding other changes section to changelog"
+    # Add other changes section
+    if [[ -s "$other_file" ]]; then
         echo "### Changed" >> "$temp_entry"
-        echo -e "$other" >> "$temp_entry"
+        while IFS= read -r commit; do
+            echo "- $commit" >> "$temp_entry"
+        done < "$other_file"
+        echo "" >> "$temp_entry"
+        debug_log "Added $(wc -l < "$other_file") other changes to changelog"
     fi
     
-    echo "" >> "$temp_entry"
-    
-    # Safely update CHANGELOG.md
-    local temp_changelog
-    temp_changelog=$(mktemp) || {
-        log_error "Failed to create temp changelog"
-        exit 1
-    }
-    
+    # Update CHANGELOG.md
     if [[ -f CHANGELOG.md ]]; then
-        log_info "Updating existing CHANGELOG.md"
-        # Insert after first line (# Changelog)
+        local temp_changelog
+        temp_changelog=$(mktemp)
         head -n 1 CHANGELOG.md > "$temp_changelog"
         echo "" >> "$temp_changelog"
         cat "$temp_entry" >> "$temp_changelog"
         tail -n +2 CHANGELOG.md >> "$temp_changelog"
+        mv "$temp_changelog" CHANGELOG.md
+        log_info "Updated existing CHANGELOG.md"
     else
-        log_info "Creating new CHANGELOG.md"
-        echo "# Changelog" > "$temp_changelog"
-        echo "" >> "$temp_changelog"
-        cat "$temp_entry" >> "$temp_changelog"
+        echo "# Changelog" > CHANGELOG.md
+        echo "" >> CHANGELOG.md
+        cat "$temp_entry" >> CHANGELOG.md
+        log_info "Created new CHANGELOG.md"
     fi
     
-    # Atomic update
-    mv "$temp_changelog" CHANGELOG.md || {
-        log_error "Failed to update CHANGELOG.md"
-        exit 1
-    }
-    
-    # Cleanup
     rm -f "$temp_entry"
-    
-    log_info "CHANGELOG.md updated successfully"
 }
 
-# Generate RELEASE_NOTES.txt
 generate_release_notes() {
-    log_info "Generating RELEASE_NOTES.txt for $VERSION..."
+    local features_file="$1"
+    local fixes_file="$2"
+    local other_file="$3"
     
-    cd "$REPO_ROOT"
+    log_info "Generating RELEASE_NOTES.txt..."
     
-    # Get repository info for GitHub links
+    # Get GitHub repo info
     local repo_url
     repo_url=$(git config --get remote.origin.url 2>/dev/null || echo "")
     local github_repo=""
     
     if [[ "$repo_url" =~ github\.com[:/]([^/]+/[^/]+)(\.git)?$ ]]; then
-        github_repo="${BASH_REMATCH[1]}"
-        github_repo="${github_repo%.git}"  # Remove .git suffix if present
-        log_debug "Detected GitHub repository: $github_repo"
+        github_repo="${BASH_REMATCH[1]%.git}"
     fi
     
     # Create release notes header
     cat > RELEASE_NOTES.txt << EOF
 # ztictl $VERSION Release Notes
 
+**Installation:** [Installation Guide](https://github.com/${github_repo:-your-org/your-repo}/blob/release/$VERSION/INSTALLATION.md)
+
+**Release Date:** $(date '+%B %d, %Y')
+
 EOF
     
-    # Add installation link if GitHub repo detected
-    if [[ -n "$github_repo" ]]; then
-        echo "**Installation:** [Installation Guide](https://github.com/$github_repo/blob/release/$VERSION/INSTALLATION.md)" >> RELEASE_NOTES.txt
+    # Add features section
+    echo "## 🚀 New Features" >> RELEASE_NOTES.txt
+    if [[ -s "$features_file" ]]; then
+        while IFS= read -r commit; do
+            echo "• $commit" >> RELEASE_NOTES.txt
+        done < "$features_file"
+        debug_log "Added $(wc -l < "$features_file") features to release notes"
     else
-        echo "**Installation:** See INSTALLATION.md in the repository" >> RELEASE_NOTES.txt
+        echo "• No new features in this release" >> RELEASE_NOTES.txt
     fi
-    
-    echo "" >> RELEASE_NOTES.txt
-    echo "**Release Date:** $(date '+%B %d, %Y')" >> RELEASE_NOTES.txt
     echo "" >> RELEASE_NOTES.txt
     
-    # Get and categorize commits
-    local commits
-    commits=$(get_commits)
-    
-    if [[ "$commits" == "No notable changes" ]]; then
-        echo "## 📝 Changes" >> RELEASE_NOTES.txt
-        echo "• No notable changes since last release" >> RELEASE_NOTES.txt
+    # Add fixes section
+    echo "## 🐛 Bug Fixes" >> RELEASE_NOTES.txt
+    if [[ -s "$fixes_file" ]]; then
+        while IFS= read -r commit; do
+            echo "• $commit" >> RELEASE_NOTES.txt
+        done < "$fixes_file"
+        debug_log "Added $(wc -l < "$fixes_file") fixes to release notes"
     else
-        local categorized
-        categorized=$(categorize_commits "$commits")
-        
-        # Parse categorized output for release notes format
-        local features="" fixes="" other=""
-        while IFS='|' read -r category content; do
-            case "$category" in
-                FEATURES) features="$content" ;;
-                FIXES) fixes="$content" ;;
-                OTHER) other="$content" ;;
-            esac
-        done <<< "$categorized"
-        
-        # Convert to bullet points for release notes
-        features=$(echo "$features" | sed 's/^- /• /')
-        fixes=$(echo "$fixes" | sed 's/^- /• /')
-        other=$(echo "$other" | sed 's/^- /• /')
-        
-        # Add sections with emojis only if they have content
-        if [[ -n "$features" ]]; then
-            log_debug "Adding features section to release notes"
-            echo "## 🚀 New Features" >> RELEASE_NOTES.txt
-            echo -e "$features" >> RELEASE_NOTES.txt
-        fi
-        
-        if [[ -n "$fixes" ]]; then
-            log_debug "Adding fixes section to release notes"
-            echo "## 🐛 Bug Fixes" >> RELEASE_NOTES.txt
-            echo -e "$fixes" >> RELEASE_NOTES.txt
-        fi
-        
-        if [[ -n "$other" ]]; then
-            log_debug "Adding other changes section to release notes"
-            echo "## 📝 Other Changes" >> RELEASE_NOTES.txt
-            echo -e "$other" >> RELEASE_NOTES.txt
-        fi
+        echo "• No bug fixes in this release" >> RELEASE_NOTES.txt
+    fi
+    echo "" >> RELEASE_NOTES.txt
+    
+    # Add other changes section
+    echo "## 📝 Other Changes" >> RELEASE_NOTES.txt
+    if [[ -s "$other_file" ]]; then
+        while IFS= read -r commit; do
+            echo "• $commit" >> RELEASE_NOTES.txt
+        done < "$other_file"
+        debug_log "Added $(wc -l < "$other_file") other changes to release notes"
+    else
+        echo "• No other changes in this release" >> RELEASE_NOTES.txt
     fi
     
     log_info "RELEASE_NOTES.txt generated successfully"
@@ -359,22 +315,13 @@ EOF
 
 # Check if files already exist
 check_existing_files() {
-    local files_exist=false
-    
-    cd "$REPO_ROOT"
-    
-    if [[ -f CHANGELOG.md ]] && ! $FORCE_REGENERATE; then
-        log_warn "CHANGELOG.md already exists. Use --force to regenerate."
-        files_exist=true
+    if [[ -f CHANGELOG.md ]] && [[ "$FORCE_REGENERATE" != true ]]; then
+        log_error "CHANGELOG.md already exists. Use --force to regenerate."
+        exit 1
     fi
     
-    if [[ -f RELEASE_NOTES.txt ]] && ! $FORCE_REGENERATE; then
-        log_warn "RELEASE_NOTES.txt already exists. Use --force to regenerate."
-        files_exist=true
-    fi
-    
-    if $files_exist; then
-        log_error "Files already exist. Use --force flag to overwrite."
+    if [[ -f RELEASE_NOTES.txt ]] && [[ "$FORCE_REGENERATE" != true ]]; then
+        log_error "RELEASE_NOTES.txt already exists. Use --force to regenerate."
         exit 1
     fi
 }
@@ -382,19 +329,16 @@ check_existing_files() {
 # Main execution
 main() {
     log_info "Starting release documentation generation"
-    log_info "Repository root: $REPO_ROOT"
     
     parse_args "$@"
     validate_version
     get_latest_tag
     check_existing_files
     
-    generate_changelog
-    generate_release_notes
+    generate_documentation
     
     log_info "Release documentation generation completed successfully!"
-    log_completion
 }
 
-# Execute main function with all arguments
+# Execute main function
 main "$@"
