@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"ztictl/internal/ssm"
 	"ztictl/pkg/colors"
@@ -52,17 +51,33 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 			return
 		}
 
-		fmt.Printf("\n")
-		colors.PrintHeader("All EC2 Instances in %s:\n", region)
-		colors.PrintHeader("=====================================\n")
-		colors.PrintHeader("%-20s %-19s %-15s %-10s %-15s %s\n", "Name", "Instance ID", "IP Address", "State", "SSM Status", "Platform")
-		colors.PrintHeader("%s\n", strings.Repeat("-", 100))
+		// Prepare data for dynamic table formatting
+		formatter := NewTableFormatter(2) // 2 spaces between columns
 
-		for _, instance := range instances {
+		// Prepare column data
+		names := make([]string, len(instances))
+		instanceIDs := make([]string, len(instances))
+		ipAddresses := make([]string, len(instances))
+		states := make([]string, len(instances))
+		ssmStatuses := make([]string, len(instances))
+		platforms := make([]string, len(instances))
+
+		for i, instance := range instances {
+			// Name
 			name := instance.Name
 			if name == "" {
 				name = "N/A"
 			}
+			names[i] = name
+
+			// Instance ID
+			instanceIDs[i] = instance.InstanceID
+
+			// IP Address
+			ipAddresses[i] = instance.PrivateIPAddress
+
+			// State
+			states[i] = instance.State
 
 			// Format SSM status with color indicators
 			var ssmStatus string
@@ -80,11 +95,34 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 					ssmStatus = colors.ColorWarning("? %s", instance.SSMStatus)
 				}
 			}
+			ssmStatuses[i] = ssmStatus
 
-			colors.Data.Printf("%-20s %-19s %-15s %-10s ", name, instance.InstanceID, instance.PrivateIPAddress, instance.State)
-			fmt.Printf("%-15s ", ssmStatus)
-			colors.Data.Printf("%s\n", instance.Platform)
+			// Platform
+			platforms[i] = instance.Platform
 		}
+
+		// Add columns to formatter
+		formatter.AddColumn("Name", names, 8)
+		formatter.AddColumn("Instance ID", instanceIDs, 12)
+		formatter.AddColumn("IP Address", ipAddresses, 10)
+		formatter.AddColumn("State", states, 8)
+		formatter.AddColumn("SSM Status", ssmStatuses, 10)
+		formatter.AddColumn("Platform", platforms, 8)
+
+		fmt.Printf("\n")
+		colors.PrintHeader("All EC2 Instances in %s:\n", region)
+		colors.PrintHeader("=====================================\n")
+
+		// Print formatted header
+		headerStr := formatter.FormatHeader()
+		colors.PrintHeader("%s\n", headerStr)
+
+		// Print formatted rows
+		for i := 0; i < formatter.GetRowCount(); i++ {
+			rowStr := formatter.FormatRow(i)
+			fmt.Printf("%s\n", rowStr)
+		}
+
 		fmt.Printf("\n")
 		colors.PrintData("Total: %d instances\n", len(instances))
 		fmt.Printf("Note: Only instances with %s SSM status can be connected to via SSM\n", colors.ColorSuccess("'✓ Online'"))
