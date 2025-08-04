@@ -31,6 +31,11 @@ const (
 	// SSO authentication timeout constraints
 	MinTimeoutSeconds = 60  // 1 minute minimum for user interaction
 	MaxTimeoutSeconds = 180 // 3 minute maximum for security
+
+	// Column formatting constants
+	MinColumnWidth = 12
+	MaxColumnWidth = 40
+	ColumnPadding  = 2
 )
 
 // Manager handles AWS SSO authentication operations
@@ -100,6 +105,170 @@ func NewManagerWithLogger(logger *logging.Logger) *Manager {
 	return &Manager{
 		logger: logger,
 	}
+}
+
+// Helper functions for dynamic column formatting
+
+// wrapText wraps text to fit within a specified width
+func wrapText(text string, width int) []string {
+	if len(text) <= width {
+		return []string{text}
+	}
+
+	var lines []string
+	words := strings.Fields(text)
+	var currentLine strings.Builder
+
+	for _, word := range words {
+		// If adding this word would exceed width, start a new line
+		if currentLine.Len() > 0 && currentLine.Len()+1+len(word) > width {
+			lines = append(lines, currentLine.String())
+			currentLine.Reset()
+		}
+
+		if currentLine.Len() > 0 {
+			currentLine.WriteString(" ")
+		}
+		currentLine.WriteString(word)
+	}
+
+	if currentLine.Len() > 0 {
+		lines = append(lines, currentLine.String())
+	}
+
+	return lines
+}
+
+// calculateOptimalWidths calculates optimal column widths based on content
+func calculateOptimalWidths(accounts []Account) (int, int, int) {
+	maxIDWidth := MinColumnWidth
+	maxNameWidth := MinColumnWidth
+	maxEmailWidth := MinColumnWidth
+
+	// Find maximum widths
+	for _, account := range accounts {
+		if len(account.AccountID) > maxIDWidth {
+			maxIDWidth = len(account.AccountID)
+		}
+		if len(account.AccountName) > maxNameWidth {
+			maxNameWidth = len(account.AccountName)
+		}
+		if len(account.EmailAddress) > maxEmailWidth {
+			maxEmailWidth = len(account.EmailAddress)
+		}
+	}
+
+	// Apply constraints and padding
+	if maxIDWidth > MaxColumnWidth {
+		maxIDWidth = MaxColumnWidth
+	}
+	if maxNameWidth > MaxColumnWidth {
+		maxNameWidth = MaxColumnWidth
+	}
+	if maxEmailWidth > MaxColumnWidth {
+		maxEmailWidth = MaxColumnWidth
+	}
+
+	return maxIDWidth + ColumnPadding, maxNameWidth + ColumnPadding, maxEmailWidth + ColumnPadding
+}
+
+// formatAccountRow formats an account into a multi-line display with equal column spacing
+func formatAccountRow(account Account, idWidth, nameWidth, emailWidth int) string {
+	// Wrap text for each column
+	idLines := wrapText(account.AccountID, idWidth-ColumnPadding)
+	nameLines := wrapText(account.AccountName, nameWidth-ColumnPadding)
+	emailLines := wrapText(account.EmailAddress, emailWidth-ColumnPadding)
+
+	// Find the maximum number of lines needed
+	maxLines := len(idLines)
+	if len(nameLines) > maxLines {
+		maxLines = len(nameLines)
+	}
+	if len(emailLines) > maxLines {
+		maxLines = len(emailLines)
+	}
+
+	// Pad all slices to the same length
+	for len(idLines) < maxLines {
+		idLines = append(idLines, "")
+	}
+	for len(nameLines) < maxLines {
+		nameLines = append(nameLines, "")
+	}
+	for len(emailLines) < maxLines {
+		emailLines = append(emailLines, "")
+	}
+
+	// Build the formatted string
+	var result strings.Builder
+	for i := 0; i < maxLines; i++ {
+		if i > 0 {
+			result.WriteString("\n")
+		}
+		result.WriteString(fmt.Sprintf("%-*s%-*s%s",
+			idWidth, idLines[i],
+			nameWidth, nameLines[i],
+			emailLines[i]))
+	}
+
+	return result.String()
+}
+
+// calculateOptimalRoleWidths calculates optimal column widths for roles
+func calculateOptimalRoleWidths(roles []Role, account *Account) (int, int) {
+	maxRoleWidth := MinColumnWidth
+	accountInfo := fmt.Sprintf("Account: %s (%s)", account.AccountName, account.AccountID)
+	accountInfoWidth := len(accountInfo)
+
+	// Find maximum role width
+	for _, role := range roles {
+		if len(role.RoleName) > maxRoleWidth {
+			maxRoleWidth = len(role.RoleName)
+		}
+	}
+
+	// Apply constraints and padding
+	if maxRoleWidth > MaxColumnWidth {
+		maxRoleWidth = MaxColumnWidth
+	}
+
+	return maxRoleWidth + ColumnPadding, accountInfoWidth + ColumnPadding
+}
+
+// formatRoleRow formats a role into a multi-line display with equal column spacing
+func formatRoleRow(role Role, account *Account, roleWidth, accountWidth int) string {
+	accountInfo := fmt.Sprintf("Account: %s (%s)", account.AccountName, account.AccountID)
+
+	// Wrap text for each column
+	roleLines := wrapText(role.RoleName, roleWidth-ColumnPadding)
+	accountLines := wrapText(accountInfo, accountWidth-ColumnPadding)
+
+	// Find the maximum number of lines needed
+	maxLines := len(roleLines)
+	if len(accountLines) > maxLines {
+		maxLines = len(accountLines)
+	}
+
+	// Pad all slices to the same length
+	for len(roleLines) < maxLines {
+		roleLines = append(roleLines, "")
+	}
+	for len(accountLines) < maxLines {
+		accountLines = append(accountLines, "")
+	}
+
+	// Build the formatted string
+	var result strings.Builder
+	for i := 0; i < maxLines; i++ {
+		if i > 0 {
+			result.WriteString("\n")
+		}
+		result.WriteString(fmt.Sprintf("%-*s%s",
+			roleWidth, roleLines[i],
+			accountLines[i]))
+	}
+
+	return result.String()
 }
 
 // getAWSConfigDir returns the AWS configuration directory path
@@ -578,7 +747,7 @@ func (m *Manager) listAccounts(ctx context.Context, accessToken string) ([]Accou
 	return accounts, nil
 }
 
-// selectAccount provides interactive account selection using fzf
+// selectAccount provides interactive account selection with fuzzy finder for search capability
 func (m *Manager) selectAccount(accounts []Account) (*Account, error) {
 	if len(accounts) == 0 {
 		return nil, fmt.Errorf("no accounts available")
@@ -588,17 +757,86 @@ func (m *Manager) selectAccount(accounts []Account) (*Account, error) {
 		return &accounts[0], nil
 	}
 
-	// Prepare items for fzf
-	idx, err := fuzzyfinder.Find(accounts, func(i int) string {
-		return fmt.Sprintf("%s | %s", accounts[i].AccountID, accounts[i].AccountName)
-	}, fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-		return fmt.Sprintf("Account ID: %s\nName: %s\nEmail: %s",
-			accounts[i].AccountID, accounts[i].AccountName, accounts[i].EmailAddress)
-	}))
+	// Always use fuzzy finder for multiple accounts to enable search functionality
+	// This provides consistent search experience regardless of account count
+	return m.selectAccountFuzzy(accounts)
+}
+
+// selectAccountFuzzy uses fuzzy finder for account selection with full search capabilities
+func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
+	// Calculate optimal column widths for all accounts
+	idWidth, nameWidth, emailWidth := calculateOptimalWidths(accounts)
+
+	// Create header row
+	headerRow := fmt.Sprintf("%-*s%-*s%s",
+		idWidth, "Account ID",
+		nameWidth, "Account Name",
+		"Email Address")
+
+	// Create separator row
+	separatorRow := fmt.Sprintf("%-*s%-*s%s",
+		idWidth, strings.Repeat("-", idWidth-ColumnPadding),
+		nameWidth, strings.Repeat("-", nameWidth-ColumnPadding),
+		strings.Repeat("-", emailWidth-ColumnPadding))
+
+	// Prepare display items (header + separator + accounts)
+	displayItems := make([]interface{}, len(accounts)+2)
+	displayItems[0] = "HEADER"
+	displayItems[1] = "SEPARATOR"
+	for i, account := range accounts {
+		displayItems[i+2] = account
+	}
+
+	idx, err := fuzzyfinder.Find(displayItems,
+		func(i int) string {
+			if i == 0 {
+				// Header row
+				return headerRow
+			} else if i == 1 {
+				// Separator row
+				return separatorRow
+			} else {
+				// Account data
+				account := displayItems[i].(Account)
+				return formatAccountRow(account, idWidth, nameWidth, emailWidth)
+			}
+		},
+		fuzzyfinder.WithPromptString("🔍 "),
+		fuzzyfinder.WithHeader(fmt.Sprintf("Select AWS Account (%d available)", len(accounts))),
+	)
+
+	// Adjust index since we added header and separator
+	if idx < 2 {
+		// User selected header or separator, treat as cancellation
+		color.New(color.FgRed).Printf("❌ Invalid selection\n")
+		return nil, fmt.Errorf("invalid selection")
+	}
+
+	actualIdx := idx - 2
 
 	if err != nil {
-		return nil, fmt.Errorf("account selection cancelled: %w", err)
+		if err.Error() == "abort" {
+			color.New(color.FgRed).Printf("❌ Account selection cancelled\n")
+			return nil, fmt.Errorf("account selection cancelled")
+		}
+		return nil, fmt.Errorf("account selection failed: %w", err)
 	}
+
+	// Display selection confirmation
+	color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s (%s)\n", accounts[actualIdx].AccountName, accounts[actualIdx].AccountID)
+
+	return &accounts[actualIdx], nil
+
+	if err != nil {
+		if err.Error() == "abort" {
+			color.New(color.FgRed).Printf("❌ Account selection cancelled\n")
+			return nil, fmt.Errorf("account selection cancelled")
+		}
+		return nil, fmt.Errorf("account selection failed: %w", err)
+	}
+
+	// Display selection confirmation
+	color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s (%s)\n", accounts[idx].AccountName, accounts[idx].AccountID)
 
 	return &accounts[idx], nil
 }
@@ -635,7 +873,7 @@ func (m *Manager) listAccountRoles(ctx context.Context, accessToken, accountID s
 	return roles, nil
 }
 
-// selectRole provides interactive role selection
+// selectRole provides interactive role selection with fuzzy finder for search capability
 func (m *Manager) selectRole(roles []Role, account *Account) (*Role, error) {
 	if len(roles) == 0 {
 		return nil, fmt.Errorf("no roles available for account %s", account.AccountID)
@@ -645,19 +883,74 @@ func (m *Manager) selectRole(roles []Role, account *Account) (*Role, error) {
 		return &roles[0], nil
 	}
 
-	// Prepare items for fzf
-	idx, err := fuzzyfinder.Find(roles, func(i int) string {
-		return roles[i].RoleName
-	}, fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-		return fmt.Sprintf("Role: %s\nAccount: %s\nAccount ID: %s",
-			roles[i].RoleName, account.AccountName, account.AccountID)
-	}))
+	// Always use fuzzy finder for multiple roles to enable search functionality
+	// This provides consistent search experience regardless of role count
+	return m.selectRoleFuzzy(roles, account)
+}
 
-	if err != nil {
-		return nil, fmt.Errorf("role selection cancelled: %w", err)
+// selectRoleFuzzy uses fuzzy finder for role selection with full search capabilities
+func (m *Manager) selectRoleFuzzy(roles []Role, account *Account) (*Role, error) {
+	// Calculate optimal column widths for roles and account info
+	roleWidth, accountWidth := calculateOptimalRoleWidths(roles, account)
+
+	// Create header row
+	headerRow := fmt.Sprintf("%-*s%s",
+		roleWidth, "Role Name",
+		"Account Information")
+
+	// Create separator row
+	separatorRow := fmt.Sprintf("%-*s%s",
+		roleWidth, strings.Repeat("-", roleWidth-ColumnPadding),
+		strings.Repeat("-", accountWidth-ColumnPadding))
+
+	// Prepare display items (header + separator + roles)
+	displayItems := make([]interface{}, len(roles)+2)
+	displayItems[0] = "HEADER"
+	displayItems[1] = "SEPARATOR"
+	for i, role := range roles {
+		displayItems[i+2] = role
 	}
 
-	return &roles[idx], nil
+	idx, err := fuzzyfinder.Find(displayItems,
+		func(i int) string {
+			if i == 0 {
+				// Header row
+				return headerRow
+			} else if i == 1 {
+				// Separator row
+				return separatorRow
+			} else {
+				// Role data
+				role := displayItems[i].(Role)
+				return formatRoleRow(role, account, roleWidth, accountWidth)
+			}
+		},
+		fuzzyfinder.WithPromptString("🎭 "),
+		fuzzyfinder.WithHeader(fmt.Sprintf("Select Role for %s (%d available)",
+			account.AccountName, len(roles))),
+	)
+
+	// Adjust index since we added header and separator
+	if idx < 2 {
+		// User selected header or separator, treat as cancellation
+		color.New(color.FgRed).Printf("❌ Invalid selection\n")
+		return nil, fmt.Errorf("invalid selection")
+	}
+
+	actualIdx := idx - 2
+
+	if err != nil {
+		if err.Error() == "abort" {
+			color.New(color.FgRed).Printf("❌ Role selection cancelled\n")
+			return nil, fmt.Errorf("role selection cancelled")
+		}
+		return nil, fmt.Errorf("role selection failed: %w", err)
+	}
+
+	// Display selection confirmation
+	color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s\n", roles[actualIdx].RoleName)
+
+	return &roles[actualIdx], nil
 }
 
 // updateProfileWithSelection updates the AWS profile with selected account and role

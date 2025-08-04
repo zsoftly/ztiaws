@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"strings"
 
 	"ztictl/internal/auth"
 	"ztictl/internal/config"
@@ -22,7 +21,7 @@ var authCmd = &cobra.Command{
 	Long: `Manage AWS SSO authentication including login, logout, profile management, and credential display.
 
 Examples:
-  ztictl auth login [profile]           # Interactive SSO login
+  ztictl auth login [profile]           # SSO login (profile required)
   ztictl auth logout [profile]          # SSO logout  
   ztictl auth profiles                  # List/manage profiles
   ztictl auth creds [profile]           # Show credentials`,
@@ -33,35 +32,10 @@ var authLoginCmd = &cobra.Command{
 	Use:   "login [profile]",
 	Short: "Login to AWS SSO",
 	Long: `Login to AWS SSO with interactive account and role selection.
-It is recommended to always specify a profile name to avoid confusion.
-If no profile is specified, you will be prompted to confirm using the default profile.`,
-	Args: cobra.MaximumNArgs(1),
+A profile name must be specified to ensure intentional credential management.`,
+	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		cfg := config.Get()
-
-		var profileName string
-		if len(args) > 0 {
-			profileName = args[0]
-		} else {
-			profileName = cfg.SSO.DefaultProfile
-			if profileName == "" {
-				logging.LogError("No profile specified and no default profile configured")
-				logging.LogWarn("Usage: ztictl auth login <profile-name>")
-				os.Exit(1)
-			}
-
-			// Prompt user to confirm using default profile (like bash version)
-			logging.LogWarn("No profile specified. Using default: %s", profileName)
-			colors.PrintData("Proceed with default profile? (y/n): ")
-
-			var response string
-			fmt.Scanln(&response)
-
-			if strings.ToLower(strings.TrimSpace(response)) != "y" && strings.ToLower(strings.TrimSpace(response)) != "yes" {
-				logging.LogWarn("Please run: ztictl auth login <profile-name>")
-				os.Exit(0)
-			}
-		}
+		profileName := args[0]
 
 		authManager := auth.NewManager()
 		ctx := context.Background()
