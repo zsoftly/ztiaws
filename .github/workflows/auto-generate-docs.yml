@@ -97,7 +97,9 @@ jobs:
     - name: Generate RELEASE_NOTES.txt
       run: |
         # OVERWRITE release notes (current release only, not cumulative)
-        echo "# Release Notes - ${{ steps.version.outputs.version }}" > RELEASE_NOTES.txt
+        echo "# ztictl ${{ steps.version.outputs.version }} Release Notes" > RELEASE_NOTES.txt
+        echo "" >> RELEASE_NOTES.txt
+        echo "**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/${{ github.ref_name }}/INSTALLATION.md)" >> RELEASE_NOTES.txt
         echo "" >> RELEASE_NOTES.txt
         echo "**Release Date:** $(date '+%B %d, %Y')" >> RELEASE_NOTES.txt
         echo "" >> RELEASE_NOTES.txt
