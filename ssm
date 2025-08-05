@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 # AWS SSM Session Manager Helper Script
-# Version: 1.3.0
 # Repository: https://github.com/ZSoftly/ztiaws
 
 set -e  # Exit on error
@@ -55,17 +54,43 @@ if [ -f "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh" ]; then
     source "${SCRIPT_DIR}/src/02_ssm_instance_resolver.sh"
 fi
 
+# Import file transfer functions
+FILE_TRANSFER_AVAILABLE=false
+if [ -f "${SCRIPT_DIR}/src/04_ssm_file_transfer.sh" ]; then
+    # shellcheck source=./src/04_ssm_file_transfer.sh
+    source "${SCRIPT_DIR}/src/04_ssm_file_transfer.sh"
+    FILE_TRANSFER_AVAILABLE=true
+elif [ -f "/usr/local/bin/src/04_ssm_file_transfer.sh" ]; then
+    # shellcheck source=/dev/null
+    source "/usr/local/bin/src/04_ssm_file_transfer.sh"
+    FILE_TRANSFER_AVAILABLE=true
+else
+    log_warn "File transfer module not found. Upload/download commands will not be available."
+fi
+
 # Import S3 browser functions
 if [ -f "${SCRIPT_DIR}/src/05_s3_browser.sh" ]; then
     source "${SCRIPT_DIR}/src/05_s3_browser.sh"
+fi
+
+# Source version module
+if [ -f "${SCRIPT_DIR}/src/00_version.sh" ]; then
+    # shellcheck source=./src/00_version.sh
+    source "${SCRIPT_DIR}/src/00_version.sh"
+elif [ -f "/usr/local/bin/src/00_version.sh" ]; then
+    # shellcheck source=/dev/null
+    source "/usr/local/bin/src/00_version.sh"
+else
+    # Set fallback version if module not found
+    ZTIAWS_VERSION="unknown"
 fi
 
 # Function to show usage
 usage() {
     cat << EOF
 AWS SSM Session Manager Helper
-Usage: ssm [region] [instance-id]
-       ssm [instance-id]        # Uses default region (Canada Central)
+Usage: $(basename "$0") [region] [instance-id]
+       $(basename "$0") [instance-id]        # Uses default region (Canada Central)
 
 Supported regions:
   cac1  - Canada Central (Montreal) [default]
@@ -76,30 +101,70 @@ Supported regions:
   euw1  - EU West (Ireland)
 
 Commands:
-  ssm install              # Show installation instructions
-  ssm version              # Show version information
-  ssm check                # Check system requirements
-  ssm exec [options]        # Run a command on an instance
-  ssm exec-tagged [options] # Run a command on instances by tag
+  $(basename "$0") install              # Show installation instructions
+  $(basename "$0") version              # Show version information
+  $(basename "$0") check                # Check system requirements
+  $(basename "$0") exec [options]        # Run a command on an instance
+  $(basename "$0") exec-tagged [options] # Run a command on instances by tag
+EOF
+
+    if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
+        cat << EOF
+  $(basename "$0") upload [options]      # Upload a file to an instance
+  $(basename "$0") download [options]    # Download a file from an instance
+EOF
+    fi
+
+    cat << EOF
 
 Run Command Options:
-  ssm exec <region> <instance-id> "<command>"
-  ssm exec-tagged <region> <tag-key> <tag-value> "<command>"
+  $(basename "$0") exec <region> <instance-id> "<command>"
+  $(basename "$0") exec-tagged <region> <tag-key> <tag-value> "<command>"
+EOF
+
+    if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
+        cat << EOF
+
+File Transfer Options:
+  $(basename "$0") upload <region> <instance-id> <local-file> <remote-path>
+  $(basename "$0") download <region> <instance-id> <remote-file> <local-path>
+EOF
+    fi
+
+    cat << EOF
 
 Examples:
-  ssm cac1                             # List instances in Canada Central
-  ssm use1 i-1234                      # Connect to instance in US East
-  ssm i-1234                           # Connect to instance in Canada Central
-  ssm exec cac1 i-1234 "systemctl status nginx"   # Run command on instance
-  ssm exec cac1 web-server-prod "systemctl status nginx"  # Run command using instance name
-  ssm exec-tagged use1 Role web "df -h" # Run command on instances with tag Role=web
+  $(basename "$0") cac1                             # List instances in Canada Central
+  $(basename "$0") use1 i-1234                      # Connect to instance in US East
+  $(basename "$0") i-1234                           # Connect to instance in Canada Central
+  $(basename "$0") exec cac1 i-1234 "systemctl status nginx"   # Run command on instance
+  $(basename "$0") exec cac1 web-server-prod "systemctl status nginx"  # Run command using instance name
+  $(basename "$0") exec-tagged use1 Role web "df -h" # Run command on instances with tag Role=web
 EOF
+
+    if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
+        cat << EOF
+  $(basename "$0") upload cac1 i-1234 ./config.txt /etc/app/config.txt    # Upload file
+  $(basename "$0") download cac1 i-1234 /var/log/app.log ./app.log        # Download file
+
+File Transfer Notes:
+  - Files < 1MB: Direct transfer via SSM (faster)
+  - Files ≥ 1MB: Transfer via S3 intermediary (reliable for large files)
+  - S3 bucket is auto-created and files are auto-deleted after 24 hours
+  - Instance must have AWS CLI installed and proper IAM permissions for S3 access (large files only)
+EOF
+    fi
 }
 
 # Version information
-VERSION="1.3.0"
+VERSION="${ZTIAWS_VERSION:-unknown}"
 show_version() {
-    echo "AWS SSM Helper version: $VERSION"
+    echo "ztiaws/ssm v$VERSION - AWS SSM Session Management"
+    if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
+        echo "Features: Sessions, Commands, File Transfer"
+    else
+        echo "Features: Sessions, Commands"
+    fi
 }
 
 # Detect OS and package manager
@@ -221,7 +286,7 @@ validate_instance_identifier() {
 handle_exec_command() {
     if [ $# -lt 3 ]; then
         log_error "Missing required parameters for exec command"
-        echo "Usage: ssm exec <region> <instance-identifier> \"<command>\""
+        echo "Usage: $(basename "$0") exec <region> <instance-identifier> \"<command>\""
         exit 1
     fi
 
@@ -230,8 +295,7 @@ handle_exec_command() {
     local command="$3"
 
     local region
-    region=$(get_region "$region_code")
-    if ! get_region "$region_code" >/dev/null; then
+    if ! validate_region_code "$region_code" region; then
         log_error "Invalid region code: $region_code"
         exit 1
     fi
@@ -256,7 +320,7 @@ handle_exec_command() {
 handle_exec_tagged_command() {
     if [ $# -lt 4 ]; then
         log_error "Missing required parameters for exec-tagged command"
-        echo "Usage: ssm exec-tagged <region> <tag-key> <tag-value> \"<command>\""
+        echo "Usage: $(basename "$0") exec-tagged <region> <tag-key> <tag-value> \"<command>\""
         exit 1
     fi
 
@@ -266,8 +330,7 @@ handle_exec_tagged_command() {
     local command="$4"
 
     local region
-    region=$(get_region "$region_code")
-    if ! get_region "$region_code" >/dev/null; then
+    if ! validate_region_code "$region_code" region; then
         log_error "Invalid region code: $region_code"
         exit 1
     fi
@@ -275,6 +338,78 @@ handle_exec_tagged_command() {
     log_info "Executing command on instances with tag $tag_key=$tag_value in region $region"
     
     run_remote_command_tagged "$tag_key" "$tag_value" "$region" "$command"
+    return $?
+}
+
+# Upload command handler
+handle_upload_command() {
+    if [ "$FILE_TRANSFER_AVAILABLE" != true ]; then
+        log_error "File transfer module not available"
+        log_error "Please ensure src/04_ssm_file_transfer.sh is present and properly sourced"
+        exit 1
+    fi
+
+    if [ $# -lt 4 ]; then
+        log_error "Missing required parameters for upload command"
+        echo "Usage: $(basename "$0") upload <region> <instance-identifier> <local-file> <remote-path>"
+        exit 1
+    fi
+
+    local region_code="$1"
+    local instance_identifier="$2"
+    local local_file="$3"
+    local remote_path="$4"
+
+    local region
+    if ! validate_region_code "$region_code" region; then
+        log_error "Invalid region code: $region_code"
+        exit 1
+    fi
+
+    if ! validate_instance_identifier "$instance_identifier"; then
+        exit 1
+    fi
+
+    log_info "Uploading file: $local_file -> $remote_path"
+    log_info "Target: $instance_identifier in $region"
+    
+    upload_file "$region" "$instance_identifier" "$local_file" "$remote_path"
+    return $?
+}
+
+# Download command handler
+handle_download_command() {
+    if [ "$FILE_TRANSFER_AVAILABLE" != true ]; then
+        log_error "File transfer module not available"
+        log_error "Please ensure src/04_ssm_file_transfer.sh is present and properly sourced"
+        exit 1
+    fi
+
+    if [ $# -lt 4 ]; then
+        log_error "Missing required parameters for download command"
+        echo "Usage: $(basename "$0") download <region> <instance-identifier> <remote-file> <local-path>"
+        exit 1
+    fi
+
+    local region_code="$1"
+    local instance_identifier="$2"
+    local remote_file="$3"
+    local local_path="$4"
+
+    local region
+    if ! validate_region_code "$region_code" region; then
+        log_error "Invalid region code: $region_code"
+        exit 1
+    fi
+
+    if ! validate_instance_identifier "$instance_identifier"; then
+        exit 1
+    fi
+
+    log_info "Downloading file: $remote_file -> $local_path"
+    log_info "Source: $instance_identifier in $region"
+    
+    download_file "$region" "$instance_identifier" "$remote_file" "$local_path"
     return $?
 }
 
@@ -295,8 +430,14 @@ main() {
             echo "   Follow the instructions for your platform"
             echo
             log_info "2. Session Manager Plugin:"
-            echo "   Run 'ssm check' to install the plugin interactively"
+            echo "   Run '$(basename "$0") check' to install the plugin interactively"
             echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
+            if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
+                echo
+                log_info "3. File Transfer Requirements:"
+                echo "   - For large files (≥1MB): Instances need AWS CLI and S3 access"
+                echo "   - For small files (<1MB): No additional requirements"
+            fi
             exit 0
             ;;
         "check")
@@ -322,21 +463,37 @@ main() {
             handle_exec_tagged_command "$@"
             exit $?
             ;;
+        "upload")
+            shift
+            handle_upload_command "$@"
+            exit $?
+            ;;
+        "download")
+            shift
+            handle_download_command "$@"
+            exit $?
+            ;;
     esac
 
-    # Check requirements before proceeding
+    # Regular command processing - check for no arguments first
+    if [ $# -eq 0 ]; then
+        usage
+        exit 0
+    fi
+
+    # Check requirements before proceeding with actual commands
     if ! check_requirements >/dev/null 2>&1; then
-        log_error "System requirements not met. Run 'ssm check' for details"
+        log_error "System requirements not met. Run '$(basename "$0") check' for details"
         exit 1
     fi
 
-    # Regular command processing
-    if [ $# -eq 0 ]; then
-        usage
-        exit 1
-    elif [ $# -eq 1 ]; then
+    # Process commands that require system requirements
+    if [ $# -eq 1 ]; then
         if [[ "$1" =~ ^(apse1|cac1|caw1|usw1|use1|euw1)$ ]]; then
-            REGION=$(get_region "$1")
+            if ! validate_region_code "$1" REGION; then
+                log_error "Invalid region code: $1"
+                exit 1
+            fi
             log_info "Listing instances in $REGION..."
             aws ec2 describe-instances --region "$REGION" \
                 --query "Reservations[*].Instances[*].{
@@ -347,7 +504,7 @@ main() {
                     OS: PlatformDetails
                 }" \
                 --output table
-            echo -e "\nUsage: ssm $1 <instance-id>"
+            echo -e "\nUsage: $(basename "$0") $1 <instance-id>"
         else
             if ! validate_instance_identifier "$1"; then
                 exit 1
@@ -368,8 +525,7 @@ main() {
                 --target "$instance_id"
         fi
 elif [ $# -eq 2 ]; then
-    REGION=$(get_region "$1")
-    if [ "$REGION" = "invalid" ]; then
+    if ! validate_region_code "$1" REGION; then
         log_error "Invalid region. Use cac1, caw1, usw1, use1, or euw1"
         usage
         exit 1
