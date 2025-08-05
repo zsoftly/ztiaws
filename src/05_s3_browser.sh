@@ -111,7 +111,7 @@ s3_get_object() {
     # Include bucket name to prevent file overwriting
     local sanitized_bucket="${bucket_name//[^a-zA-Z0-9]/-}"
     local local_file
-    local_file="/${sanitized_bucket}_$(basename "$object_key")"
+    local_file="$download_dir/${sanitized_bucket}_$(basename "$object_key")"
 
     log_info "Downloading $object_key from bucket $bucket_name..."
 
@@ -158,7 +158,17 @@ s3_put_object() {
 
 # Handle S3 commands
 handle_s3_command() {
-    local subcommand="$1"
+    local subcommand="${1:-}"
+    
+    # Check if subcommand is provided
+    if [[ -z "$subcommand" ]]; then
+        log_error "No S3 subcommand provided"
+        echo "Usage: ssm s3 [list|ls|get|put|help]"
+        echo "Run 'ssm s3 help' for detailed usage information"
+        return 1
+    fi
+
+    local subcommand="${1:-}"
     shift
 
     case "$subcommand" in
