@@ -1,65 +1,39 @@
-# ZTiAWS v1.4.2 Release Notes
+# ztictl v2.1.0 Release Notes
 
-Release Date: May 10, 2025
+**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.1.0/INSTALLATION.md)
 
-## SUMMARY
-This release introduces powerful remote command execution capabilities to ZTiAWS, allowing you to run shell commands on EC2 instances directly via the SSM utility. We've also enhanced AWS SSO token management for more reliable authentication.
+**Release Date:** August 04, 2025
 
-## NEW FEATURES
+## 🚀 New Features
+• feat: Implement release documentation generator for automated CHANGELOG.md and RELEASE_NOTES.txt creation
+• feat: Implement release documentation generator for automated CHANGELOG.md and RELEASE_NOTES.txt creation
+• feat: Implement release documentation generator for automated CHANGELOG.md and RELEASE_NOTES.txt creation
+• feat: Refactor CHANGELOG.md generation to improve structure and clarity
+• feat: Enhance changelog and release notes generation with commit categorization
+• feat: Implement auto-generation of release documentation and changelog
+• feat: Add automated release preparation workflow
+• Enhance logging and color output across SSM commands
+• feat: Enhance SSM list command to display all EC2 instances with their SSM status
+• feat: Introduce version management module and update version references in authaws and ssm scripts
+• feat: Add flag-based parameter support to authaws
+• Enhance branch protection: allow pull requests to main from 'release/*' branches
+• Enhance CI/CD workflow: include 'release/*' branches in push and pull request triggers
 
-### Remote Command Execution via SSM
-The flagship feature of this release lets you execute commands on your EC2 instances without needing to establish a full SSH session:
+## 🐛 Bug Fixes
+• fix: Update help message and improve default behavior for no arguments in authaws
+• fix: Address PR review feedback and improve validation
+• fix: Resolve shellcheck warnings and bash compatibility issues
 
-- New `exec` command for single-instance command execution:
-  ```
-  ssm exec <region> <instance-id> "<command>"
-  ```
-
-- New `exec-tagged` command for multi-instance command execution based on tags:
-  ```
-  ssm exec-tagged <region> <tag-key> <tag-value> "<command>"
-  ```
-
-- Real-time status updates during command execution
-- Comprehensive output formatting showing both stdout and stderr
-- Clear error handling when no matching instances are found
-
-### Enhanced AWS SSO Token Management
-- Improved token cache file detection that matches against your configured SSO_START_URL
-- Better error handling for mismatched or expired tokens
-- Clearer guidance when SSO configuration changes are detected
-
-## BUG FIXES
-- Fixed "base64: invalid input" errors when using exec-tagged command
-- Resolved ShellCheck warnings for improved CI pipeline reliability
-- Enhanced error reporting across all components
-
-## EXAMPLES
-
-Run a command on a single instance:
-```
-ssm exec cac1 i-00ddcf01799e02060 "hostname"
-```
-
-Check disk space on all web servers:
-```
-ssm exec-tagged use1 Role web "df -h"
-```
-
-View system services on all instances in a project:
-```
-ssm exec-tagged cac1 Project GTM "systemctl status nginx"
-```
-
-## INSTALLATION
-
-For new installations, follow our guide at:
-https://github.com/zsoftly/ztiaws/blob/main/docs/INSTALLATION.md
-
-To update from a previous version:
-```
-git pull origin main
-chmod +x ssm authaws
-```
-
-For more information, please refer to the documentation in the docs/ directory.
+## 📝 Other Changes
+• refactor: Improve ANSI code handling and enhance logging error messages
+• refactor: Implement dynamic table formatting for EC2 instance display
+• refactor: Enhance logging messages for clarity and consistency across IAM and S3 lifecycle management
+• refactor: Update test version in ShowSplash test case to 2.2.0-test
+• refactor: Update version to 2.1.0 in documentation, build scripts, and tests
+• refactor: Update version to 2.1.0 in documentation, build scripts, and tests
+• refactor: Simplify NewManager function and enhance logging messages across various components
+• refactor: Update logging in Windows build script and enhance EC2 test manager for cross-platform compatibility
+• refactor: Improve SSO login command and enhance account/role selection with fuzzy finder
+• gofmt -s -w .
+• refactor: Migrate logging to centralized package and remove legacy logger
+• docs: Enhance authaws section with flag-based parameter support and usage examples

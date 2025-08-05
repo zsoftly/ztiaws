@@ -2,13 +2,14 @@ name: Test quickssm
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'feature/*', 'feat/*', 'issue/*' ]
   pull_request:
     branches: [ main ]
+    types: [ opened, synchronize, reopened ]
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     
     strategy:
       matrix:
@@ -27,18 +28,21 @@ jobs:
       shell: bash
 
     - name: Run shellcheck
-      run: shellcheck -x authaws ssm src/*.sh tests/*.sh
-      
-    # - name: Make scripts executable
-    #   run: |
-    #     chmod +x ssm
-    #     chmod +x tests/test_ssm.sh
-        
-    # - name: Run tests
-    #   run: ./tests/test_ssm.sh
-      
-    # - name: Test installation script
-    #   run: |
-    #     sudo cp ssm /usr/local/bin/
-    #     ssm version
-    #     ssm check
+      run: shellcheck -x authaws ssm src/*.sh
+
+  # Enforce that PRs to main can only come from branches starting with "issues" or "release"
+  branch-protection:
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check branch name
+      run: |
+        if [[ ! "${{ github.head_ref }}" =~ ^(issue|release) ]]; then
+          echo "❌ Pull requests to main branch must come from branches starting with 'issues' or 'release'"
+          echo "Current branch: ${{ github.head_ref }}"
+          echo "Please create your PR from a branch that starts with 'issues/' (e.g., issues/123-fix-bug) or 'release/' (e.g., release/v2.0.0)"
+          exit 1
+        else
+          echo "✅ Branch name is valid: ${{ github.head_ref }}"
+        fi

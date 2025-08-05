@@ -68,11 +68,13 @@ else
     log_warn "File transfer module not found. Upload/download commands will not be available."
 fi
 
+ issue-23/add-s3-browser-functionality
 # Import S3 browser functions
 if [ -f "${SCRIPT_DIR}/src/05_s3_browser.sh" ]; then
     source "${SCRIPT_DIR}/src/05_s3_browser.sh"
 fi
 
+ main
 # Source version module
 if [ -f "${SCRIPT_DIR}/src/00_version.sh" ]; then
     # shellcheck source=./src/00_version.sh
