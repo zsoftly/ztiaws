@@ -19,6 +19,7 @@ Examples:
   ztictl ssm command <instance> <cmd>   # Execute command via SSM
   ztictl ssm exec <region> <instance> <cmd>    # Quick exec with region shortcode
   ztictl ssm exec-tagged <region> <tag> <cmd> # Execute on tagged instances
+  ztictl ssm exec-multi [flags] <cmd>   # Execute across multiple regions
   ztictl ssm status [instance]          # Check SSM agent status`,
 }
 
@@ -27,6 +28,7 @@ func init() {
 
 	// Add subcommands - each defined in separate files following bash modular pattern
 	// Equivalent to sourcing individual .sh files in bash version
+        ssmCmd.AddCommand(ssmExecMultiCmd)          // ssm_exec_multi.go
 	ssmCmd.AddCommand(ssmConnectCmd)          // ssm_connect.go
 	ssmCmd.AddCommand(ssmListCmd)             // ssm_list.go
 	ssmCmd.AddCommand(ssmCommandCmd)          // ssm_command.go
