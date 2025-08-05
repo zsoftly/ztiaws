@@ -110,7 +110,8 @@ s3_get_object() {
     
     # Include bucket name to prevent file overwriting
     local sanitized_bucket="${bucket_name//[^a-zA-Z0-9]/-}"
-    local local_file="$download_dir/${sanitized_bucket}_$(basename "$object_key")"
+    local local_file
+    local_file="/${sanitized_bucket}_$(basename "$object_key")"
 
     log_info "Downloading $object_key from bucket $bucket_name..."
 
