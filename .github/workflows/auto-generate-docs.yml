@@ -1,0 +1,61 @@
+name: Auto-Generate Release Documentation
+
+on:
+  push:
+    branches:
+      - 'release/*'
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Need full history for changelog generation
+        
+    - name: Extract version from branch name
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/heads/release/}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extracted version: $VERSION"
+        
+    - name: Get latest release tag
+      id: latest_tag
+      run: |
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+        echo "Latest tag: ${LATEST_TAG:-'(none found)'}"
+        
+    - name: Generate release documentation
+      run: |
+        # Make script executable
+        chmod +x tools/02_release_docs_generator.sh
+        
+        # Run the release documentation generator
+        if [ -n "${{ steps.latest_tag.outputs.latest_tag }}" ]; then
+          ./tools/02_release_docs_generator.sh \
+            --version "${{ steps.version.outputs.version }}" \
+            --latest-tag "${{ steps.latest_tag.outputs.latest_tag }}" \
+            --force
+        else
+          ./tools/02_release_docs_generator.sh \
+            --version "${{ steps.version.outputs.version }}" \
+            --force
+        fi
+        
+    - name: Commit generated documentation
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add CHANGELOG.md RELEASE_NOTES.txt
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Auto-generate changelog and release notes for ${{ steps.version.outputs.version }}"
+          git push
+        fi
