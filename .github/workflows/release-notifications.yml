@@ -1,0 +1,91 @@
+name: Release Notifications
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify-google-chat:
+    name: Send Release Notification to Google Chat
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.release.draft }}
+    
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            README.md
+            CHANGELOG.md
+          sparse-checkout-cone-mode: false
+
+      - name: Extract Release Information
+        id: release_info
+        run: |
+          # Extract version from tag (remove 'v' prefix if present)
+          VERSION="${{ github.event.release.tag_name }}"
+          CLEAN_VERSION="${VERSION#v}"
+          
+          # Prepare release notes (truncate if too long for Google Chat)
+          RELEASE_NOTES=$(echo "${{ github.event.release.body }}" | head -c 1000)
+          if [ ${#RELEASE_NOTES} -eq 1000 ]; then
+            RELEASE_NOTES="${RELEASE_NOTES}..."
+          fi
+          
+          # Escape special characters for JSON
+          RELEASE_NOTES=$(echo "$RELEASE_NOTES" | sed 's/"/\\"/g' | sed 's/\\/\\\\/g')
+          
+          # Determine if this is a pre-release
+          RELEASE_TYPE="Stable Release"
+          if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+            RELEASE_TYPE="Pre-release"
+          fi
+          
+          # Set outputs
+          echo "version=$CLEAN_VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          echo "release_url=${{ github.event.release.html_url }}" >> $GITHUB_OUTPUT
+          echo "release_notes=$RELEASE_NOTES" >> $GITHUB_OUTPUT
+          echo "release_type=$RELEASE_TYPE" >> $GITHUB_OUTPUT
+          echo "tarball_url=${{ github.event.release.tarball_url }}" >> $GITHUB_OUTPUT
+          echo "zipball_url=${{ github.event.release.zipball_url }}" >> $GITHUB_OUTPUT
+
+      - name: Send Google Chat Notification
+        uses: google-github-actions/send-google-chat-webhook@v1
+        with:
+          webhook_url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          text: |
+            🚀 **New Release: ZTiAWS ${{ steps.release_info.outputs.version }}**
+            
+            📋 **Release Type:** ${{ steps.release_info.outputs.release_type }}
+            
+            📝 **Release Notes:**
+            ${{ steps.release_info.outputs.release_notes }}
+            
+            🔗 **Links:**
+            • 📖 [View Release](${{ steps.release_info.outputs.release_url }})
+            • ⬇️ [Download (tar.gz)](${{ steps.release_info.outputs.tarball_url }})
+            • 📦 [Download (zip)](${{ steps.release_info.outputs.zipball_url }})
+            • 📚 [Documentation](https://github.com/${{ github.repository }}/blob/main/README.md)
+            • 🔧 [Installation Guide](https://github.com/${{ github.repository }}/blob/main/INSTALLATION.md)
+            
+            📊 **Repository:** [${{ github.repository }}](https://github.com/${{ github.repository }})
+
+      - name: Send Fallback Notification on Failure
+        if: failure()
+        uses: google-github-actions/send-google-chat-webhook@v1
+        with:
+          webhook_url: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          text: |
+            ⚠️ **Release Notification Failed**
+            
+            The release notification for ZTiAWS ${{ steps.release_info.outputs.version }} could not be sent properly.
+            
+            **Release Details:**
+            • Version: ${{ github.event.release.tag_name }}
+            • URL: ${{ github.event.release.html_url }}
+            
+            Please check the [workflow logs](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for more details.
