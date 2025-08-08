@@ -12,13 +12,11 @@ ZTiAWS uses automated notifications to keep the team informed about important re
 **Sent after:** Security scans complete successfully
 **Channel:** Google Chat room (same as zsoftly-services)
 
-**Message format:**
-```
-🔔 New PR opened in ztiaws!
-📝 *[PR Title]*
-👤 Author: [GitHub Username]
-🔗 Link: [Direct PR URL]
-```
+**Message format:** Google Chat App Card with:
+- **Header:** "New Pull Request" with GitHub avatar
+- **Key-Value sections:** PR title, author, repository, PR number
+- **Action buttons:** "🔍 Review PR" and "📁 View Files"
+- **Professional styling** with icons and structured layout
 
 **Purpose:** 
 - Keep team aware of new contributions
@@ -31,20 +29,53 @@ ZTiAWS uses automated notifications to keep the team informed about important re
 **Sent after:** GitHub release is created successfully
 **Channel:** Google Chat room (same as zsoftly-services)
 
-**Message format:**
-```
-🚀 New ztiaws release available!
-📦 *Version: [Version Number]*
-🔗 Release: [GitHub Release URL]
-🎉 Ready for deployment!
-```
+**Message format:** Google Chat App Card with:
+- **Header:** "🚀 New Release Available" with GitHub avatar
+- **Key-Value sections:** Version number, repository, deployment status
+- **Action buttons:** "📋 View Release", "⬇️ Download", "📝 Changelog"
+- **Professional styling** with icons and structured layout
 
 **Purpose:**
 - Announce new releases to stakeholders
 - Provide direct access to release notes and binaries
 - Coordinate deployment activities
 
+## Google Chat App Cards
+
+### Why App Cards Over Simple Text
+
+The notification system uses **Google Chat App Cards** instead of simple text messages to provide:
+
+- **🎨 Rich visual formatting** with headers, icons, and structured sections
+- **📱 Interactive elements** like clickable buttons for direct actions
+- **🏗️ Professional appearance** that matches enterprise-grade tools
+- **⚡ Quick access** to related resources (files, releases, changelog)
+- **👀 Better readability** with organized key-value pairs
+- **🔗 Direct navigation** without needing to copy/paste URLs
+
+### App Card Structure
+
+**PR Notifications:**
+- Header with "New Pull Request" title and GitHub avatar
+- Structured sections showing PR details (title, author, repository, number)
+- Action buttons for reviewing PR and viewing changed files
+
+**Release Notifications:**
+- Header with "New Release Available" title and GitHub avatar  
+- Structured sections showing release details (version, status)
+- Action buttons for viewing release, downloading, and checking changelog
+
 ## Technical Implementation
+
+### Shell Script Architecture
+
+Following the zsoftly-services pattern, notifications are implemented using dedicated shell scripts with embedded Google Chat App Card styling:
+
+- **`scripts/send-pr-notification.sh`** - PR notification handler
+- **`scripts/send-release-notification.sh`** - Release notification handler
+- **Rich Google Chat App Cards** with professional formatting
+- **Base64 webhook encoding** for enhanced security
+- **Comprehensive logging** and error handling
 
 ### Integration with CI/CD Pipeline
 
@@ -52,12 +83,25 @@ The notification system is implemented as conditional jobs in the main CI/CD wor
 
 - **PR notifications** run after the `security` job completes
 - **Release notifications** run after the `release` job completes
-- Both use the same Google Chat webhook as the zsoftly-services repository
+- Both use shell scripts with the same Google Chat webhook as zsoftly-services
+- Scripts are checked out and executed with proper environment variables
+
+### Shell Script Benefits
+
+**Why Shell Scripts Over Inline Curl:**
+- **🎨 Rich Google Chat App Cards** with embedded styling
+- **🔧 Maintainable code** separated from workflow logic  
+- **🛡️ Enhanced security** with base64 webhook encoding
+- **📝 Comprehensive logging** with colored output and debug mode
+- **⚡ Reusable components** for different notification types
+- **🧪 Testable independently** of GitHub Actions
+- **📋 Professional formatting** matching enterprise standards
 
 ### Configuration
 
 **Webhook Secret:** `GOOGLE_CHAT_WEBHOOK`
 - Stored in GitHub repository secrets
+- Can be base64 encoded for enhanced security (following zsoftly-services pattern)
 - Shared across ZSoftly repositories for consistency
 - Points to team's Google Chat room
 

@@ -3,7 +3,9 @@
 ## [v2.1.0] - 2025-08-04
 
 ### Added
-- feat(ci): add automated Google Chat notifications for PRs and releases
+- feat(ci): add automated Google Chat notifications for PRs and releases with shell scripts
+- feat(scripts): add professional notification scripts with embedded Google Chat App Cards
+- feat(notifications): implement rich visual formatting following zsoftly-services pattern
 - feat: Implement release documentation generator for automated CHANGELOG.md and RELEASE_NOTES.txt creation
 - feat: Implement release documentation generator for automated CHANGELOG.md and RELEASE_NOTES.txt creation
 - feat: Implement release documentation generator for automated CHANGELOG.md and RELEASE_NOTES.txt creation

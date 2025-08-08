@@ -325,13 +325,19 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.action == 'opened' && github.base_ref == 'main'
     needs: [security]
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
       - name: Send PR notification
+        env:
+          GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
         run: |
-          curl -X POST "${{ secrets.GOOGLE_CHAT_WEBHOOK }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "text": "🔔 New PR opened in ztiaws!\n📝 *${{ github.event.pull_request.title }}*\n👤 Author: ${{ github.event.pull_request.user.login }}\n🔗 Link: ${{ github.event.pull_request.html_url }}"
-            }'
+          ./scripts/send-pr-notification.sh \
+            --pr-title "${{ github.event.pull_request.title }}" \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --pr-url "${{ github.event.pull_request.html_url }}" \
+            --author "${{ github.event.pull_request.user.login }}" \
+            --repository "${{ github.repository }}"
 
   # Notification for releases (when version tags are pushed)
   release-notification:
@@ -339,7 +345,12 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [release]
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
       - name: Send release notification
+        env:
+          GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
         run: |
           # Extract version from tag
           VERSION=${GITHUB_REF#refs/tags/}
@@ -347,8 +358,7 @@ jobs:
           # Create release URL
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${VERSION}"
           
-          curl -X POST "${{ secrets.GOOGLE_CHAT_WEBHOOK }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "text": "🚀 New ztiaws release available!\n📦 *Version: '"${VERSION}"'*\n🔗 Release: '"${RELEASE_URL}"'\n🎉 Ready for deployment!"
-            }'
+          ./scripts/send-release-notification.sh \
+            --version "$VERSION" \
+            --release-url "$RELEASE_URL" \
+            --repository "${{ github.repository }}"
