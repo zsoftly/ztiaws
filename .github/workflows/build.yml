@@ -322,7 +322,7 @@ jobs:
   # Notification for PR events (opened to main branch)
   pr-notification:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.action == 'opened' && github.base_ref == 'main'
+    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened') && github.base_ref == 'main'
     needs: [security]
     steps:
       - name: Checkout code
