@@ -134,11 +134,14 @@ parse_arguments() {
 
     # If webhook URL not provided via argument, try environment variable
     if [[ -z "$WEBHOOK_URL" && -n "${GOOGLE_CHAT_WEBHOOK:-}" ]]; then
-        log_debug "Decoding webhook URL from environment variable"
-        WEBHOOK_URL=$(echo "$GOOGLE_CHAT_WEBHOOK" | base64 -d 2>/dev/null || {
-            log_error "Failed to decode base64 GOOGLE_CHAT_WEBHOOK environment variable"
-            exit 1
-        })
+        log_debug "Processing webhook URL from environment variable"
+        # Try base64 decoding first, if it fails assume it's plain text
+        if WEBHOOK_URL=$(echo "$GOOGLE_CHAT_WEBHOOK" | base64 -d 2>/dev/null) && [[ "$WEBHOOK_URL" =~ ^https://chat\.googleapis\.com ]]; then
+            log_debug "Successfully decoded base64 webhook URL"
+        else
+            log_debug "Using plain text webhook URL (not base64 encoded)"
+            WEBHOOK_URL="$GOOGLE_CHAT_WEBHOOK"
+        fi
     fi
 
     # Validate required parameters
