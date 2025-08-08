@@ -156,14 +156,38 @@ needs: [build]
 3. Create GitHub release with auto-generated release notes
 4. Attach all binaries to release
 
+#### 5. **pr-notification** - PR Notifications
+```yaml
+if: github.event_name == 'pull_request' && github.event.action == 'opened' && github.base_ref == 'main'
+needs: [security]
+```
+
+**Purpose:** Notify team of new PRs opened to main branch
+**When it runs:** PRs opened to main branch, after security scan passes
+**Dependencies:** Requires `security` job to complete successfully
+**Integration:** Uses same Google Chat webhook as zsoftly-services repository
+**Message format:** Includes PR title, author, and direct link to PR
+
+#### 6. **release-notification** - Release Notifications
+```yaml
+if: startsWith(github.ref, 'refs/tags/v')
+needs: [release]
+```
+
+**Purpose:** Notify team of new releases available
+**When it runs:** Version tags pushed, after GitHub release is created
+**Dependencies:** Requires `release` job to complete successfully
+**Integration:** Uses same Google Chat webhook as zsoftly-services repository
+**Message format:** Includes version number, release URL, and deployment notice
+
 ## Workflow Behavior Matrix
 
 | Scenario | Triggered Jobs | Execution Order |
 |----------|---------------|-----------------|
 | **Feature branch push** | `test` | Parallel (Ubuntu + Windows) |
 | **PR to feature branch** | `test` | Parallel (Ubuntu + Windows) |
-| **PR to main branch** | `test` → `security` | Sequential (fail fast) |
-| **Tag push (v1.0.0)** | `build` → `release` | Sequential |
+| **PR to main branch** | `test` → `security` → `pr-notification` | Sequential (fail fast) |
+| **Tag push (v1.0.0)** | `build` → `release` → `release-notification` | Sequential |
 | **Manual dispatch** | `build` | Single job matrix |
 
 ## Performance Optimizations

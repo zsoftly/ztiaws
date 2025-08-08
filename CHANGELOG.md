@@ -3,6 +3,7 @@
 ## [v2.1.0] - 2025-08-04
 
 ### Added
+- feat(ci): add automated Google Chat notifications for PRs and releases
 - feat: Implement release documentation generator for automated CHANGELOG.md and RELEASE_NOTES.txt creation
 - feat: Implement release documentation generator for automated CHANGELOG.md and RELEASE_NOTES.txt creation
 - feat: Implement release documentation generator for automated CHANGELOG.md and RELEASE_NOTES.txt creation
