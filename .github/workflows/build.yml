@@ -15,10 +15,16 @@ on:
       - 'v*'
     paths:
       - 'ztictl/**'
+      - '.github/workflows/**'
+      - 'docs/**'
+      - 'CHANGELOG.md'
   pull_request:
     branches: [ main, 'release/*' ]
     paths:
       - 'ztictl/**'
+      - '.github/workflows/**'
+      - 'docs/**'
+      - 'CHANGELOG.md'
   workflow_dispatch:
 
 jobs:
