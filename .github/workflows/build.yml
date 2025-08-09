@@ -44,7 +44,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.24'
+        go-version: '1.23'
         
     - name: Get dependencies
       working-directory: ./ztictl
@@ -130,7 +130,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.24'
+        go-version: '1.23'
         
     - name: Download dependencies
       working-directory: ./ztictl
@@ -222,7 +222,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.24'
+        go-version: '1.23'
         
     - name: Get dependencies
       working-directory: ./ztictl
@@ -332,12 +332,13 @@ jobs:
         env:
           GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
         run: |
+          set -euo pipefail
           ./scripts/send-pr-notification.sh \
-            --pr-title "${{ github.event.pull_request.title }}" \
-            --pr-number "${{ github.event.pull_request.number }}" \
-            --pr-url "${{ github.event.pull_request.html_url }}" \
-            --author "${{ github.event.pull_request.user.login }}" \
-            --repository "${{ github.repository }}"
+            --pr-title '${{ github.event.pull_request.title }}' \
+            --pr-number '${{ github.event.pull_request.number }}' \
+            --pr-url '${{ github.event.pull_request.html_url }}' \
+            --author '${{ github.event.pull_request.user.login }}' \
+            --repository '${{ github.repository }}'
 
   # Notification for releases (when version tags are pushed)
   release-notification:
@@ -352,8 +353,15 @@ jobs:
         env:
           GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
         run: |
-          # Extract version from tag
-          VERSION=${GITHUB_REF#refs/tags/}
+          set -euo pipefail
+          
+          # Extract version from tag with validation
+          if [[ "$GITHUB_REF" =~ ^refs/tags/v.+ ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            echo "Error: Invalid tag format in GITHUB_REF: $GITHUB_REF"
+            exit 1
+          fi
           
           # Create release URL
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${VERSION}"
@@ -361,4 +369,4 @@ jobs:
           ./scripts/send-release-notification.sh \
             --version "$VERSION" \
             --release-url "$RELEASE_URL" \
-            --repository "${{ github.repository }}"
+            --repository '${{ github.repository }}'

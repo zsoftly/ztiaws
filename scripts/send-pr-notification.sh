@@ -1,178 +1,112 @@
 #!/usr/bin/env bash
 
 # ZTiAWS PR Notification Script
-# Sends rich Google Chat App Card notifications for Pull Request events
-# Based on zsoftly-services notification pattern
+# Sends Google Chat App Card notifications for Pull Request events
 
 set -euo pipefail
 
-# Script configuration
-SCRIPT_NAME="$(basename "$0")"
-SCRIPT_VERSION="1.0.0"
+# --- Configuration ---
+WEBHOOK_URL=""
+PR_TITLE=""
+PR_NUMBER=""
+PR_URL=""
+AUTHOR=""
+REPOSITORY=""
 
-# Color definitions for terminal output
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly PURPLE='\033[0;35m'
-readonly CYAN='\033[0;36m'
-readonly NC='\033[0m' # No Color
-
-# Logging functions
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $*" >&2
+# --- Load Shared Utilities ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || {
+    echo "Error: Failed to determine script directory" >&2
+    exit 1
 }
 
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $*" >&2
-}
+if [ -f "${SCRIPT_DIR}/../src/00_utils.sh" ]; then
+    # shellcheck source=../src/00_utils.sh
+    source "${SCRIPT_DIR}/../src/00_utils.sh" || {
+        echo "Error: Failed to source utilities file" >&2
+        exit 1
+    }
+else
+    echo "Error: Required utilities file not found at ${SCRIPT_DIR}/../src/00_utils.sh" >&2
+    exit 1
+fi
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $*" >&2
-}
+# Initialize logging for this script
+init_logging "send-pr-notification.sh" false
 
-log_debug() {
-    if [[ "${DEBUG:-false}" == "true" ]]; then
-        echo -e "${CYAN}[DEBUG]${NC} $*" >&2
-    fi
-}
-
-# Usage information
+# --- Usage Function ---
 usage() {
-    cat << EOF
-${PURPLE}ZTiAWS PR Notification Script v${SCRIPT_VERSION}${NC}
-
-${BLUE}DESCRIPTION:${NC}
-    Sends rich Google Chat App Card notifications for Pull Request events.
-    Follows zsoftly-services notification patterns with embedded styling.
-
-${BLUE}USAGE:${NC}
-    $SCRIPT_NAME [OPTIONS]
-
-${BLUE}OPTIONS:${NC}
-    --webhook-url URL      Google Chat webhook URL (required)
-    --pr-title TITLE       Pull request title (required)
-    --pr-number NUMBER     Pull request number (required)
-    --pr-url URL           Pull request URL (required)
-    --author USERNAME      PR author username (required)
-    --repository REPO      Repository name (required)
-    --debug                Enable debug output
-    --help                 Show this help message
-
-${BLUE}ENVIRONMENT VARIABLES:${NC}
-    GOOGLE_CHAT_WEBHOOK    Base64 encoded webhook URL (alternative to --webhook-url)
-    DEBUG                  Enable debug mode (true/false)
-
-${BLUE}EXAMPLES:${NC}
-    # Using command line parameters
-    $SCRIPT_NAME \\
-      --webhook-url "https://chat.googleapis.com/v1/spaces/..." \\
-      --pr-title "Add new feature" \\
-      --pr-number "123" \\
-      --pr-url "https://github.com/org/repo/pull/123" \\
-      --author "developer" \\
-      --repository "org/repo"
-
-    # Using environment variable for webhook
-    export GOOGLE_CHAT_WEBHOOK=\$(echo -n "https://chat.googleapis.com/..." | base64)
-    $SCRIPT_NAME --pr-title "Fix bug" --pr-number "124" --pr-url "..." --author "dev" --repository "org/repo"
-
-EOF
+    echo -e "${GREEN}ZTiAWS PR Notification Script v1.1.0${NC}"
+    echo
+    echo -e "${CYAN}PURPOSE:${NC}"
+    echo "  Sends Google Chat App Card notifications for Pull Request events."
+    echo
+    echo -e "${CYAN}USAGE:${NC}"
+    echo "  $0 --pr-title TITLE --pr-number NUMBER --pr-url URL --author USER --repository REPO"
+    echo
+    echo -e "${CYAN}REQUIRED:${NC}"
+    echo "  --pr-title TITLE       Pull request title"
+    echo "  --pr-number NUMBER     Pull request number" 
+    echo "  --pr-url URL           Pull request URL"
+    echo "  --author USERNAME      PR author username"
+    echo "  --repository REPO      Repository name (org/repo)"
+    echo
+    echo -e "${CYAN}WEBHOOK:${NC}"
+    echo "  --webhook-url URL      Google Chat webhook URL"
+    echo "  OR set GOOGLE_CHAT_WEBHOOK environment variable"
+    echo
+    echo -e "${CYAN}OPTIONS:${NC}"
+    echo "  --help                 Show this help"
+    echo
+    exit 0
 }
 
-# Parse command line arguments
+# --- Argument Parsing ---
 parse_arguments() {
-    WEBHOOK_URL=""
-    PR_TITLE=""
-    PR_NUMBER=""
-    PR_URL=""
-    AUTHOR=""
-    REPOSITORY=""
-
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --webhook-url)
-                WEBHOOK_URL="$2"
-                shift 2
-                ;;
-            --pr-title)
-                PR_TITLE="$2"
-                shift 2
-                ;;
-            --pr-number)
-                PR_NUMBER="$2"
-                shift 2
-                ;;
-            --pr-url)
-                PR_URL="$2"
-                shift 2
-                ;;
-            --author)
-                AUTHOR="$2"
-                shift 2
-                ;;
-            --repository)
-                REPOSITORY="$2"
-                shift 2
-                ;;
-            --debug)
-                export DEBUG=true
-                shift
-                ;;
-            --help)
-                usage
-                exit 0
-                ;;
-            *)
-                log_error "Unknown option: $1"
-                usage
-                exit 1
-                ;;
+            --webhook-url) 
+                [[ $# -lt 2 ]] && { log_error "Option $1 requires a value"; usage; }
+                WEBHOOK_URL="$2"; shift 2 ;;
+            --pr-title) 
+                [[ $# -lt 2 ]] && { log_error "Option $1 requires a value"; usage; }
+                PR_TITLE="$2"; shift 2 ;;
+            --pr-number) 
+                [[ $# -lt 2 ]] && { log_error "Option $1 requires a value"; usage; }
+                PR_NUMBER="$2"; shift 2 ;;
+            --pr-url) 
+                [[ $# -lt 2 ]] && { log_error "Option $1 requires a value"; usage; }
+                PR_URL="$2"; shift 2 ;;
+            --author) 
+                [[ $# -lt 2 ]] && { log_error "Option $1 requires a value"; usage; }
+                AUTHOR="$2"; shift 2 ;;
+            --repository) 
+                [[ $# -lt 2 ]] && { log_error "Option $1 requires a value"; usage; }
+                REPOSITORY="$2"; shift 2 ;;
+            --help) usage ;;
+            *) log_error "Unknown option: $1"; shift ;;
         esac
     done
 
-    # If webhook URL not provided via argument, try environment variable
+    # Process webhook URL from environment if not provided via argument
     if [[ -z "$WEBHOOK_URL" && -n "${GOOGLE_CHAT_WEBHOOK:-}" ]]; then
-        log_debug "Processing webhook URL from environment variable"
-        # Try base64 decoding first, if it fails assume it's plain text
-        if WEBHOOK_URL=$(echo "$GOOGLE_CHAT_WEBHOOK" | base64 -d 2>/dev/null) && [[ "$WEBHOOK_URL" =~ ^https://chat\.googleapis\.com ]]; then
-            log_debug "Successfully decoded base64 webhook URL"
-        else
-            log_debug "Using plain text webhook URL (not base64 encoded)"
-            WEBHOOK_URL="$GOOGLE_CHAT_WEBHOOK"
-        fi
+        WEBHOOK_URL=$(process_webhook_url "$GOOGLE_CHAT_WEBHOOK")
     fi
 
-    # Validate required parameters
-    local missing_params=()
-    [[ -z "$WEBHOOK_URL" ]] && missing_params+=("webhook-url or GOOGLE_CHAT_WEBHOOK")
-    [[ -z "$PR_TITLE" ]] && missing_params+=("pr-title")
-    [[ -z "$PR_NUMBER" ]] && missing_params+=("pr-number")
-    [[ -z "$PR_URL" ]] && missing_params+=("pr-url")
-    [[ -z "$AUTHOR" ]] && missing_params+=("author")
-    [[ -z "$REPOSITORY" ]] && missing_params+=("repository")
-
-    if [[ ${#missing_params[@]} -gt 0 ]]; then
-        log_error "Missing required parameters: ${missing_params[*]}"
-        usage
-        exit 1
-    fi
-
-    log_debug "Parameters validated successfully"
+    # Validate required parameters using centralized function
+    validate_notification_params "$WEBHOOK_URL" "$PR_TITLE" "$PR_NUMBER" "$PR_URL" "$AUTHOR" "$REPOSITORY" || { usage; exit 1; }
 }
 
-# Create Google Chat App Card JSON payload
+# --- Create Google Chat App Card JSON ---
 create_chat_payload() {
     log_debug "Creating Google Chat App Card payload"
     
-    # Escape JSON special characters in text fields
-    local escaped_title=$(echo "$PR_TITLE" | sed 's/"/\\"/g' | sed 's/\\/\\\\/g')
-    local escaped_author=$(echo "$AUTHOR" | sed 's/"/\\"/g')
-    local escaped_repository=$(echo "$REPOSITORY" | sed 's/"/\\"/g')
-    
-    # Create the files URL for the second button
+    local escaped_title=$(escape_json "$PR_TITLE")
+    local escaped_author=$(escape_json "$AUTHOR")
+    local escaped_repository=$(escape_json "$REPOSITORY")
+    local escaped_pr_number=$(escape_json "$PR_NUMBER")
     local files_url="${PR_URL}/files"
+    local escaped_pr_url=$(escape_json "$PR_URL")
+    local escaped_files_url=$(escape_json "$files_url")
     
     cat << EOF
 {
@@ -180,7 +114,7 @@ create_chat_payload() {
     {
       "header": {
         "title": "🔔 New Pull Request",
-        "subtitle": "ztiaws Repository",
+        "subtitle": "$escaped_repository Repository",
         "imageUrl": "https://github.com/fluidicon.png",
         "imageStyle": "AVATAR"
       },
@@ -212,7 +146,7 @@ create_chat_payload() {
             {
               "keyValue": {
                 "topLabel": "PR Number",
-                "content": "#$PR_NUMBER",
+                "content": "#$escaped_pr_number",
                 "icon": "CONFIRMATION_NUMBER_ICON"
               }
             }
@@ -227,7 +161,7 @@ create_chat_payload() {
                     "text": "🔍 Review PR",
                     "onClick": {
                       "openLink": {
-                        "url": "$PR_URL"
+                        "url": "$escaped_pr_url"
                       }
                     }
                   }
@@ -237,7 +171,7 @@ create_chat_payload() {
                     "text": "📁 View Files",
                     "onClick": {
                       "openLink": {
-                        "url": "$files_url"
+                        "url": "$escaped_files_url"
                       }
                     }
                   }
@@ -253,91 +187,28 @@ create_chat_payload() {
 EOF
 }
 
-# Send notification to Google Chat
-send_notification() {
+# --- Main Logic ---
+main() {
+    parse_arguments "$@"
+    check_notification_dependencies || exit 1
+    
     log_info "Sending PR notification to Google Chat"
-    log_debug "Webhook URL: ${WEBHOOK_URL:0:50}..."
     log_debug "PR: #$PR_NUMBER by $AUTHOR"
     
     local payload
-    payload=$(create_chat_payload)
+    if ! payload=$(create_chat_payload); then
+        log_error "Failed to create chat payload"
+        exit 1
+    fi
     
-    log_debug "Payload created, sending to webhook"
-    
-    # Send the notification
-    local response
-    local http_code
-    
-    response=$(curl -s -w "\n%{http_code}" \
-        -X POST \
-        -H "Content-Type: application/json" \
-        -d "$payload" \
-        "$WEBHOOK_URL" 2>&1)
-    
-    # Extract HTTP status code (last line of response)
-    http_code=$(echo "$response" | tail -n1)
-    response_body=$(echo "$response" | head -n -1)
-    
-    log_debug "HTTP response code: $http_code"
-    log_debug "Response body: $response_body"
-    
-    if [[ "$http_code" =~ ^2[0-9][0-9]$ ]]; then
+    if send_webhook "$WEBHOOK_URL" "$payload"; then
         log_info "✅ PR notification sent successfully!"
-        log_info "   PR: $escaped_title (#$PR_NUMBER)"
+        log_info "   PR: $PR_TITLE (#$PR_NUMBER)"
         log_info "   Author: $AUTHOR"
         log_info "   Repository: $REPOSITORY"
-        return 0
     else
-        log_error "❌ Failed to send notification"
-        log_error "   HTTP Status: $http_code"
-        log_error "   Response: $response_body"
-        return 1
-    fi
-}
-
-# Validate dependencies
-check_dependencies() {
-    log_debug "Checking dependencies"
-    
-    local deps=("curl" "base64")
-    local missing_deps=()
-    
-    for dep in "${deps[@]}"; do
-        if ! command -v "$dep" &> /dev/null; then
-            missing_deps+=("$dep")
-        fi
-    done
-    
-    if [[ ${#missing_deps[@]} -gt 0 ]]; then
-        log_error "Missing required dependencies: ${missing_deps[*]}"
-        log_error "Please install the missing dependencies and try again"
-        exit 1
-    fi
-    
-    log_debug "All dependencies satisfied"
-}
-
-# Main function
-main() {
-    log_debug "Starting $SCRIPT_NAME v$SCRIPT_VERSION"
-    
-    # Check dependencies
-    check_dependencies
-    
-    # Parse arguments
-    parse_arguments "$@"
-    
-    # Send notification
-    if send_notification; then
-        log_info "🎉 PR notification process completed successfully"
-        exit 0
-    else
-        log_error "💥 PR notification process failed"
         exit 1
     fi
 }
 
-# Script entry point
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
-fi
+main "$@"
