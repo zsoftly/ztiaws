@@ -78,23 +78,24 @@ log_completion() {
 }
 
 # Logging functions with colors for terminal and optional file logging
+# All log output goes to stderr to prevent contamination of command substitution
 log_info() {
-    echo -e "${GREEN}[INFO]${NC} $*"
+    echo -e "${GREEN}[INFO]${NC} $*" >&2
     _log_to_file "[INFO] $*"
 }
 
 log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $*"
+    echo -e "${YELLOW}[WARN]${NC} $*" >&2
     _log_to_file "[WARN] $*"
 }
 
 log_error() {
-    echo -e "${RED}[ERROR]${NC} $*"
+    echo -e "${RED}[ERROR]${NC} $*" >&2
     _log_to_file "[ERROR] $*"
 }
 
 log_debug() {
-    echo -e "${CYAN}[DEBUG]${NC} $*"
+    echo -e "${CYAN}[DEBUG]${NC} $*" >&2
     _log_to_file "[DEBUG] $*"
 }
 
@@ -126,12 +127,12 @@ process_webhook_url() {
         return 0
     fi
     
-    log_debug "Processing webhook URL from environment variable"
     # Try base64 decoding first, if it fails assume it's plain text
     if webhook_url=$(echo "$webhook_var" | base64 -d 2>/dev/null) && [[ "$webhook_url" =~ ^https://chat\.googleapis\.com/v1/spaces/.*/messages\?.*$ ]]; then
-        log_debug "Successfully decoded base64 webhook URL"
+        # Successfully decoded base64 webhook URL (debug output can interfere with return value)
+        :
     else
-        log_debug "Using plain text webhook URL (not base64 encoded)"
+        # Using plain text webhook URL (not base64 encoded)
         webhook_url="$webhook_var"
     fi
     
@@ -139,7 +140,6 @@ process_webhook_url() {
     if [[ ! "$webhook_url" =~ ^https://chat\.googleapis\.com/v1/spaces/.*/messages\?.*$ ]]; then
         log_error "Invalid webhook URL format. Must be a Google Chat webhook URL with format:"
         log_error "  https://chat.googleapis.com/v1/spaces/SPACE_ID/messages?key=...&token=..."
-        log_debug "Provided URL: $webhook_url"
         return 1
     fi
     
@@ -194,6 +194,7 @@ send_webhook() {
         return 1
     fi
     
+    # Debug output to stderr to avoid interfering with return values
     log_debug "Sending webhook request"
     log_debug "Webhook URL: $webhook_url"
     log_debug "Payload length: ${#payload} characters"
