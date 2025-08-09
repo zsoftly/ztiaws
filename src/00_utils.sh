@@ -128,11 +128,19 @@ process_webhook_url() {
     
     log_debug "Processing webhook URL from environment variable"
     # Try base64 decoding first, if it fails assume it's plain text
-    if webhook_url=$(echo "$webhook_var" | base64 -d 2>/dev/null) && [[ "$webhook_url" =~ ^https://chat\.googleapis\.com/ ]]; then
+    if webhook_url=$(echo "$webhook_var" | base64 -d 2>/dev/null) && [[ "$webhook_url" =~ ^https://chat\.googleapis\.com/v1/spaces/.*/messages\?.*$ ]]; then
         log_debug "Successfully decoded base64 webhook URL"
     else
         log_debug "Using plain text webhook URL (not base64 encoded)"
         webhook_url="$webhook_var"
+    fi
+    
+    # Additional URL validation - validate Google Chat webhook format
+    if [[ ! "$webhook_url" =~ ^https://chat\.googleapis\.com/v1/spaces/.*/messages\?.*$ ]]; then
+        log_error "Invalid webhook URL format. Must be a Google Chat webhook URL with format:"
+        log_error "  https://chat.googleapis.com/v1/spaces/SPACE_ID/messages?key=...&token=..."
+        log_debug "Provided URL: $webhook_url"
+        return 1
     fi
     
     echo "$webhook_url"
@@ -187,6 +195,8 @@ send_webhook() {
     fi
     
     log_debug "Sending webhook request"
+    log_debug "Webhook URL: $webhook_url"
+    log_debug "Payload length: ${#payload} characters"
     
     # Create temp file with error handling
     local temp_file
@@ -220,6 +230,15 @@ send_webhook() {
     # Check curl exit code first
     if [[ $curl_exit_code -ne 0 ]]; then
         log_error "❌ Curl failed with exit code: $curl_exit_code"
+        case $curl_exit_code in
+            3) log_error "   Reason: URL malformed or invalid format" ;;
+            6) log_error "   Reason: Could not resolve host" ;;
+            7) log_error "   Reason: Failed to connect to host" ;;
+            28) log_error "   Reason: Timeout occurred" ;;
+            35) log_error "   Reason: SSL connect error" ;;
+            *) log_error "   Reason: Unknown curl error (see curl manual)" ;;
+        esac
+        log_error "   Webhook URL: $webhook_url"
         return 1
     fi
     
