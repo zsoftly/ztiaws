@@ -31,7 +31,7 @@ else
 fi
 
 # Initialize logging for this script
-init_logging "send-pr-notification.sh" false
+init_logging "$(basename "${BASH_SOURCE[0]}")" false
 
 # --- Usage Function ---
 usage() {

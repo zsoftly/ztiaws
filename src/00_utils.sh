@@ -170,6 +170,8 @@ escape_json() {
         -e 's/	/\\t/g' \
         -e 's/\r/\\r/g' | \
     tr '\n' '\001' | sed 's/\001/\\n/g'
+
+    # Use ASCII SOH (\001) as a temporary delimiter for newlines, as it is unlikely to appear in normal text.
 }
 
 # Send webhook with error handling

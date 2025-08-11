@@ -29,7 +29,7 @@ else
 fi
 
 # Initialize logging for this script
-init_logging "send-release-notification.sh" false
+init_logging "$(basename "$0")" false
 
 # --- Usage Function ---
 usage() {
