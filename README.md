@@ -143,7 +143,27 @@ This will run `df -h` on all instances in the `us-east-1` region that have a tag
 ```bash
 ssm help
 ```
+### í³¦ S3 Browser Tool (Legacy Bash)
 
+#### Overview
+The S3 browser provides secure access to S3 buckets through SSM sessions, eliminating the need for direct AWS credentials on your local machine.
+
+#### Quick Start
+```bash
+# Show help and available commands
+ssm s3 help
+
+# List all S3 buckets
+ssm s3 list
+
+# Browse a specific bucket
+ssm s3 ls my-bucket-name
+
+# Download a file (saved to ./downloads/)
+ssm s3 get my-bucket important-file.pdf
+
+# Upload a file
+ssm s3 put my-bucket ~/Documents/report.pdf
 #### AWS SSO Authentication Tool
 
 #### First-time Setup
