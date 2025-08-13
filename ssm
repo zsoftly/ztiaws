@@ -67,6 +67,10 @@ elif [ -f "/usr/local/bin/src/04_ssm_file_transfer.sh" ]; then
 else
     log_warn "File transfer module not found. Upload/download commands will not be available."
 fi
+# Import S3 browser functions
+if [ -f "${SCRIPT_DIR}/src/05_s3_browser.sh" ]; then
+    source "${SCRIPT_DIR}/src/05_s3_browser.sh"
+fi
 
 # Source version module
 if [ -f "${SCRIPT_DIR}/src/00_version.sh" ]; then
@@ -446,6 +450,11 @@ main() {
         "exec")
             shift
             handle_exec_command "$@"
+            exit $?
+            ;;
+        "s3")
+            shift
+            handle_s3_command "$@"
             exit $?
             ;;
         "exec-tagged")
