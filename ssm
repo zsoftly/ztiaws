@@ -68,6 +68,19 @@ else
     log_warn "File transfer module not found. Upload/download commands will not be available."
 fi
 
+# Import parameter parser module
+if [ -f "${SCRIPT_DIR}/src/07_ssm_parameter_parser.sh" ]; then
+    # shellcheck source=./src/07_ssm_parameter_parser.sh
+    source "${SCRIPT_DIR}/src/07_ssm_parameter_parser.sh"
+elif [ -f "/usr/local/bin/src/07_ssm_parameter_parser.sh" ]; then
+    # shellcheck source=/dev/null
+    source "/usr/local/bin/src/07_ssm_parameter_parser.sh"
+else
+    echo "[ERROR] src/07_ssm_parameter_parser.sh not found. This script requires the parameter parser module." >&2
+    echo "Please ensure src/07_ssm_parameter_parser.sh is present in the script directory or in /usr/local/bin/src/." >&2
+    exit 1
+fi
+
 # Source version module
 if [ -f "${SCRIPT_DIR}/src/00_version.sh" ]; then
     # shellcheck source=./src/00_version.sh
@@ -84,12 +97,24 @@ fi
 usage() {
     cat << EOF
 AWS SSM Session Manager Helper
-Usage: $(basename "$0") [region] [instance-id]
-       $(basename "$0") [instance-id]        # Uses default region (Canada Central)
+
+POSITIONAL SYNTAX (current - backward compatible):
+  $(basename "$0") [region] [instance-id]    # Connect to instance
+  $(basename "$0") [instance-id]             # Uses default region (Canada Central)
+  $(basename "$0") [region]                  # List instances in region
+
+FLAG-BASED SYNTAX (new - enterprise friendly):
+  $(basename "$0") --region [region] --instance [instance]  # Connect to instance
+  $(basename "$0") --region [region] --list                # List instances
+  $(basename "$0") --region [region]                       # List instances
+
+MIXED SYNTAX (also supported):
+  $(basename "$0") cac1 --instance i-1234567890abcd        # Mixed positional/flag
+  $(basename "$0") --region cac1 i-1234567890abcd          # Mixed flag/positional
 
 Supported regions:
   cac1  - Canada Central (Montreal) [default]
-  apse1 -  Asia Pacific (Seoul)
+  apse1 - Asia Pacific (Seoul)
   caw1  - Canada West (Calgary)
   usw1  - US West (N. California)
   use1  - US East (N. Virginia)
@@ -128,13 +153,23 @@ EOF
 
     cat << EOF
 
-Examples:
+POSITIONAL EXAMPLES (current syntax):
   $(basename "$0") cac1                             # List instances in Canada Central
   $(basename "$0") use1 i-1234                      # Connect to instance in US East
   $(basename "$0") i-1234                           # Connect to instance in Canada Central
   $(basename "$0") exec cac1 i-1234 "systemctl status nginx"   # Run command on instance
   $(basename "$0") exec cac1 web-server-prod "systemctl status nginx"  # Run command using instance name
   $(basename "$0") exec-tagged use1 Role web "df -h" # Run command on instances with tag Role=web
+
+FLAG-BASED EXAMPLES (new syntax):
+  $(basename "$0") --region cac1 --list            # List instances in Canada Central
+  $(basename "$0") --region use1 --instance i-1234 --connect  # Connect to instance
+  $(basename "$0") --exec --region cac1 --instance i-1234 --command "systemctl status nginx"  # Run command
+  $(basename "$0") --exec-tagged --region use1 --tag-key Role --tag-value web --command "df -h"  # Run on tagged instances
+
+MIXED EXAMPLES (combined syntax):
+  $(basename "$0") cac1 --instance i-1234          # Region positional, instance flag
+  $(basename "$0") --region use1 i-1234            # Region flag, instance positional
 EOF
 
     if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
@@ -410,64 +445,58 @@ handle_download_command() {
 
 # Main logic
 main() {
-    # Handle special commands first
-    case "${1:-}" in
-        "version")
-            show_version
-            exit 0
-            ;;
-        "install")
-            # Since we have interactive SSM plugin installation, just show AWS CLI instructions
-            log_info "Installation Instructions:"
-            echo
-            log_info "1. AWS CLI Installation:"
-            echo "   Visit: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
-            echo "   Follow the instructions for your platform"
-            echo
-            log_info "2. Session Manager Plugin:"
-            echo "   Run '$(basename "$0") check' to install the plugin interactively"
-            echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
-            if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
-                echo
-                log_info "3. File Transfer Requirements:"
-                echo "   - For large files (≥1MB): Instances need AWS CLI and S3 access"
-                echo "   - For small files (<1MB): No additional requirements"
-            fi
-            exit 0
-            ;;
-        "check")
-            check_requirements
-            exit 0
-            ;;
-        "help"|"-h"|"--help")
-            usage
-            exit 0
-            ;;
-        "exec")
-            shift
-            handle_exec_command "$@"
-            exit $?
-            ;;
-        "exec-tagged")
-            shift
-            handle_exec_tagged_command "$@"
-            exit $?
-            ;;
-        "upload")
-            shift
-            handle_upload_command "$@"
-            exit $?
-            ;;
-        "download")
-            shift
-            handle_download_command "$@"
-            exit $?
-            ;;
-    esac
+    # Parse parameters using the new parameter parser
+    if ! parse_ssm_parameters "$@"; then
+        exit 1
+    fi
 
-    # Regular command processing - check for no arguments first
-    if [ $# -eq 0 ]; then
+    # Handle commands based on parsed parameters
+    local operation="$(get_ssm_operation)"
+    local region="$(get_ssm_region)"
+    local instance="$(get_ssm_instance)"
+    local command="$(get_ssm_command)"
+    local tag_key="$(get_ssm_tag_key)"
+    local tag_value="$(get_ssm_tag_value)"
+    local local_file="$(get_ssm_local_file)"
+    local remote_file="$(get_ssm_remote_file)"
+    local local_path="$(get_ssm_local_path)"
+    local remote_path="$(get_ssm_remote_path)"
+    local local_port="$(get_ssm_local_port)"
+    local remote_port="$(get_ssm_remote_port)"
+
+    # Handle system commands first
+    if [[ "$(get_ssm_help)" == "true" ]]; then
         usage
+        exit 0
+    fi
+
+    if [[ "$(get_ssm_version)" == "true" ]]; then
+        show_version
+        exit 0
+    fi
+
+    if [[ "$(get_ssm_check)" == "true" ]]; then
+        check_requirements
+        exit 0
+    fi
+
+    if [[ "$operation" == "install" ]]; then
+        # Since we have interactive SSM plugin installation, just show AWS CLI instructions
+        log_info "Installation Instructions:"
+        echo
+        log_info "1. AWS CLI Installation:"
+        echo "   Visit: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
+        echo "   Follow the instructions for your platform"
+        echo
+        log_info "2. Session Manager Plugin:"
+        echo "   Run '$(basename "$0") check' to install the plugin interactively"
+        echo "   Or visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html"
+        if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
+            echo
+            log_info "3. File Transfer Requirements:"
+            echo "   - For large files (≥1MB): Instances need AWS CLI and S3 access"
+            echo "   - For small files (<1MB): No additional requirements"
+        fi
         exit 0
     fi
 
@@ -477,15 +506,11 @@ main() {
         exit 1
     fi
 
-    # Process commands that require system requirements
-    if [ $# -eq 1 ]; then
-        if [[ "$1" =~ ^(apse1|cac1|caw1|usw1|use1|euw1)$ ]]; then
-            if ! validate_region_code "$1" REGION; then
-                log_error "Invalid region code: $1"
-                exit 1
-            fi
-            log_info "Listing instances in $REGION..."
-            aws ec2 describe-instances --region "$REGION" \
+    # Execute operations based on parsed parameters
+    case "$operation" in
+        "list")
+            log_info "Listing instances in $region..."
+            aws ec2 describe-instances --region "$region" \
                 --query "Reservations[*].Instances[*].{
                     Name: Tags[?Key=='Name'].Value | [0],
                     InstanceId: InstanceId,
@@ -494,53 +519,72 @@ main() {
                     OS: PlatformDetails
                 }" \
                 --output table
-            echo -e "\nUsage: $(basename "$0") $1 <instance-id>"
-        else
-            if ! validate_instance_identifier "$1"; then
+            echo -e "\nUsage: $(basename "$0") $region <instance-id>"
+            ;;
+        "connect")
+            if ! validate_instance_identifier "$instance"; then
                 exit 1
             fi
             
             # Resolve instance name to ID if needed
-            local instance_id="$1"
-            if ! [[ "$1" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
-                instance_id=$(resolve_instance_identifier "$1" "$REGION")
+            local instance_id="$instance"
+            if ! [[ "$instance" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
+                instance_id=$(resolve_instance_identifier "$instance" "$region")
                 if ! [[ "$instance_id" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
                     exit 1
                 fi
             fi
             
-            log_info "Connecting to instance $instance_id in $REGION..."
+            log_info "Connecting to instance $instance_id in $region..."
             aws ssm start-session \
-                --region "$REGION" \
+                --region "$region" \
                 --target "$instance_id"
-        fi
-elif [ $# -eq 2 ]; then
-    if ! validate_region_code "$1" REGION; then
-        log_error "Invalid region. Use cac1, caw1, usw1, use1, or euw1"
-        usage
-        exit 1
-    fi
-    if ! validate_instance_identifier "$2"; then
-        exit 1
-    fi
-    
-    # Resolve instance name to ID if needed
-    local instance_id="$2"
-    if ! [[ "$2" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
-    instance_id=$(resolve_instance_identifier "$2" "$REGION")
-    if ! [[ "$instance_id" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
-        exit 1
-    fi
-fi
-
-    log_info "Connecting to instance $instance_id in $REGION..."
-    aws ssm start-session \
-        --region "$REGION" \
-        --target "$instance_id"
-else
-    usage
-    exit 1
-fi
+            ;;
+        "exec")
+            handle_exec_command "$region" "$instance" "$command"
+            exit $?
+            ;;
+        "exec-tagged")
+            handle_exec_tagged_command "$region" "$tag_key" "$tag_value" "$command"
+            exit $?
+            ;;
+        "upload")
+            if [ "$FILE_TRANSFER_AVAILABLE" != true ]; then
+                log_error "File transfer module not available"
+                log_error "Please ensure src/04_ssm_file_transfer.sh is present and properly sourced"
+                exit 1
+            fi
+            handle_upload_command "$region" "$instance" "$local_file" "$remote_path"
+            exit $?
+            ;;
+        "download")
+            if [ "$FILE_TRANSFER_AVAILABLE" != true ]; then
+                log_error "File transfer module not available"
+                log_error "Please ensure src/04_ssm_file_transfer.sh is present and properly sourced"
+                exit 1
+            fi
+            handle_download_command "$region" "$instance" "$remote_file" "$local_path"
+            exit $?
+            ;;
+        "forward")
+            log_info "Setting up port forwarding: localhost:$local_port -> $instance:$remote_port"
+            aws ssm start-session \
+                --region "$region" \
+                --target "$instance" \
+                --document-name "AWS-StartPortForwardingSession" \
+                --parameters "portNumber=$remote_port,localPortNumber=$local_port"
+            ;;
+        "")
+            # No operation determined, show usage
+            usage
+            exit 0
+            ;;
+        *)
+            log_error "Unknown operation: $operation"
+            usage
+            exit 1
+            ;;
+    esac
 }
 
 # Run main function
