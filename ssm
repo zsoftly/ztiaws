@@ -292,8 +292,7 @@ install_ssm_plugin() {
     fi
 }
 
-# Default region
-REGION="ca-central-1"
+# Default region is now handled by the parameter parser
 
 # Validate instance ID format
 validate_instance_identifier() {
@@ -451,18 +450,31 @@ main() {
     fi
 
     # Handle commands based on parsed parameters
-    local operation="$(get_ssm_operation)"
-    local region="$(get_ssm_region)"
-    local instance="$(get_ssm_instance)"
-    local command="$(get_ssm_command)"
-    local tag_key="$(get_ssm_tag_key)"
-    local tag_value="$(get_ssm_tag_value)"
-    local local_file="$(get_ssm_local_file)"
-    local remote_file="$(get_ssm_remote_file)"
-    local local_path="$(get_ssm_local_path)"
-    local remote_path="$(get_ssm_remote_path)"
-    local local_port="$(get_ssm_local_port)"
-    local remote_port="$(get_ssm_remote_port)"
+    local operation
+    local region
+    local instance
+    local command
+    local tag_key
+    local tag_value
+    local local_file
+    local remote_file
+    local local_path
+    local remote_path
+    local local_port
+    local remote_port
+    
+    operation="$(get_ssm_operation)"
+    region="$(get_ssm_region)"
+    instance="$(get_ssm_instance)"
+    command="$(get_ssm_command)"
+    tag_key="$(get_ssm_tag_key)"
+    tag_value="$(get_ssm_tag_value)"
+    local_file="$(get_ssm_local_file)"
+    remote_file="$(get_ssm_remote_file)"
+    local_path="$(get_ssm_local_path)"
+    remote_path="$(get_ssm_remote_path)"
+    local_port="$(get_ssm_local_port)"
+    remote_port="$(get_ssm_remote_port)"
 
     # Handle system commands first
     if [[ "$(get_ssm_help)" == "true" ]]; then
