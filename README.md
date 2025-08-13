@@ -61,6 +61,17 @@ make dev          # Sets up development environment
 authaws --check   # Works without ./ prefix
 ```
 
+**Development Testing:**
+```bash
+# Test local development versions (before installation)
+./authaws --check
+./ssm --help
+
+# After make install or make dev
+authaws --check
+ssm --help
+```
+
 See [INSTALLATION.md](INSTALLATION.md) for comprehensive installation instructions including:
 - Platform-specific instructions  
 - Windows PATH setup (detailed)

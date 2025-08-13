@@ -9,6 +9,20 @@ This document outlines the comprehensive test suite for the new flag-based param
 **Version**: 1.0.0  
 **Status**: Ready for Testing
 
+## Command Usage Context
+
+**Development Testing** (used in this QA suite):
+```bash
+./ssm --help    # Tests local development version
+```
+
+**Production Usage** (after `make install`):
+```bash
+ssm --help      # Uses globally installed version
+```
+
+This QA document uses `./ssm` to test the local development version before installation.
+
 ## Test Environment Requirements
 
 ### Prerequisites

@@ -56,7 +56,8 @@ dev:
 test:
 	@echo "Running shellcheck..."
 	shellcheck -x authaws ssm src/*.sh
-	@echo "Running basic functionality tests..."
+	@echo "Running development functionality tests..."
+	@echo "  (Using ./command syntax to test local development versions)"
 	./authaws --help > /dev/null
 	./ssm --help > /dev/null
 	@echo "✅ Tests passed!"
