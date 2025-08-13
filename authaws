@@ -94,22 +94,22 @@ EOL
 
 # Display help information
 show_help() {
-  cat << 'EOL'
+  cat << EOL
 AWS SSO Authentication Helper
 
 USAGE:
-  authaws [profile-name]                    # Positional syntax (backward compatible)
-  authaws --profile <name>                  # Flag-based syntax (enterprise friendly)
+  $(basename "$0") [profile-name]                    # Positional syntax (backward compatible)
+  $(basename "$0") --profile <name>                  # Flag-based syntax (enterprise friendly)
 
 COMMANDS:
-  authaws help                              # Show this help message
-  authaws --help, -h                        # Show this help message
-  authaws version                           # Show version information
-  authaws --version, -v                     # Show version information
-  authaws check                             # Check system requirements
-  authaws --check                           # Check system requirements
-  authaws creds [profile]                   # Show decoded credentials for a profile
-  authaws --creds [--profile <name>]        # Show decoded credentials for a profile
+  $(basename "$0") help                              # Show this help message
+  $(basename "$0") --help, -h                        # Show this help message
+  $(basename "$0") version                           # Show version information
+  $(basename "$0") --version, -v                     # Show version information
+  $(basename "$0") check                             # Check system requirements
+  $(basename "$0") --check                           # Check system requirements
+  $(basename "$0") creds [profile]                   # Show decoded credentials for a profile
+  $(basename "$0") --creds [--profile <name>]        # Show decoded credentials for a profile
 
 FLAGS:
   --profile, -p <name>                      # Profile name to use
@@ -121,19 +121,19 @@ FLAGS:
 
 EXAMPLES:
   # Power user workflow (current syntax)
-  authaws                                  # Show help (no profile specified)
-  authaws dev-profile                      # Login with specific profile
-  authaws check                            # Verify dependencies
-  authaws creds dev-profile                # Show credentials for a profile
+  $(basename "$0")                                  # Show help (no profile specified)
+  $(basename "$0") dev-profile                      # Login with specific profile
+  $(basename "$0") check                            # Verify dependencies
+  $(basename "$0") creds dev-profile                # Show credentials for a profile
 
   # Enterprise workflow (new syntax)
-  authaws --profile dev-profile            # Login with specific profile
-  authaws --profile prod --region us-east-1 # Override region
-  authaws --creds --profile dev-profile    # Show credentials for a profile
-  authaws --profile dev --export           # Export credentials to stdout
+  $(basename "$0") --profile dev-profile            # Login with specific profile
+  $(basename "$0") --profile prod --region us-east-1 # Override region
+  $(basename "$0") --creds --profile dev-profile    # Show credentials for a profile
+  $(basename "$0") --profile dev --export           # Export credentials to stdout
 
   # Future extensibility
-  authaws --profile dev --sso-url https://alt.awsapps.com/start
+  $(basename "$0") --profile dev --sso-url https://alt.awsapps.com/start
 
 SETUP:
   Before first use, create a .env file in the script directory with:
