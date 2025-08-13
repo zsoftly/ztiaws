@@ -38,26 +38,34 @@
 
 ## ⚡ Installation
 
-**Quick Install (Recommended):**
+### **Quick Install (Recommended):**
+
+**For Users:**
+```bash
+git clone https://github.com/zsoftly/ztiaws.git
+cd ztiaws
+make install
+```
+
+**Verify Installation:**
+```bash
+authaws --check
+ssm --help
+```
+
+**For Developers:**
+```bash
+git clone https://github.com/zsoftly/ztiaws.git
+cd ztiaws
+make dev          # Sets up development environment
+authaws --check   # Works without ./ prefix
+```
 
 See [INSTALLATION.md](INSTALLATION.md) for comprehensive installation instructions including:
-- One-liner installers for Linux/macOS/Windows
-- Platform-specific instructions
+- Platform-specific instructions  
 - Windows PATH setup (detailed)
-- Legacy bash tools installation
+- ztictl Go binary installation
 - Troubleshooting guide
-
-**Essential commands after installation:**
-```bash
-# Verify installation
-ztictl --version
-
-# Check system requirements
-ztictl config check
-
-# Get started
-ztictl --help
-```
 
 ## 🔄 Updating ZTiAWS
 
