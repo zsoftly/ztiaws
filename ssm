@@ -319,15 +319,9 @@ handle_exec_command() {
         exit 1
     fi
 
-    local region_code="$1"
+    local region="$1"  # Already validated and translated by parameter parser
     local instance_identifier="$2"
     local command="$3"
-
-    local region
-    if ! validate_region_code "$region_code" region; then
-        log_error "Invalid region code: $region_code"
-        exit 1
-    fi
 
     if ! validate_instance_identifier "$instance_identifier"; then
         exit 1
@@ -353,16 +347,10 @@ handle_exec_tagged_command() {
         exit 1
     fi
 
-    local region_code="$1"
+    local region="$1"  # Already validated and translated by parameter parser
     local tag_key="$2"
     local tag_value="$3"
     local command="$4"
-
-    local region
-    if ! validate_region_code "$region_code" region; then
-        log_error "Invalid region code: $region_code"
-        exit 1
-    fi
 
     log_info "Executing command on instances with tag $tag_key=$tag_value in region $region"
     
@@ -384,16 +372,10 @@ handle_upload_command() {
         exit 1
     fi
 
-    local region_code="$1"
+    local region="$1"  # Already validated and translated by parameter parser
     local instance_identifier="$2"
     local local_file="$3"
     local remote_path="$4"
-
-    local region
-    if ! validate_region_code "$region_code" region; then
-        log_error "Invalid region code: $region_code"
-        exit 1
-    fi
 
     if ! validate_instance_identifier "$instance_identifier"; then
         exit 1
@@ -420,16 +402,10 @@ handle_download_command() {
         exit 1
     fi
 
-    local region_code="$1"
+    local region="$1"  # Already validated and translated by parameter parser
     local instance_identifier="$2"
     local remote_file="$3"
     local local_path="$4"
-
-    local region
-    if ! validate_region_code "$region_code" region; then
-        log_error "Invalid region code: $region_code"
-        exit 1
-    fi
 
     if ! validate_instance_identifier "$instance_identifier"; then
         exit 1
