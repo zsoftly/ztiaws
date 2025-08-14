@@ -38,26 +38,45 @@
 
 ## ⚡ Installation
 
-**Quick Install (Recommended):**
+### **Quick Install (Recommended):**
+
+**For Users:**
+```bash
+git clone https://github.com/zsoftly/ztiaws.git
+cd ztiaws
+make install
+```
+
+**Verify Installation:**
+```bash
+authaws --check
+ssm --help
+```
+
+**For Developers:**
+```bash
+git clone https://github.com/zsoftly/ztiaws.git
+cd ztiaws
+make dev          # Sets up development environment
+authaws --check   # Works without ./ prefix
+```
+
+**Development Testing:**
+```bash
+# Test local development versions (before installation)
+./authaws --check
+./ssm --help
+
+# After make install or make dev
+authaws --check
+ssm --help
+```
 
 See [INSTALLATION.md](INSTALLATION.md) for comprehensive installation instructions including:
-- One-liner installers for Linux/macOS/Windows
-- Platform-specific instructions
+- Platform-specific instructions  
 - Windows PATH setup (detailed)
-- Legacy bash tools installation
+- ztictl Go binary installation
 - Troubleshooting guide
-
-**Essential commands after installation:**
-```bash
-# Verify installation
-ztictl --version
-
-# Check system requirements
-ztictl config check
-
-# Get started
-ztictl --help
-```
 
 ## 🔄 Updating ZTiAWS
 
@@ -111,37 +130,91 @@ ztictl ssm --help
 
 #### SSM Session Manager Tool
 
+**Available flags**: `--region`, `--instance`, `--command`, `--tag-key`, `--tag-value`, `--local-file`, `--remote-file`, `--local-path`, `--remote-path`, `--local-port`, `--remote-port`, `--exec`, `--exec-tagged`, `--upload`, `--download`, `--forward`, `--list`, `--connect`, `--check`, `--help`, `--version`, `--debug`
+
 ##### Check System Requirements
 ```bash
+# Traditional syntax (backward compatible)
 ssm check
+
+# Flag-based syntax (new)
+ssm --check
 ```
 
 ##### List Instances in a Region
 ```bash
+# Traditional syntax (backward compatible)
 ssm cac1  # Lists instances in Canada Central
+
+# Flag-based syntax (new)
+ssm --region cac1 --list
+ssm --region cac1  # Equivalent to --list
 ```
 
 ##### Connect to an Instance
 ```bash
+# Traditional syntax (backward compatible)
 ssm i-1234abcd              # Connect to instance in default region (Canada Central)
 ssm use1 i-1234abcd         # Connect to instance in US East
+
+# Flag-based syntax (new)
+ssm --region use1 --instance i-1234abcd --connect
+ssm --region use1 --instance i-1234abcd  # Equivalent to --connect
+
+# Mixed syntax (also supported)
+ssm cac1 --instance i-1234abcd
+ssm --region use1 i-1234abcd
 ```
 
 ##### Execute Commands Remotely
 Execute commands on a single instance:
 ```bash
+# Traditional syntax (backward compatible)
 ssm exec cac1 i-1234 "systemctl status nginx"
+
+# Flag-based syntax (new)
+ssm --exec --region cac1 --instance i-1234 --command "systemctl status nginx"
+
+# Mixed syntax (also supported)
+ssm exec cac1 --instance i-1234 --command "systemctl status nginx"
 ```
 
 Execute commands on instances matching specific tags:
 ```bash
+# Traditional syntax (backward compatible)
 ssm exec-tagged use1 Role web "df -h"
+
+# Flag-based syntax (new)
+ssm --exec-tagged --region use1 --tag-key Role --tag-value web --command "df -h"
+
+# Mixed syntax (also supported)
+ssm exec-tagged use1 --tag-key Role --tag-value web --command "df -h"
 ```
 This will run `df -h` on all instances in the `us-east-1` region that have a tag with `Key=Role` and `Value=web`. The script provides clear feedback if no instances match the specified tags.
 
+##### File Transfer Operations
+Upload and download files with automatic size-based routing:
+```bash
+# Traditional syntax (backward compatible)
+ssm upload cac1 i-1234 ./config.txt /etc/app/config.txt
+ssm download cac1 i-1234 /var/log/app.log ./app.log
+
+# Flag-based syntax (new)
+ssm --upload --region cac1 --instance i-1234 --local-file ./config.txt --remote-path /etc/app/config.txt
+ssm --download --region cac1 --instance i-1234 --remote-file /var/log/app.log --local-path ./app.log
+
+# Mixed syntax (also supported)
+ssm upload cac1 --instance i-1234 --local-file ./config.txt --remote-path /etc/app/config.txt
+```
+
 ##### Show Help
 ```bash
+# Traditional syntax (backward compatible)
 ssm help
+
+# Flag-based syntax (new)
+ssm --help
+ssm -h
 ```
 
 #### AWS SSO Authentication Tool
