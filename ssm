@@ -77,7 +77,8 @@ elif [ -f "/usr/local/bin/src/07_ssm_parameter_parser.sh" ]; then
     source "/usr/local/bin/src/07_ssm_parameter_parser.sh"
 else
     echo "[ERROR] src/07_ssm_parameter_parser.sh not found. This script requires the parameter parser module." >&2
-    echo "Please ensure src/07_ssm_parameter_parser.sh is present in the script directory or in /usr/local/bin/src/." >&2
+    echo "Remediation: Please ensure src/07_ssm_parameter_parser.sh is present in the script directory or in /usr/local/bin/src/." >&2
+    echo "You may need to run 'make install' or consult the installation instructions in the README to properly set up the required modules." >&2
     exit 1
 fi
 
@@ -555,10 +556,19 @@ main() {
             exit $?
             ;;
         "forward")
-            log_info "Setting up port forwarding: localhost:$local_port -> $instance:$remote_port"
+            # Resolve instance identifier to instance ID if necessary
+            local instance_id="$instance"
+            if ! [[ "$instance" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
+                instance_id=$(resolve_instance_identifier "$instance" "$region")
+                if ! [[ "$instance_id" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
+                    exit 1
+                fi
+            fi
+            
+            log_info "Setting up port forwarding: localhost:$local_port -> $instance_id:$remote_port"
             aws ssm start-session \
                 --region "$region" \
-                --target "$instance" \
+                --target "$instance_id" \
                 --document-name "AWS-StartPortForwardingSession" \
                 --parameters "portNumber=$remote_port,localPortNumber=$local_port"
             ;;
