@@ -45,8 +45,8 @@ uninstall:
 dev:
 	@echo "Setting up development environment..."
 	@echo "Adding current directory to PATH for this session..."
-	@echo "export PATH=\"$(PWD):\$$PATH\"" >> ~/.zshrc
-	@echo "export PATH=\"$(PWD):\$$PATH\"" >> ~/.bashrc
+	@grep -qxF 'export PATH="$(PWD):$$PATH"' ~/.zshrc || echo 'export PATH="$(PWD):$$PATH"' >> ~/.zshrc
+	@grep -qxF 'export PATH="$(PWD):$$PATH"' ~/.bashrc || echo 'export PATH="$(PWD):$$PATH"' >> ~/.bashrc
 	@echo ""
 	@echo "✅ Development environment configured!"
 	@echo "Reload your shell or run: source ~/.zshrc"
