@@ -68,6 +68,20 @@ else
     log_warn "File transfer module not found. Upload/download commands will not be available."
 fi
 
+# Import CloudWatch logs functions
+CLOUDWATCH_LOGS_AVAILABLE=false
+if [ -f "${SCRIPT_DIR}/src/05_ssm_cloudwatch_logs.sh" ]; then
+    # shellcheck source=./src/05_ssm_cloudwatch_logs.sh
+    source "${SCRIPT_DIR}/src/05_ssm_cloudwatch_logs.sh"
+    CLOUDWATCH_LOGS_AVAILABLE=true
+elif [ -f "/usr/local/bin/src/05_ssm_cloudwatch_logs.sh" ]; then
+    # shellcheck source=/dev/null
+    source "/usr/local/bin/src/05_ssm_cloudwatch_logs.sh"
+    CLOUDWATCH_LOGS_AVAILABLE=true
+else
+    log_warn "CloudWatch logs module not found. Logs commands will not be available."
+fi
+
 # Source version module
 if [ -f "${SCRIPT_DIR}/src/00_version.sh" ]; then
     # shellcheck source=./src/00_version.sh
@@ -110,6 +124,12 @@ EOF
 EOF
     fi
 
+    if [ "$CLOUDWATCH_LOGS_AVAILABLE" = true ]; then
+        cat << EOF
+  $(basename "$0") logs [options]        # View CloudWatch logs for instances or log groups
+EOF
+    fi
+
     cat << EOF
 
 Run Command Options:
@@ -123,6 +143,16 @@ EOF
 File Transfer Options:
   $(basename "$0") upload <region> <instance-id> <local-file> <remote-path>
   $(basename "$0") download <region> <instance-id> <remote-file> <local-path>
+EOF
+    fi
+
+    if [ "$CLOUDWATCH_LOGS_AVAILABLE" = true ]; then
+        cat << EOF
+
+CloudWatch Logs Options:
+  $(basename "$0") logs <region> <instance-id>              # View recent logs for an instance
+  $(basename "$0") logs <region> <log-group>                # View recent logs from a log group
+  $(basename "$0") logs <region> <log-group> <filter>       # View filtered logs from a log group
 EOF
     fi
 
@@ -149,17 +179,36 @@ File Transfer Notes:
   - Instance must have AWS CLI installed and proper IAM permissions for S3 access (large files only)
 EOF
     fi
+
+    if [ "$CLOUDWATCH_LOGS_AVAILABLE" = true ]; then
+        cat << EOF
+  $(basename "$0") logs cac1 i-1234                        # View recent logs for instance
+  $(basename "$0") logs use1 /aws/lambda/my-function       # View logs from specific log group
+  $(basename "$0") logs cac1 /var/log/messages "ERROR"     # Filter logs for ERROR messages
+
+CloudWatch Logs Notes:
+  - Shows logs from the last hour by default
+  - Instance logs require CloudWatch agent to be installed and configured
+  - Requires proper IAM permissions for CloudWatch Logs access
+EOF
+    fi
 }
 
 # Version information
 VERSION="${ZTIAWS_VERSION:-unknown}"
 show_version() {
     echo "ztiaws/ssm v$VERSION - AWS SSM Session Management"
+    local features="Sessions, Commands"
+    
     if [ "$FILE_TRANSFER_AVAILABLE" = true ]; then
-        echo "Features: Sessions, Commands, File Transfer"
-    else
-        echo "Features: Sessions, Commands"
+        features="$features, File Transfer"
     fi
+    
+    if [ "$CLOUDWATCH_LOGS_AVAILABLE" = true ]; then
+        features="$features, CloudWatch Logs"
+    fi
+    
+    echo "Features: $features"
 }
 
 # Detect OS and package manager
@@ -462,6 +511,17 @@ main() {
             shift
             handle_download_command "$@"
             exit $?
+            ;;
+        "logs")
+            shift
+            if [ "$CLOUDWATCH_LOGS_AVAILABLE" = true ]; then
+                handle_logs_command "$@"
+                exit $?
+            else
+                log_error "CloudWatch logs functionality is not available"
+                log_info "The logs module could not be loaded. Please check your installation."
+                exit 1
+            fi
             ;;
     esac
 
