@@ -119,6 +119,12 @@ dd if=/dev/zero of=test_large.txt bs=1M count=2  # Creates 2MB file
 - [ ] IAM error handling works (basic validation)
 - [ ] S3 bucket auto-creation works (NEW)
 - [ ] S3 file auto-cleanup works (24hr lifecycle) (NEW)
+- [ ] CloudWatch logs basic commands work (NEW)
+- [ ] CloudWatch logs instance viewing works (NEW)
+- [ ] CloudWatch logs log group viewing works (NEW)
+- [ ] CloudWatch logs filtering works (NEW)
+- [ ] CloudWatch logs error handling works (NEW)
+- [ ] CloudWatch logs AWS credentials validation works (NEW)
 - [ ] Error handling is clear
 - [ ] No regressions
 
@@ -229,6 +235,75 @@ When adding new features, developers must:
 
 # Add new test commands when implementing features
 # Example: ./ssm new-command cac1 web-server 'test'
+```
+
+## CloudWatch Logs Testing (NEW)
+
+**Prerequisites:** 
+- CloudWatch agent installed and configured on test instances
+- Proper IAM permissions for CloudWatch Logs access
+- Some log data available in CloudWatch
+
+### Basic Logs Commands
+```bash
+# Test help and version include logs functionality
+./ssm help                        # Should show logs commands
+./ssm version                     # Should include "CloudWatch Logs" in features
+
+# Test error handling
+./ssm logs                        # Should show usage error
+./ssm logs cac1                   # Should show "requires both region and target" error
+./ssm logs invalid-region i-1234  # Should show "Invalid region code" error
+```
+
+### Instance Logs Testing
+```bash
+# Test with valid instance (replace with real instance ID)
+./ssm logs cac1 i-1234567890abcdef0        # Should show instance log groups or helpful message
+./ssm logs use1 i-1234567890abcdef0        # Test different region
+
+# Test with instance name (if supported by resolver)
+./ssm logs cac1 web-server                 # Should resolve name and show logs
+
+# Test error cases
+./ssm logs cac1 i-invalid                  # Should show invalid instance ID error
+./ssm logs cac1 i-999999999999999999       # Should show no log groups found
+```
+
+### Log Group Testing
+```bash
+# Test with real log groups (adjust based on your environment)
+./ssm logs cac1 /aws/lambda/my-function              # Direct log group access
+./ssm logs cac1 /var/log/messages                    # System log group
+./ssm logs cac1 /aws/amazoncloudwatch-agent/i-1234  # CloudWatch agent logs
+
+# Test with filtering
+./ssm logs cac1 /aws/lambda/my-function "ERROR"      # Filter for ERROR messages
+./ssm logs cac1 /var/log/messages "kernel"           # Filter for kernel messages
+./ssm logs cac1 /aws/lambda/my-function "[TIMEOUT]"  # Complex filter pattern
+
+# Test error cases
+./ssm logs cac1 /nonexistent/log/group               # Should show log group not found
+```
+
+### AWS Credentials Testing
+```bash
+# Test without AWS credentials configured
+unset AWS_PROFILE AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+./ssm logs cac1 i-1234567890abcdef0        # Should show helpful credential setup message
+
+# Test with invalid credentials
+AWS_PROFILE=invalid-profile ./ssm logs cac1 i-1234567890abcdef0  # Should show connection error
+```
+
+### Performance Testing
+```bash
+# Test with large log groups (if available)
+./ssm logs cac1 /aws/lambda/high-volume-function     # Should handle large result sets
+./ssm logs cac1 /var/log/messages ".*"               # Broad filter pattern
+
+# Test multiple rapid requests
+for i in {1..3}; do ./ssm logs cac1 /aws/lambda/my-function & done; wait
 ```
 
 ## Test Cleanup (NEW)
