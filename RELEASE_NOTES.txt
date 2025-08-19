@@ -1,3 +1,30 @@
+# ZTiAWS Bash Scripts v1.6.0 Release Notes
+
+**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/main/README.md)
+
+**Release Date:** August 19, 2025
+
+## 🚀 New Features
+• **Flag-based parameter support for SSM tool** - Enterprise-friendly syntax with `--region`, `--instance`, `--command` flags
+• **Mixed syntax support** - Combine positional and flag-based parameters (e.g., `ssm cac1 --instance i-1234`)
+• **Professional installation system** - New Makefile with `make install`, `make dev`, `make test` targets
+• **Short flag support** - `-h`, `-v`, `-r`, `-i` for common operations
+• **Enhanced error messages** - Actionable guidance for missing modules and setup issues
+
+## 🐛 Bug Fixes
+• **Critical port forwarding bug** - Fixed instance name resolution for port forwarding operations
+• **Region validation consistency** - Resolved inconsistent region validation across different SSM commands
+• **Duplicate PATH prevention** - Fixed Makefile to prevent duplicate PATH entries in development setup
+• **Shellcheck compliance** - Resolved all linting warnings (SC2034, SC2155)
+
+## 📝 Other Changes
+• **Backward compatibility maintained** - All existing positional syntax continues to work unchanged
+• **Dynamic command naming** - Both `ssm` and `authaws` now use `$(basename "$0")` for consistent help text
+• **Improved documentation** - Updated README.md with clear user vs developer installation paths
+• **Enhanced testing** - New `tests/QA_SSM_TESTS.md` with comprehensive test scenarios
+
+---
+
 # ztictl v2.1.0 Release Notes
 
 **Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.1.0/INSTALLATION.md)
