@@ -70,13 +70,13 @@ fi
 
 # Import CloudWatch logs functions
 CLOUDWATCH_LOGS_AVAILABLE=false
-if [ -f "${SCRIPT_DIR}/src/05_ssm_cloudwatch_logs.sh" ]; then
-    # shellcheck source=./src/05_ssm_cloudwatch_logs.sh
-    source "${SCRIPT_DIR}/src/05_ssm_cloudwatch_logs.sh"
+if [ -f "${SCRIPT_DIR}/src/07_ssm_cloudwatch_logs.sh" ]; then
+    # shellcheck source=./src/07_ssm_cloudwatch_logs.sh
+    source "${SCRIPT_DIR}/src/07_ssm_cloudwatch_logs.sh"
     CLOUDWATCH_LOGS_AVAILABLE=true
-elif [ -f "/usr/local/bin/src/05_ssm_cloudwatch_logs.sh" ]; then
+elif [ -f "/usr/local/bin/src/07_ssm_cloudwatch_logs.sh" ]; then
     # shellcheck source=/dev/null
-    source "/usr/local/bin/src/05_ssm_cloudwatch_logs.sh"
+    source "/usr/local/bin/src/07_ssm_cloudwatch_logs.sh"
     CLOUDWATCH_LOGS_AVAILABLE=true
 else
     log_warn "CloudWatch logs module not found. Logs commands will not be available."
