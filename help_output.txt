@@ -1,0 +1,58 @@
+AWS SSM Session Manager Helper
+Usage: ssm [region] [instance-id]
+       ssm [instance-id]        # Uses default region (Canada Central)
+
+Supported regions:
+  cac1  - Canada Central (Montreal) [default]
+  apse1 -  Asia Pacific (Seoul)
+  caw1  - Canada West (Calgary)
+  usw1  - US West (N. California)
+  use1  - US East (N. Virginia)
+  euw1  - EU West (Ireland)
+
+Commands:
+  ssm install              # Show installation instructions
+  ssm version              # Show version information
+  ssm check                # Check system requirements
+  ssm exec [options]        # Run a command on an instance
+  ssm exec-tagged [options] # Run a command on instances by tag
+  ssm upload [options]      # Upload a file to an instance
+  ssm download [options]    # Download a file from an instance
+  ssm logs [options]        # View CloudWatch logs for instances or log groups
+
+Run Command Options:
+  ssm exec <region> <instance-id> "<command>"
+  ssm exec-tagged <region> <tag-key> <tag-value> "<command>"
+
+File Transfer Options:
+  ssm upload <region> <instance-id> <local-file> <remote-path>
+  ssm download <region> <instance-id> <remote-file> <local-path>
+
+CloudWatch Logs Options:
+  ssm logs <region> <instance-id>              # View recent logs for an instance
+  ssm logs <region> <log-group>                # View recent logs from a log group
+  ssm logs <region> <log-group> <filter>       # View filtered logs from a log group
+
+Examples:
+  ssm cac1                             # List instances in Canada Central
+  ssm use1 i-1234                      # Connect to instance in US East
+  ssm i-1234                           # Connect to instance in Canada Central
+  ssm exec cac1 i-1234 "systemctl status nginx"   # Run command on instance
+  ssm exec cac1 web-server-prod "systemctl status nginx"  # Run command using instance name
+  ssm exec-tagged use1 Role web "df -h" # Run command on instances with tag Role=web
+  ssm upload cac1 i-1234 ./config.txt /etc/app/config.txt    # Upload file
+  ssm download cac1 i-1234 /var/log/app.log ./app.log        # Download file
+
+File Transfer Notes:
+  - Files < 1MB: Direct transfer via SSM (faster)
+  - Files ≥ 1MB: Transfer via S3 intermediary (reliable for large files)
+  - S3 bucket is auto-created and files are auto-deleted after 24 hours
+  - Instance must have AWS CLI installed and proper IAM permissions for S3 access (large files only)
+  ssm logs cac1 i-1234                        # View recent logs for instance
+  ssm logs use1 /aws/lambda/my-function       # View logs from specific log group
+  ssm logs cac1 /var/log/messages "ERROR"     # Filter logs for ERROR messages
+
+CloudWatch Logs Notes:
+  - Shows logs from the last hour by default
+  - Instance logs require CloudWatch agent to be installed and configured
+  - Requires proper IAM permissions for CloudWatch Logs access
