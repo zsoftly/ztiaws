@@ -38,27 +38,49 @@
 
 ## ⚡ Installation
 
-### **Quick Install (Recommended):**
+### **For End Users (Simple Installation):**
 
-**For Users:**
+**Step 1: Download**
 ```bash
 git clone https://github.com/zsoftly/ztiaws.git
 cd ztiaws
-make install
 ```
 
-**Verify Installation:**
+**Step 2: Install**
+```bash
+./install.sh
+```
+
+**Step 3: Verify**
 ```bash
 authaws --check
 ssm --help
 ```
 
-**For Developers:**
+The installation script automatically:
+- ✅ Installs `authaws` and `ssm` commands globally
+- ✅ Copies all required modules to `/usr/local/bin/src/`
+- ✅ Sets up proper permissions
+- ✅ Verifies installation works correctly
+
+**To uninstall:** `./uninstall.sh`
+
+---
+
+### **For Developers (Advanced Setup):**
+
+**Development Environment:**
 ```bash
 git clone https://github.com/zsoftly/ztiaws.git
 cd ztiaws
 make dev          # Sets up development environment
-authaws --check   # Works without ./ prefix
+```
+
+**Development Tools:**
+```bash
+make test         # Run shellcheck and basic tests
+make clean        # Clean up temporary files
+make help         # Show all available targets
 ```
 
 **Development Testing:**
@@ -67,10 +89,12 @@ authaws --check   # Works without ./ prefix
 ./authaws --check
 ./ssm --help
 
-# After make install or make dev
+# After make dev or make install
 authaws --check
 ssm --help
 ```
+
+**Note for Developers:** Use `make` targets for development workflow. End users should use `./install.sh` for simpler installation without requiring build tools.
 
 See [INSTALLATION.md](INSTALLATION.md) for comprehensive installation instructions including:
 - Platform-specific instructions  

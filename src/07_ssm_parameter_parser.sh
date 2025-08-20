@@ -7,6 +7,10 @@
 # This module provides unified parameter parsing for ssm, supporting both
 # positional and flag-based syntax while maintaining full backward compatibility.
 # 
+# Environment Variables:
+# - SSM_DEFAULT_REGION: Override default region (default: ca-central-1)
+#   Example: export SSM_DEFAULT_REGION="us-east-1"
+# 
 # Compatibility: bash 3.2+ (macOS compatible)
 # Usage: source this file in ssm script, then call parse_ssm_parameters "$@"
 
@@ -217,7 +221,7 @@ parse_positional_parameters() {
             else
                 # Assume it's an instance identifier for default region
                 SSM_OPERATION="connect"
-                SSM_REGION="ca-central-1"  # Default region
+                SSM_REGION="${SSM_DEFAULT_REGION:-ca-central-1}"  # Default region from environment
                 SSM_INSTANCE="$first_arg"
                 return 0
             fi
@@ -532,23 +536,32 @@ validate_and_infer_operation() {
     if [[ -n "$SSM_REGION" ]]; then
         # Check if it's already a full region name (e.g., "us-east-1")
         if [[ "$SSM_REGION" =~ ^[a-z]+-[a-z]+-[0-9]+$ ]]; then
-            # Already a full region name, no need to validate
-            :
+            # Already a full region name, validate it's a real AWS region
+            if ! validate_aws_region "$SSM_REGION"; then
+                log_error "Error: '$SSM_REGION' is not a valid AWS region"
+                return 1
+            fi
         else
             # It's a region code, validate and convert
-            local validated_region
-            if ! validate_region_code "$SSM_REGION" validated_region; then
-                log_error "Error: Invalid region '$SSM_REGION'"
+            local test_region
+            if ! validate_region_code "$SSM_REGION" test_region; then
+                log_error "Error: Invalid region code '$SSM_REGION'"
                 return 1
             fi
             # Update SSM_REGION with the validated full region name
-            SSM_REGION="$validated_region"
+            SSM_REGION="$test_region"
+            
+            # Double-check that the resolved region is valid
+            if ! validate_aws_region "$SSM_REGION"; then
+                log_error "Error: Resolved region '$SSM_REGION' is not a valid AWS region"
+                return 1
+            fi
         fi
     fi
     
     # Set default region if not specified and operation requires it
     if [[ -z "$SSM_REGION" && "$SSM_OPERATION" =~ ^(connect|exec|exec-tagged|upload|download|forward|list)$ ]]; then
-        SSM_REGION="ca-central-1"  # Default region
+        SSM_REGION="${SSM_DEFAULT_REGION:-ca-central-1}"  # Default region from environment
     fi
     
     # Validate required parameters for each operation

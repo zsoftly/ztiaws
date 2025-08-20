@@ -36,13 +36,13 @@ This QA document uses `./ssm` to test the local development version before insta
 ### Test Data Setup
 ```bash
 # Ensure test instances are available
-# ⚠️  WARNING: Replace with your actual instance IDs and region
+# ⚠️  WARNING: Replace placeholder values with your actual AWS resources
 # Do not commit real instance IDs to version control
-export TEST_REGION="us-east-1"
-export TEST_INSTANCE_1="i-1234567890abcdef0"
-export TEST_INSTANCE_2="i-0987654321fedcba0"
-export TEST_TAG_KEY="Environment"
-export TEST_TAG_VALUE="test"
+export TEST_REGION="<YOUR_AWS_REGION>"              # e.g., "us-east-1", "ca-central-1"
+export TEST_INSTANCE_1="<YOUR_INSTANCE_ID_1>"       # e.g., "i-1234567890abcdef0"
+export TEST_INSTANCE_2="<YOUR_INSTANCE_ID_2>"       # e.g., "i-0987654321fedcba0"  
+export TEST_TAG_KEY="<YOUR_TAG_KEY>"                # e.g., "Environment"
+export TEST_TAG_VALUE="<YOUR_TAG_VALUE>"            # e.g., "test"
 
 # Create test files for upload/download testing
 echo "Test content for upload" > test-upload.txt
