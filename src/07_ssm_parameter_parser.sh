@@ -231,11 +231,20 @@ parse_positional_parameters() {
                 fi
                 return 0
             else
-                # Assume it's an instance identifier for default region
-                SSM_OPERATION="connect"
-                SSM_REGION="${SSM_DEFAULT_REGION:-${ZTIAWS_DEFAULT_REGION:-ca-central-1}}"  # Simple environment variable approach
-                SSM_INSTANCE="$first_arg"
-                return 0
+                # Validate that the argument looks like a valid instance identifier before assuming it's an instance
+                if [[ "$first_arg" =~ ^i-[a-zA-Z0-9]{8,}$ ]]; then
+                    # Looks like instance ID (i-xxxxxxxx)
+                    SSM_OPERATION="connect"
+                    SSM_REGION="${SSM_DEFAULT_REGION:-${ZTIAWS_DEFAULT_REGION:-ca-central-1}}"  # Simple environment variable approach
+                    SSM_INSTANCE="$first_arg"
+                    return 0
+                else
+                    # Invalid argument format
+                    log_error "Error: Unrecognized argument '$first_arg'"
+                    log_error "Expected: region code (e.g., 'cac1', 'use1') or instance ID (e.g., 'i-1234567890abcdef0')"
+                    log_error "Use '$(basename "$0") --help' for usage information"
+                    return 1
+                fi
             fi
             ;;
     esac
