@@ -62,6 +62,91 @@ validate_region_code() {
     fi
 }
 
+# Validate actual AWS region name (full region name, not shortcode)
+# Returns 0 if valid AWS region, 1 if invalid
+# Usage: if validate_aws_region "us-east-1"; then ... fi
+validate_aws_region() {
+    local region="$1"
+    
+    # Check if region is provided
+    if [[ -z "$region" ]]; then
+        return 1
+    fi
+    
+    # Try dynamic validation first (requires AWS CLI and credentials)
+    if command -v aws &> /dev/null; then
+        # Use AWS CLI to dynamically get available regions (fast, authoritative)
+        local aws_regions
+        if aws_regions=$(aws ec2 describe-regions --output text --query 'Regions[].RegionName' 2>/dev/null); then
+            # Check if our region is in the AWS response
+            if echo "$aws_regions" | grep -q "^$region$" || echo "$aws_regions" | tr '\t' '\n' | grep -q "^$region$"; then
+                return 0  # Valid region found via AWS CLI
+            fi
+        fi
+    fi
+    
+    # Fallback to static validation (for offline scenarios or AWS CLI issues)
+    # This list is maintained as a fallback and updated periodically
+    local valid_regions=(
+        # US Regions
+        "us-east-1"      # N. Virginia
+        "us-east-2"      # Ohio
+        "us-west-1"      # N. California
+        "us-west-2"      # Oregon
+        
+        # Canada Regions
+        "ca-central-1"   # Montreal
+        "ca-west-1"      # Calgary
+        
+        # Europe Regions
+        "eu-west-1"      # Ireland
+        "eu-west-2"      # London
+        "eu-west-3"      # Paris
+        "eu-central-1"   # Frankfurt
+        "eu-central-2"   # Zurich
+        "eu-north-1"     # Stockholm
+        "eu-south-1"     # Milan
+        "eu-south-2"     # Spain
+        
+        # Asia Pacific Regions
+        "ap-south-1"     # Mumbai
+        "ap-south-2"     # Hyderabad
+        "ap-southeast-1" # Singapore
+        "ap-southeast-2" # Sydney
+        "ap-southeast-3" # Jakarta
+        "ap-southeast-4" # Melbourne
+        "ap-northeast-1" # Tokyo
+        "ap-northeast-2" # Seoul
+        "ap-northeast-3" # Osaka
+        "ap-east-1"      # Hong Kong
+        
+        # Middle East & Africa
+        "me-south-1"     # Bahrain
+        "me-central-1"   # UAE
+        "af-south-1"     # Cape Town
+        
+        # South America
+        "sa-east-1"      # São Paulo
+        
+        # China (special regions)
+        "cn-north-1"     # Beijing
+        "cn-northwest-1" # Ningxia
+        
+        # GovCloud (US)
+        "us-gov-east-1" # AWS GovCloud (US-East)
+        "us-gov-west-1" # AWS GovCloud (US-West)
+    )
+    
+    # Check fallback list
+    for valid_region in "${valid_regions[@]}"; do
+        if [[ "$region" == "$valid_region" ]]; then
+            return 0  # Valid region found in fallback list
+        fi
+    done
+    
+    return 1  # Invalid region
+}
+
 # Get region description
 get_region_description() {
     case "$1" in

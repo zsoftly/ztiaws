@@ -1,5 +1,28 @@
 # Changelog
 
+## [v1.6.0] - 2025-08-19
+
+### Added
+- **Flag-based parameter support for SSM tool** - New enterprise-friendly syntax with `--region`, `--instance`, `--command` flags
+- **Mixed syntax support** - Combination of positional and flag-based parameters (e.g., `ssm cac1 --instance i-1234`)
+- **Enhanced user experience** - Self-documenting commands with clear parameter names
+- **Professional installation system** - New Makefile with `make install`, `make dev`, `make test` targets
+- **Short flag support** - `-h`, `-v`, `-r`, `-i` for common operations
+- **Comprehensive parameter parser** - New `src/07_ssm_parameter_parser.sh` module following established patterns
+- **Enhanced error messages** - Actionable guidance for missing modules and setup issues
+
+### Changed
+- **Backward compatibility maintained** - All existing positional syntax continues to work unchanged
+- **Dynamic command naming** - Both `ssm` and `authaws` now use `$(basename "$0")` for consistent help text
+- **Improved documentation** - Updated README.md with clear user vs developer installation paths
+- **Enhanced testing** - New `tests/QA_SSM_TESTS.md` with comprehensive test scenarios
+
+### Fixed
+- **Critical port forwarding bug** - Fixed instance name resolution for port forwarding operations
+- **Region validation consistency** - Resolved inconsistent region validation across different SSM commands
+- **Duplicate PATH prevention** - Fixed Makefile to prevent duplicate PATH entries in development setup
+- **Shellcheck compliance** - Resolved all linting warnings (SC2034, SC2155)
+
 ## [v2.1.0] - 2025-08-04
 
 ### Added

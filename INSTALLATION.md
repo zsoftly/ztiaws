@@ -250,9 +250,50 @@ If updating from pre-March 2025 (when repository was named "quickssm"), see [doc
 
 If you need to use the legacy bash tools:
 
-**Installation:**
+### **For End Users (Simple Installation):**
+
 ```bash
-# Clone repository (required - bash tools cannot be downloaded as binaries)
+# Step 1: Download
+git clone https://github.com/zsoftly/ztiaws.git
+cd ztiaws
+
+# Step 2: Install (no build tools required)
+./install.sh
+
+# Step 3: Verify
+authaws --check
+ssm --help
+```
+
+The installation script automatically:
+- ✅ Installs `authaws` and `ssm` commands globally
+- ✅ Copies all required modules to `/usr/local/bin/src/`
+- ✅ Sets up proper permissions
+- ✅ Verifies installation works correctly
+
+**To uninstall:** `./uninstall.sh`
+
+### **For Developers (Development Setup):**
+
+```bash
+# Clone repository
+git clone https://github.com/zsoftly/ztiaws.git
+cd ztiaws
+
+# Development environment setup
+make dev          # Sets up development environment
+make test         # Run shellcheck and basic tests
+make clean        # Clean up temporary files
+
+# Development testing
+./authaws --check  # Test local development version
+./ssm --help       # Test local development version
+```
+
+### **Manual Installation (Alternative):**
+
+```bash
+# Clone repository
 git clone https://github.com/zsoftly/ztiaws.git
 cd ztiaws
 
