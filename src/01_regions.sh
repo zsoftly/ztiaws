@@ -73,7 +73,20 @@ validate_aws_region() {
         return 1
     fi
     
-    # List of all valid AWS regions (as of 2025)
+    # Try dynamic validation first (requires AWS CLI and credentials)
+    if command -v aws &> /dev/null; then
+        # Use AWS CLI to dynamically get available regions (fast, authoritative)
+        local aws_regions
+        if aws_regions=$(aws ec2 describe-regions --output text --query 'Regions[].RegionName' 2>/dev/null); then
+            # Check if our region is in the AWS response
+            if echo "$aws_regions" | grep -q "^$region$" || echo "$aws_regions" | tr '\t' '\n' | grep -q "^$region$"; then
+                return 0  # Valid region found via AWS CLI
+            fi
+        fi
+    fi
+    
+    # Fallback to static validation (for offline scenarios or AWS CLI issues)
+    # This list is maintained as a fallback and updated periodically
     local valid_regions=(
         # US Regions
         "us-east-1"      # N. Virginia
@@ -124,10 +137,10 @@ validate_aws_region() {
         "us-gov-west-1" # AWS GovCloud (US-West)
     )
     
-    # Check if the provided region exists in our list
+    # Check fallback list
     for valid_region in "${valid_regions[@]}"; do
         if [[ "$region" == "$valid_region" ]]; then
-            return 0  # Valid region found
+            return 0  # Valid region found in fallback list
         fi
     done
     

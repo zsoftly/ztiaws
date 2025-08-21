@@ -38,6 +38,8 @@ else
     exit 1
 fi
 
+
+
 # Import run_command functions
 if [ -f "${SCRIPT_DIR}/src/03_ssm_command_runner.sh" ]; then
     # shellcheck source=./src/03_ssm_command_runner.sh

@@ -10,9 +10,21 @@
 # Environment Variables:
 # - SSM_DEFAULT_REGION: Override default region (default: ca-central-1)
 #   Example: export SSM_DEFAULT_REGION="us-east-1"
+# - ZTIAWS_DEFAULT_REGION: Alternative environment variable name
+# 
+# .env file support: Create .env file in script directory with environment variables
 # 
 # Compatibility: bash 3.2+ (macOS compatible)
 # Usage: source this file in ssm script, then call parse_ssm_parameters "$@"
+
+# Load .env file if it exists (simple approach)
+if [[ -f "$(dirname "${BASH_SOURCE[0]}")/../.env" ]]; then
+    # shellcheck source=/dev/null
+    source "$(dirname "${BASH_SOURCE[0]}")/../.env"
+elif [[ -f ".env" ]]; then
+    # shellcheck source=/dev/null
+    source ".env"
+fi
 
 # Global variables to store parsed parameters
 # Using regular variable assignment for bash 3.2 compatibility
@@ -221,7 +233,7 @@ parse_positional_parameters() {
             else
                 # Assume it's an instance identifier for default region
                 SSM_OPERATION="connect"
-                SSM_REGION="${SSM_DEFAULT_REGION:-ca-central-1}"  # Default region from environment
+                SSM_REGION="${SSM_DEFAULT_REGION:-${ZTIAWS_DEFAULT_REGION:-ca-central-1}}"  # Simple environment variable approach
                 SSM_INSTANCE="$first_arg"
                 return 0
             fi
@@ -561,7 +573,8 @@ validate_and_infer_operation() {
     
     # Set default region if not specified and operation requires it
     if [[ -z "$SSM_REGION" && "$SSM_OPERATION" =~ ^(connect|exec|exec-tagged|upload|download|forward|list)$ ]]; then
-        SSM_REGION="${SSM_DEFAULT_REGION:-ca-central-1}"  # Default region from environment
+        # Simple environment variable approach
+        SSM_REGION="${SSM_DEFAULT_REGION:-${ZTIAWS_DEFAULT_REGION:-ca-central-1}}"
     fi
     
     # Validate required parameters for each operation

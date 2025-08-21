@@ -80,6 +80,11 @@ install_files() {
     print_color $BLUE "  • Installing source modules..."
     $install_cmd cp src/*.sh /usr/local/bin/src/
     
+    # Create XDG-compliant configuration directory for enterprise standards
+    print_color $BLUE "  • Setting up configuration directory..."
+    local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/ztiaws"
+    mkdir -p "$config_dir" 2>/dev/null || true
+    
     print_color $GREEN "✅ Files installed successfully!"
     echo
 }

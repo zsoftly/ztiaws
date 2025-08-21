@@ -34,15 +34,41 @@ This QA document uses `./ssm` to test the local development version before insta
 - Proper IAM permissions for SSM Session Manager
 
 ### Test Data Setup
+
+**Step 1: Create Environment File**
 ```bash
-# Ensure test instances are available
-# ⚠️  WARNING: Replace placeholder values with your actual AWS resources
-# Do not commit real instance IDs to version control
-export TEST_REGION="<YOUR_AWS_REGION>"              # e.g., "us-east-1", "ca-central-1"
-export TEST_INSTANCE_1="<YOUR_INSTANCE_ID_1>"       # e.g., "i-1234567890abcdef0"
-export TEST_INSTANCE_2="<YOUR_INSTANCE_ID_2>"       # e.g., "i-0987654321fedcba0"  
-export TEST_TAG_KEY="<YOUR_TAG_KEY>"                # e.g., "Environment"
-export TEST_TAG_VALUE="<YOUR_TAG_VALUE>"            # e.g., "test"
+# Create a test configuration file (NOT committed to version control)
+cat > test-config.env << 'EOF'
+# ⚠️  WARNING: Replace with your actual AWS resources
+# This file should be added to .gitignore
+export TEST_REGION="us-east-1"                      # Your test region
+export TEST_INSTANCE_1="i-1234567890abcdef0"        # Your test instance 1
+export TEST_INSTANCE_2="i-0987654321fedcba0"        # Your test instance 2
+export TEST_TAG_KEY="Environment"                   # Your test tag key
+export TEST_TAG_VALUE="test"                        # Your test tag value
+EOF
+
+# Load test configuration
+source test-config.env
+```
+
+**Step 2: Validate Test Data**
+```bash
+# Validate instance ID format before running tests
+validate_instance_id() {
+    local instance_id="$1"
+    if [[ ! "$instance_id" =~ ^i-[0-9a-f]{8,17}$ ]]; then
+        echo "❌ Invalid instance ID format: $instance_id"
+        echo "Expected format: i-xxxxxxxxxxxxxxxx (8-17 hex characters)"
+        return 1
+    fi
+    echo "✅ Valid instance ID format: $instance_id"
+    return 0
+}
+
+# Validate all test data before proceeding
+validate_instance_id "$TEST_INSTANCE_1" || exit 1
+validate_instance_id "$TEST_INSTANCE_2" || exit 1
 
 # Create test files for upload/download testing
 echo "Test content for upload" > test-upload.txt
