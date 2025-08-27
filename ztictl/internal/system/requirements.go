@@ -420,8 +420,10 @@ func (c *RequirementsChecker) GetSystemInfo() map[string]string {
 		info["home"] = home
 	}
 
-	// Get AWS config directory
-	info["aws_config_dir"] = filepath.Join(os.Getenv("HOME"), ".aws")
+	// Get AWS config directory - use cross-platform home directory
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		info["aws_config_dir"] = filepath.Join(homeDir, ".aws")
+	}
 
 	return info
 }

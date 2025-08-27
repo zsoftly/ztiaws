@@ -421,8 +421,9 @@ func TestGetSystemInfo(t *testing.T) {
 		}
 	}
 
-	// AWS config dir should be reasonable
-	expectedAWSDir := filepath.Join(os.Getenv("HOME"), ".aws")
+	// AWS config dir should be reasonable - use cross-platform home directory
+	homeDir, _ := os.UserHomeDir()
+	expectedAWSDir := filepath.Join(homeDir, ".aws")
 	if info["aws_config_dir"] != expectedAWSDir {
 		t.Logf("AWS config dir: expected %s, got %s", expectedAWSDir, info["aws_config_dir"])
 	}

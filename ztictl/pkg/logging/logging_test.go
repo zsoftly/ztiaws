@@ -601,7 +601,16 @@ func TestLoggerLevels(t *testing.T) {
 func TestLogFileCreationFailure(t *testing.T) {
 	// Setup impossible log directory to test failure handling
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
-	os.Setenv("ZTICTL_LOG_DIR", "/nonexistent/readonly/path")
+	
+	// Use platform-specific invalid path
+	var invalidPath string
+	if runtime.GOOS == "windows" {
+		invalidPath = "Z:\\nonexistent\\readonly\\path"
+	} else {
+		invalidPath = "/nonexistent/readonly/path"
+	}
+	
+	os.Setenv("ZTICTL_LOG_DIR", invalidPath)
 	defer os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
 
 	// Reset logger state
