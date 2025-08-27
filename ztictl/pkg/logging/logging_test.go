@@ -280,6 +280,11 @@ func TestLogFunctions(t *testing.T) {
 	setupFileLogger()
 	defer CloseLogger()
 
+	// Suppress console output during testing to avoid cluttering test output
+	// and prevent GitHub Actions from interpreting colored error output as failures
+	SuppressConsoleOutput(true)
+	defer SuppressConsoleOutput(false)
+
 	tests := []struct {
 		name    string
 		logFunc func(string, ...interface{})
@@ -422,6 +427,10 @@ func TestLoggerMethods(t *testing.T) {
 	setupFileLogger()
 	defer CloseLogger()
 
+	// Suppress console output during testing
+	SuppressConsoleOutput(true)
+	defer SuppressConsoleOutput(false)
+
 	tests := []struct {
 		name          string
 		debugEnabled  bool
@@ -531,6 +540,10 @@ func TestConcurrentLogging(t *testing.T) {
 
 	setupFileLogger()
 	defer CloseLogger()
+
+	// Suppress console output during testing
+	SuppressConsoleOutput(true)
+	defer SuppressConsoleOutput(false)
 
 	var wg sync.WaitGroup
 	numGoroutines := 5 // Reduced to make test more reliable
@@ -688,6 +701,39 @@ func TestLoggerLevels(t *testing.T) {
 				t.Errorf("Level %s = %d, want %d", tt.name, int(tt.level), int(tt.expected))
 			}
 		})
+	}
+}
+
+func TestSuppressConsoleOutput(t *testing.T) {
+	// Test that SuppressConsoleOutput function works correctly
+
+	// Initially console output should not be suppressed
+	loggerMutex.RLock()
+	initialState := suppressConsole
+	loggerMutex.RUnlock()
+
+	if initialState {
+		t.Error("Console output should not be suppressed initially")
+	}
+
+	// Test enabling suppression
+	SuppressConsoleOutput(true)
+	loggerMutex.RLock()
+	suppressedState := suppressConsole
+	loggerMutex.RUnlock()
+
+	if !suppressedState {
+		t.Error("Console output should be suppressed after calling SuppressConsoleOutput(true)")
+	}
+
+	// Test disabling suppression
+	SuppressConsoleOutput(false)
+	loggerMutex.RLock()
+	unsuppressedState := suppressConsole
+	loggerMutex.RUnlock()
+
+	if unsuppressedState {
+		t.Error("Console output should not be suppressed after calling SuppressConsoleOutput(false)")
 	}
 }
 

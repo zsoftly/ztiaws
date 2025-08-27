@@ -14,9 +14,10 @@ import (
 )
 
 var (
-	fileLogger  *log.Logger
-	logFile     *os.File // Store file handle for proper cleanup
-	loggerMutex sync.RWMutex
+	fileLogger      *log.Logger
+	logFile         *os.File // Store file handle for proper cleanup
+	loggerMutex     sync.RWMutex
+	suppressConsole bool // Suppress console output during testing
 )
 
 func init() {
@@ -103,6 +104,14 @@ func setupFileLogger() {
 	loggerMutex.Unlock()
 }
 
+// SuppressConsoleOutput controls whether logging functions print to console
+// This is primarily used during testing to avoid cluttering test output
+func SuppressConsoleOutput(suppress bool) {
+	loggerMutex.Lock()
+	suppressConsole = suppress
+	loggerMutex.Unlock()
+}
+
 // CloseLogger properly closes the log file to prevent resource leaks
 // Should be called during application shutdown
 func CloseLogger() {
@@ -139,35 +148,70 @@ func logToFile(level string, message string) {
 // LogInfo logs an info message - colored to console, timestamped to file
 func LogInfo(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	colors.Success.Printf("[INFO] %s\n", message)
+
+	loggerMutex.RLock()
+	shouldSuppress := suppressConsole
+	loggerMutex.RUnlock()
+
+	if !shouldSuppress {
+		colors.Success.Printf("[INFO] %s\n", message)
+	}
 	logToFile("INFO", message)
 }
 
 // LogWarn logs a warning message - colored to console, timestamped to file
 func LogWarn(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	colors.Warning.Printf("[WARN] %s\n", message)
+
+	loggerMutex.RLock()
+	shouldSuppress := suppressConsole
+	loggerMutex.RUnlock()
+
+	if !shouldSuppress {
+		colors.Warning.Printf("[WARN] %s\n", message)
+	}
 	logToFile("WARN", message)
 }
 
 // LogError logs an error message - colored to console, timestamped to file
 func LogError(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	colors.Error.Printf("[ERROR] %s\n", message)
+
+	loggerMutex.RLock()
+	shouldSuppress := suppressConsole
+	loggerMutex.RUnlock()
+
+	if !shouldSuppress {
+		colors.Error.Printf("[ERROR] %s\n", message)
+	}
 	logToFile("ERROR", message)
 }
 
 // LogDebug logs a debug message - colored to console, timestamped to file
 func LogDebug(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	colors.Data.Printf("[DEBUG] %s\n", message)
+
+	loggerMutex.RLock()
+	shouldSuppress := suppressConsole
+	loggerMutex.RUnlock()
+
+	if !shouldSuppress {
+		colors.Data.Printf("[DEBUG] %s\n", message)
+	}
 	logToFile("DEBUG", message)
 }
 
 // LogSuccess logs a success message - colored to console, timestamped to file
 func LogSuccess(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	colors.Success.Printf("[SUCCESS] %s\n", message)
+
+	loggerMutex.RLock()
+	shouldSuppress := suppressConsole
+	loggerMutex.RUnlock()
+
+	if !shouldSuppress {
+		colors.Success.Printf("[SUCCESS] %s\n", message)
+	}
 	logToFile("SUCCESS", message)
 }
 
