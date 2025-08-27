@@ -20,7 +20,6 @@ Thumbs.db
 /ztictl/ztictl.exe
 /ztictl/builds/
 **/ztictl-*
-ztictl
 *.exe
 *.bin
 
