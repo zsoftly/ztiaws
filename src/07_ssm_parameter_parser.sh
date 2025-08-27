@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 # SSM Parameter Parser Module
-# Version: 1.0.0
 # Repository: https://github.com/ZSoftly/ztiaws
 # 
 # This module provides unified parameter parsing for ssm, supporting both
