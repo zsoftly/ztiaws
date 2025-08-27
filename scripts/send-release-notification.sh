@@ -127,7 +127,7 @@ create_chat_payload() {
               "keyValue": {
                 "topLabel": "Status",
                 "content": "🎉 Ready for deployment!",
-                "icon": "DONE"
+                "icon": "CHECK"
               }
             }
           ]
