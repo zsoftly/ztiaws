@@ -61,10 +61,41 @@ cd ztictl && make build-local
 
 # Run tests  
 make test
-
-# Linting (if available)
-# Check for npm/go linting commands in repository
 ```
+
+### **Standard Development Quality Checklist**
+**IMPORTANT**: Run these commands after ANY development work in the `ztictl/` directory:
+
+```bash
+# Navigate to ztictl directory
+cd ztictl
+
+# 1. Format code
+go fmt ./...
+
+# 2. Check for issues
+go vet ./...
+
+# 3. Verify compilation
+go build ./...
+
+# 4. Run all tests
+go test ./...
+
+# 5. Run linter (golangci-lint must be installed)
+export PATH=$PATH:$(go env GOPATH)/bin
+golangci-lint run ./...
+```
+
+**Installation of golangci-lint** (one-time setup):
+```bash
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
+```
+
+**These quality checks are MANDATORY before:**
+- Creating commits
+- Opening pull requests  
+- Considering development work "complete"
 
 ### Usage Examples
 ```bash
