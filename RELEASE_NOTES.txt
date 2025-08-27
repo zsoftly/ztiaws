@@ -2,7 +2,7 @@
 
 **Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/main/README.md)
 
-**Release Date:** August 19, 2025
+**Release Date:** August 27, 2025
 
 ## 🚀 New Features
 • **Flag-based parameter support for SSM tool** - Enterprise-friendly syntax with `--region`, `--instance`, `--command` flags
