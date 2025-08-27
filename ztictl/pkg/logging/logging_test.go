@@ -534,8 +534,8 @@ func TestConcurrentLogging(t *testing.T) {
 	defer CloseLogger()
 
 	var wg sync.WaitGroup
-	numGoroutines := 5  // Reduced to make test more reliable
-	numMessages := 10   // Reduced to make test more reliable
+	numGoroutines := 5 // Reduced to make test more reliable
+	numMessages := 10  // Reduced to make test more reliable
 
 	// Start multiple goroutines logging concurrently
 	for i := 0; i < numGoroutines; i++ {
@@ -576,7 +576,7 @@ func TestConcurrentLogging(t *testing.T) {
 	// Should have at least most of the expected lines (allow for some variation due to concurrency)
 	expectedLines := numGoroutines * numMessages
 	minExpectedLines := int(float64(expectedLines) * 0.9) // Allow 10% variance
-	
+
 	if len(nonEmptyLines) < minExpectedLines {
 		t.Errorf("Expected at least %d log lines, got %d", minExpectedLines, len(nonEmptyLines))
 	}
@@ -592,7 +592,7 @@ func TestConcurrentLogging(t *testing.T) {
 			t.Errorf("Line %d does not contain expected message: %s", i, line)
 			continue
 		}
-		
+
 		// Count messages per goroutine to verify distribution
 		for g := 0; g < numGoroutines; g++ {
 			if strings.Contains(line, fmt.Sprintf("Goroutine %d", g)) {
