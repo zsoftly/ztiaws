@@ -20,6 +20,7 @@ Thumbs.db
 /ztictl/ztictl.exe
 /ztictl/builds/
 **/ztictl-*
+ztictl
 *.exe
 *.bin
 
@@ -27,6 +28,12 @@ Thumbs.db
 *.out
 go.work
 go.work.sum
+
+# Test coverage files
+coverage.out
+coverage*.out
+coverage.html
+*.coverage
 
 # Test files
 *.log
@@ -41,6 +48,7 @@ test_results/
 .env
 .env.local
 *.local
+.claude/
 
 # Debug files
 *.debug
