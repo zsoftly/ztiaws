@@ -1,6 +1,6 @@
 # Changelog
 
-## [v2.2.0] - 2025-08-27
+## [v1.6.0] - 2025-08-19
 
 ### Added
 - **Flag-based parameter support for SSM tool** - New enterprise-friendly syntax with `--region`, `--instance`, `--command` flags
@@ -10,7 +10,6 @@
 - **Short flag support** - `-h`, `-v`, `-r`, `-i` for common operations
 - **Comprehensive parameter parser** - New `src/07_ssm_parameter_parser.sh` module following established patterns
 - **Enhanced error messages** - Actionable guidance for missing modules and setup issues
-- **Legacy bash script improvements** - Enhanced backward compatibility for existing users
 
 ### Changed
 - **Backward compatibility maintained** - All existing positional syntax continues to work unchanged

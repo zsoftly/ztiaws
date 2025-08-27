@@ -1,4 +1,4 @@
-# ZTiAWS v2.2.0 Release Notes
+# ZTiAWS Bash Scripts v1.6.0 Release Notes
 
 **Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/main/README.md)
 
@@ -10,7 +10,6 @@
 • **Professional installation system** - New Makefile with `make install`, `make dev`, `make test` targets
 • **Short flag support** - `-h`, `-v`, `-r`, `-i` for common operations
 • **Enhanced error messages** - Actionable guidance for missing modules and setup issues
-• **Legacy bash script improvements** - Enhanced backward compatibility for existing users
 
 ## 🐛 Bug Fixes
 • **Critical port forwarding bug** - Fixed instance name resolution for port forwarding operations
