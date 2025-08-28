@@ -63,17 +63,19 @@ graph TD
     B -->|Tag Push| E[3c build then release then notify]
     B -->|Manual Dispatch| F[3d build only]
     
-    C --> G[4a Run Tests on Shell Ubuntu macOS and Go Ubuntu Windows macOS]
+    C --> G[4a Run Tests Shell Ubuntu macOS and Go Ubuntu Windows macOS]
     D --> G
-    G --> H{5a Tests Pass?}
-    G --> K[6a pr-notify Always Runs]
-    H -->|Yes| I[7a Security Analysis]
+    G --> H{5a All Tests Pass?}
+    G -->|Shell Fail| I[6a Notify Shell Failure]
+    G -->|Go Fail| J[6b Notify Go Failure]
+    H -->|Yes| K[7a Security Analysis]
     H -->|No| L[7b Security Skipped]
-    E --> M[4b 6-Platform Build Matrix]
-    F --> M
+    K -->|Success| M[8a Notify All Tests Success]
+    K -->|Fail| N[8b Notify Security Failure]
+    E --> O[4b 6-Platform Build Matrix]
+    F --> O
     
-    M --> N[5b GitHub Release]
-    K --> O[7c Smart Status Report with PASS FAIL SKIP PEND]
+    O --> P[5b GitHub Release]
 ```
 
 ### Documentation Workflow: `.github/workflows/auto-generate-docs.yml`
@@ -205,29 +207,34 @@ needs: [build]
 3. Create GitHub release with auto-generated release notes
 4. Attach all binaries to release
 
-#### 6. **pr-notification** - PR Notifications
+#### 6. **Embedded Notifications** - PR Status Reporting
+**Architecture:** Notification steps embedded within each critical job
+
+**Implementation Pattern:**
 ```yaml
-if: always() && github.event_name == 'pull_request' && github.event.action == 'opened' && github.base_ref == 'main'
-needs: [test-shell, test-go]
+- name: Notify on Test Failure
+  if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
 ```
 
-**Purpose:** Always notify team of new PRs with intelligent status reporting
-**When it runs:** PRs opened to main branch, regardless of test results (uses `always()`)
-**Dependencies:** Only requires `test-shell` and `test-go` to complete (any result)
-**Smart Status Detection:**
+**Purpose:** Immediate notification when any critical step fails or succeeds
+**When it runs:** Embedded in each job - triggers based on that job's result
+**No Dependencies:** Each job can notify independently, preventing cascade failures
 
-* Analyzes test results and provides contextual messaging
-* Handles security job being skipped when tests fail
-* Provides detailed breakdown of what passed/failed/skipped
+**Notification Points:**
+* **Shell Test Job**: Notifies immediately on shell test failure
+* **Go Test Job**: Notifies immediately on Go test failure  
+* **Security Job**: Notifies on security failure OR final success (all tests passed)
 
 **Message Types:**
+* **Individual failures**: "[FAIL] [Shell/Go/Security] tests failed - PR needs attention"
+* **Final success**: "[PASS] All tests passed - PR is ready for review"
+* **Immediate feedback**: No waiting for other jobs to complete
 
-* **All tests pass**: "Tests passed! Security scan will run next. PR ready after security completes."
-* **Tests fail**: "[FAIL] [Specific test] failed, [SKIP] Security scan skipped (tests failed). Check workflow results."
-* **Mixed results**: Detailed status breakdown using [PASS], [FAIL], [SKIP], [PEND] indicators
-
-**Integration:** Uses same Google Chat webhook with enhanced status cards
-**Card Features:** Dynamic headers and icons based on overall status (success/failure)
+**Benefits:**
+* **Fail-fast notifications**: Immediate alerts when issues occur
+* **No dependency chains**: Each job notifies independently
+* **Guaranteed delivery**: Cannot be blocked by other job failures
+* **Single runner**: Only Ubuntu runners send notifications (prevents duplicates)
 
 #### 7. **release-notification** - Release Notifications
 ```yaml
@@ -243,12 +250,14 @@ needs: [release]
 
 ## Workflow Behavior Matrix
 
-| Scenario | Triggered Jobs | Execution Order |
-|----------|---------------|-----------------|
+| Scenario | Triggered Jobs | Execution & Notifications |
+|----------|---------------|---------------------------|
 | **Feature branch push** | `test-shell` + `test-go` | Parallel (Shell: Ubuntu+macOS, Go: Ubuntu+Windows+macOS) |
 | **PR to feature branch** | `test-shell` + `test-go` | Parallel (Shell: Ubuntu+macOS, Go: Ubuntu+Windows+macOS) |
-| **PR to main (tests pass)** | `test-shell` + `test-go` → `security` → `pr-notification` | Sequential (fail fast) |
-| **PR to main (tests fail)** | `test-shell` + `test-go` → `pr-notification` | Tests run, security skipped, notification always runs |
+| **PR to main (tests pass)** | `test-shell` + `test-go` → `security` | Sequential → Final success notification from security job |
+| **PR to main (shell fail)** | `test-shell` + `test-go` → security skipped | Immediate shell failure notification, security skipped |
+| **PR to main (go fail)** | `test-shell` + `test-go` → security skipped | Immediate Go failure notification, security skipped |
+| **PR to main (security fail)** | `test-shell` + `test-go` → `security` | Tests pass → Security failure notification |
 | **Tag push (v1.0.0)** | `build` → `release` → `release-notification` | Sequential |
 | **Manual dispatch** | `build` | Single job matrix |
 
@@ -260,7 +269,7 @@ needs: [release]
 * **Build fails** → Release is skipped automatically
 * **Early feedback** → Developers get test results first
 * **Resource savings** → Expensive jobs only run when prerequisites pass
-* **Always notify** → PR notifications always run regardless of test results (enhanced status reporting)
+* **Immediate notifications** → Each job notifies on failure, no waiting for dependent jobs
 
 ### **Resource Efficiency**
 
@@ -274,8 +283,9 @@ needs: [release]
 * **Fast feedback loop**: Quick tests complete in ~3-5 minutes
 * **Non-blocking security**: Information-only security scans
 * **Clear status reporting**: Descriptive job names and summaries
-* **Always-on notifications**: PR notifications always sent with intelligent status detection
-* **Contextual messaging**: Detailed breakdown of what passed/failed/skipped
+* **Immediate failure alerts**: Instant notifications when any test fails
+* **No cascade delays**: Notifications sent immediately, not after all jobs complete
+* **Single final success**: Only one success notification after all tests pass
 
 ### **CI/CD Cost Optimization**
 

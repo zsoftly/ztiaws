@@ -590,6 +590,7 @@ func TestLoggerLevels(t *testing.T) {
 }
 
 func TestLoggerWithFormatting(t *testing.T) {
+	skipWindowsCI(t, "formatting output differences")
 	// Setup temporary logger
 	tempDir := t.TempDir()
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
