@@ -743,8 +743,14 @@ func TestLogFileRotation(t *testing.T) {
 }
 
 func TestLogFileCreationFailure(t *testing.T) {
-	// Setup impossible log directory to test failure handling
+	// Store original state
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
+
+	// Store current logger state
+	loggerMutex.Lock()
+	originalFileLogger := fileLogger
+	originalLogFile := logFile
+	loggerMutex.Unlock()
 
 	// Use platform-specific invalid path
 	var invalidPath string
@@ -755,13 +761,33 @@ func TestLogFileCreationFailure(t *testing.T) {
 	}
 
 	_ = os.Setenv("ZTICTL_LOG_DIR", invalidPath)
+
+	// Ensure cleanup happens
 	defer func() {
-		_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
-		// IMPORTANT: Restore the logger to a working state after the test
-		setupFileLogger()
+		// Restore environment
+		if originalLogDir == "" {
+			_ = os.Unsetenv("ZTICTL_LOG_DIR")
+		} else {
+			_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+		}
+
+		// Restore logger state
+		loggerMutex.Lock()
+		fileLogger = originalFileLogger
+		logFile = originalLogFile
+		loggerMutex.Unlock()
+
+		// If no original logger, create a new one with valid settings
+		if originalFileLogger == nil {
+			// Create temporary directory for new logger
+			tempDir := t.TempDir()
+			_ = os.Setenv("ZTICTL_LOG_DIR", tempDir)
+			setupFileLogger()
+			_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+		}
 	}()
 
-	// Reset logger state
+	// Reset logger state for the test
 	loggerMutex.Lock()
 	if logFile != nil {
 		_ = logFile.Close()
@@ -770,10 +796,10 @@ func TestLogFileCreationFailure(t *testing.T) {
 	}
 	loggerMutex.Unlock()
 
-	// Test setup failure
+	// Test setup failure - this should handle the error gracefully
 	setupFileLogger()
 
-	// Should not have created logger due to path failure
+	// Verify logger state (should be nil due to path failure)
 	loggerMutex.RLock()
 	hasLogger := fileLogger != nil
 	loggerMutex.RUnlock()

@@ -180,8 +180,10 @@ ensure_iam() {
     local cache_file=".iam_ready"
     
     # Skip if recently checked (within 5 minutes)
-    local current_time=$(date +%s)
-    local file_mtime=$(get_file_mtime "$cache_file")
+    local current_time
+    current_time=$(date +%s)
+    local file_mtime
+    file_mtime=$(get_file_mtime "$cache_file")
     if [[ -f "$cache_file" && $((current_time - file_mtime)) -lt 300 ]]; then
         return 0
     fi
