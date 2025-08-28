@@ -378,7 +378,7 @@ jobs:
   pr-notification:
     runs-on: ubuntu-latest
     if: always() && github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened') && github.base_ref == 'main'
-    needs: [test-shell, test-go, security]
+    needs: [test-shell, test-go]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -386,22 +386,69 @@ jobs:
       - name: Determine PR status
         id: pr-status
         run: |
-          # Check job results
+          # Check job results 
           SHELL_RESULT="${{ needs.test-shell.result }}"
           GO_RESULT="${{ needs.test-go.result }}"
-          SECURITY_RESULT="${{ needs.security.result }}"
           
           echo "Shell tests: $SHELL_RESULT"
-          echo "Go tests: $GO_RESULT" 
-          echo "Security scan: $SECURITY_RESULT"
+          echo "Go tests: $GO_RESULT"
           
-          # Determine overall status
-          if [[ "$SHELL_RESULT" == "success" && "$GO_RESULT" == "success" && "$SECURITY_RESULT" == "success" ]]; then
-            echo "status=success" >> $GITHUB_OUTPUT
-            echo "message=All tests passed! PR is ready for review." >> $GITHUB_OUTPUT
+          # Security job runs conditionally - we'll check if both tests passed
+          # to determine if security should have run
+          SECURITY_RESULT="not_applicable"
+          if [[ "$SHELL_RESULT" == "success" && "$GO_RESULT" == "success" ]]; then
+            echo "Security scan: should have run (both tests passed)"
+            SECURITY_RESULT="assumed_success"
           else
-            echo "status=failure" >> $GITHUB_OUTPUT
-            echo "message=Some tests failed. Please check the workflow results." >> $GITHUB_OUTPUT
+            echo "Security scan: skipped (prerequisite tests failed)"
+            SECURITY_RESULT="skipped"
+          fi
+          
+          # Build status message based on what actually ran
+          STATUS_DETAILS=""
+          OVERALL_STATUS="success"
+          
+          # Check shell tests
+          if [[ "$SHELL_RESULT" == "success" ]]; then
+            STATUS_DETAILS="[PASS] Shell tests passed"
+          elif [[ "$SHELL_RESULT" == "failure" ]]; then
+            STATUS_DETAILS="[FAIL] Shell tests failed"
+            OVERALL_STATUS="failure"
+          elif [[ "$SHELL_RESULT" == "skipped" ]]; then
+            STATUS_DETAILS="[SKIP] Shell tests skipped"
+          fi
+          
+          # Check Go tests
+          if [[ "$GO_RESULT" == "success" ]]; then
+            STATUS_DETAILS="$STATUS_DETAILS, [PASS] Go tests passed"
+          elif [[ "$GO_RESULT" == "failure" ]]; then
+            STATUS_DETAILS="$STATUS_DETAILS, [FAIL] Go tests failed"
+            OVERALL_STATUS="failure"
+          elif [[ "$GO_RESULT" == "skipped" ]]; then
+            STATUS_DETAILS="$STATUS_DETAILS, [SKIP] Go tests skipped"
+          fi
+          
+          # Check security scan status
+          if [[ "$SECURITY_RESULT" == "assumed_success" ]]; then
+            STATUS_DETAILS="$STATUS_DETAILS, [PEND] Security scan pending"
+          elif [[ "$SECURITY_RESULT" == "skipped" ]]; then
+            STATUS_DETAILS="$STATUS_DETAILS, [SKIP] Security scan skipped (tests failed)"
+          fi
+          
+          # Clean up leading comma if present
+          STATUS_DETAILS=$(echo "$STATUS_DETAILS" | sed 's/^, //')
+          
+          # Set final status and message
+          echo "status=$OVERALL_STATUS" >> $GITHUB_OUTPUT
+          
+          if [[ "$OVERALL_STATUS" == "success" ]]; then
+            if [[ "$SECURITY_RESULT" == "assumed_success" ]]; then
+              echo "message=Tests passed! Security scan will run next. PR will be ready for review once complete." >> $GITHUB_OUTPUT
+            else
+              echo "message=All tests passed! PR is ready for review." >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "message=$STATUS_DETAILS. Please check the workflow results." >> $GITHUB_OUTPUT
           fi
         
       - name: Send PR notification

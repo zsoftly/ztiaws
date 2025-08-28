@@ -123,16 +123,16 @@ create_chat_payload() {
     
     # Determine status icon and header
     local status_icon="NOTIFICATION_ICON"
-    local header_title="🔔 New Pull Request"
+    local header_title="New Pull Request"
     local status_color=""
     
     if [[ "$STATUS" == "success" ]]; then
         status_icon="STAR"
-        header_title="✅ PR Ready for Review"
+        header_title="PR Ready for Review"
         status_color=""
     elif [[ "$STATUS" == "failure" ]]; then
         status_icon="ERROR"
-        header_title="❌ PR Tests Failed"
+        header_title="PR Tests Failed"
         status_color=""
     fi
     
@@ -194,7 +194,7 @@ create_chat_payload() {
               "buttons": [
                 {
                   "textButton": {
-                    "text": "🔍 Review PR",
+                    "text": "Review PR",
                     "onClick": {
                       "openLink": {
                         "url": "$escaped_pr_url"
@@ -204,7 +204,7 @@ create_chat_payload() {
                 },
                 {
                   "textButton": {
-                    "text": "📁 View Files",
+                    "text": "View Files",
                     "onClick": {
                       "openLink": {
                         "url": "$escaped_files_url"
@@ -238,10 +238,10 @@ main() {
     fi
     
     if send_webhook "$WEBHOOK_URL" "$payload"; then
-        log_info "✅ PR notification sent successfully!"
-        log_info "   PR: $PR_TITLE (#$PR_NUMBER)"
-        log_info "   Author: $AUTHOR"
-        log_info "   Repository: $REPOSITORY"
+        log_info "[OK] PR notification sent successfully!"
+        log_info "     PR: $PR_TITLE (#$PR_NUMBER)"
+        log_info "     Author: $AUTHOR"
+        log_info "     Repository: $REPOSITORY"
     else
         exit 1
     fi

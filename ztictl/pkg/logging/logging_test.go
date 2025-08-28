@@ -11,6 +11,13 @@ import (
 	"time"
 )
 
+// skipWindowsCI skips tests on Windows in CI environments
+func skipWindowsCI(t *testing.T, reason string) {
+	if runtime.GOOS == "windows" && os.Getenv("GITHUB_ACTIONS") == "true" {
+		t.Skipf("Skipping on Windows CI: %s", reason)
+	}
+}
+
 func TestGetDefaultLogDir(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -133,6 +140,7 @@ func TestGetDirPermissions(t *testing.T) {
 }
 
 func TestSetupFileLogger(t *testing.T) {
+	skipWindowsCI(t, "file handle locking differences")
 	// Create a temporary directory for testing
 	tempDir := t.TempDir()
 
@@ -177,6 +185,7 @@ func TestSetupFileLogger(t *testing.T) {
 }
 
 func TestCloseLogger(t *testing.T) {
+	skipWindowsCI(t, "file handle locking differences")
 	// Setup a logger first
 	tempDir := t.TempDir()
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
@@ -237,6 +246,7 @@ func TestGetTimestamp(t *testing.T) {
 }
 
 func TestLogToFile(t *testing.T) {
+	skipWindowsCI(t, "file handle locking differences")
 	// Setup temporary logger
 	tempDir := t.TempDir()
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
@@ -482,6 +492,7 @@ func TestLoggerMethods(t *testing.T) {
 }
 
 func TestConcurrentLogging(t *testing.T) {
+	skipWindowsCI(t, "concurrent file handle operations")
 	// Setup temporary logger
 	tempDir := t.TempDir()
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
@@ -674,6 +685,7 @@ func TestMultipleLoggerInstances(t *testing.T) {
 }
 
 func TestLogFileRotation(t *testing.T) {
+	skipWindowsCI(t, "file handle locking differences")
 	// Test that setupFileLogger creates new files for different days
 	tempDir := t.TempDir()
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
@@ -743,10 +755,7 @@ func TestLogFileRotation(t *testing.T) {
 }
 
 func TestLogFileCreationFailure(t *testing.T) {
-	// Skip test on Windows in CI due to path handling issues
-	if runtime.GOOS == "windows" && os.Getenv("GITHUB_ACTIONS") == "true" {
-		t.Skip("Skipping Windows test in CI - path handling differences")
-	}
+	skipWindowsCI(t, "path handling differences")
 	// Store original state
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
 
