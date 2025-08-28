@@ -12,6 +12,8 @@ PR_NUMBER=""
 PR_URL=""
 AUTHOR=""
 REPOSITORY=""
+STATUS=""
+MESSAGE=""
 
 # --- Load Shared Utilities ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || {
@@ -41,7 +43,7 @@ usage() {
     echo "  Sends Google Chat App Card notifications for Pull Request events."
     echo
     echo -e "${CYAN}USAGE:${NC}"
-    echo "  $0 --pr-title TITLE --pr-number NUMBER --pr-url URL --author USER --repository REPO"
+    echo "  $0 --pr-title TITLE --pr-number NUMBER --pr-url URL --author USER --repository REPO [--status STATUS] [--message MESSAGE]"
     echo
     echo -e "${CYAN}REQUIRED:${NC}"
     echo "  --pr-title TITLE       Pull request title"
@@ -49,6 +51,10 @@ usage() {
     echo "  --pr-url URL           Pull request URL"
     echo "  --author USERNAME      PR author username"
     echo "  --repository REPO      Repository name (org/repo)"
+    echo
+    echo -e "${CYAN}OPTIONAL:${NC}"
+    echo "  --status STATUS        PR status (success/failure)"
+    echo "  --message MESSAGE      Status message"
     echo
     echo -e "${CYAN}WEBHOOK:${NC}"
     echo "  --webhook-url URL      Google Chat webhook URL"
@@ -82,6 +88,12 @@ parse_arguments() {
             --repository) 
                 [[ $# -lt 2 ]] && { log_error "Option $1 requires a value"; usage; }
                 REPOSITORY="$2"; shift 2 ;;
+            --status) 
+                [[ $# -lt 2 ]] && { log_error "Option $1 requires a value"; usage; }
+                STATUS="$2"; shift 2 ;;
+            --message) 
+                [[ $# -lt 2 ]] && { log_error "Option $1 requires a value"; usage; }
+                MESSAGE="$2"; shift 2 ;;
             --help) usage ;;
             *) log_error "Unknown option: $1"; shift ;;
         esac
@@ -107,13 +119,29 @@ create_chat_payload() {
     local files_url="${PR_URL}/files"
     local escaped_pr_url=$(escape_json "$PR_URL")
     local escaped_files_url=$(escape_json "$files_url")
+    local escaped_message=$(escape_json "${MESSAGE:-New pull request opened}")
+    
+    # Determine status icon and header
+    local status_icon="NOTIFICATION_ICON"
+    local header_title="🔔 New Pull Request"
+    local status_color=""
+    
+    if [[ "$STATUS" == "success" ]]; then
+        status_icon="STAR"
+        header_title="✅ PR Ready for Review"
+        status_color=""
+    elif [[ "$STATUS" == "failure" ]]; then
+        status_icon="ERROR"
+        header_title="❌ PR Tests Failed"
+        status_color=""
+    fi
     
     cat << EOF
 {
   "cards": [
     {
       "header": {
-        "title": "🔔 New Pull Request",
+        "title": "$header_title",
         "subtitle": "$escaped_repository Repository",
         "imageUrl": "https://github.com/fluidicon.png",
         "imageStyle": "AVATAR"
@@ -148,6 +176,14 @@ create_chat_payload() {
                 "topLabel": "PR Number",
                 "content": "#$escaped_pr_number",
                 "icon": "CONFIRMATION_NUMBER_ICON"
+              }
+            },
+            {
+              "keyValue": {
+                "topLabel": "Status",
+                "content": "$escaped_message",
+                "contentMultiline": true,
+                "icon": "$status_icon"
               }
             }
           ]

@@ -377,11 +377,32 @@ jobs:
   # Notification for PR events (opened to main branch)
   pr-notification:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened') && github.base_ref == 'main'
+    if: always() && github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened') && github.base_ref == 'main'
     needs: [test-shell, test-go, security]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        
+      - name: Determine PR status
+        id: pr-status
+        run: |
+          # Check job results
+          SHELL_RESULT="${{ needs.test-shell.result }}"
+          GO_RESULT="${{ needs.test-go.result }}"
+          SECURITY_RESULT="${{ needs.security.result }}"
+          
+          echo "Shell tests: $SHELL_RESULT"
+          echo "Go tests: $GO_RESULT" 
+          echo "Security scan: $SECURITY_RESULT"
+          
+          # Determine overall status
+          if [[ "$SHELL_RESULT" == "success" && "$GO_RESULT" == "success" && "$SECURITY_RESULT" == "success" ]]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "message=All tests passed! PR is ready for review." >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=Some tests failed. Please check the workflow results." >> $GITHUB_OUTPUT
+          fi
         
       - name: Send PR notification
         env:
@@ -393,7 +414,9 @@ jobs:
             --pr-number '${{ github.event.pull_request.number }}' \
             --pr-url '${{ github.event.pull_request.html_url }}' \
             --author '${{ github.event.pull_request.user.login }}' \
-            --repository '${{ github.repository }}'
+            --repository '${{ github.repository }}' \
+            --status '${{ steps.pr-status.outputs.status }}' \
+            --message '${{ steps.pr-status.outputs.message }}'
         continue-on-error: true
 
   # Notification for releases (when version tags are pushed)
