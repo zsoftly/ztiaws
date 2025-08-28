@@ -120,14 +120,14 @@ create_chat_payload() {
               "keyValue": {
                 "topLabel": "Repository",
                 "content": "$escaped_repository",
-                "icon": "BOOKMARK"
+                "icon": "DESCRIPTION"
               }
             },
             {
               "keyValue": {
                 "topLabel": "Status",
                 "content": "🎉 Ready for deployment!",
-                "icon": "CHECK"
+                "icon": "BOOKMARK"
               }
             }
           ]
