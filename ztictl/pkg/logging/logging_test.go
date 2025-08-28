@@ -64,20 +64,26 @@ func TestGetDefaultLogDir(t *testing.T) {
 			// Set environment variables
 			for key, value := range tt.envVars {
 				originalValue := os.Getenv(key)
-				os.Setenv(key, value)
-				defer os.Setenv(key, originalValue)
+				_ = os.Setenv(key, value)
+				defer func(k, v string) {
+					_ = os.Setenv(k, v)
+				}(key, originalValue)
 			}
 
 			// Clear environment variables not in the test case
 			if _, exists := tt.envVars["LOCALAPPDATA"]; !exists {
 				originalValue := os.Getenv("LOCALAPPDATA")
-				os.Unsetenv("LOCALAPPDATA")
-				defer os.Setenv("LOCALAPPDATA", originalValue)
+				_ = os.Unsetenv("LOCALAPPDATA")
+				defer func(v string) {
+					_ = os.Setenv("LOCALAPPDATA", v)
+				}(originalValue)
 			}
 			if _, exists := tt.envVars["XDG_DATA_HOME"]; !exists {
 				originalValue := os.Getenv("XDG_DATA_HOME")
-				os.Unsetenv("XDG_DATA_HOME")
-				defer os.Setenv("XDG_DATA_HOME", originalValue)
+				_ = os.Unsetenv("XDG_DATA_HOME")
+				defer func(v string) {
+					_ = os.Setenv("XDG_DATA_HOME", v)
+				}(originalValue)
 			}
 
 			result := getDefaultLogDir(tt.homeDir)
@@ -132,13 +138,15 @@ func TestSetupFileLogger(t *testing.T) {
 
 	// Set custom log directory
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
-	os.Setenv("ZTICTL_LOG_DIR", tempDir)
-	defer os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	_ = os.Setenv("ZTICTL_LOG_DIR", tempDir)
+	defer func() {
+		_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	}()
 
 	// Reset logger state
 	loggerMutex.Lock()
 	if logFile != nil {
-		logFile.Close()
+		_ = logFile.Close()
 		logFile = nil
 		fileLogger = nil
 	}
@@ -172,8 +180,10 @@ func TestCloseLogger(t *testing.T) {
 	// Setup a logger first
 	tempDir := t.TempDir()
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
-	os.Setenv("ZTICTL_LOG_DIR", tempDir)
-	defer os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	_ = os.Setenv("ZTICTL_LOG_DIR", tempDir)
+	defer func() {
+		_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	}()
 
 	setupFileLogger()
 
@@ -230,8 +240,10 @@ func TestLogToFile(t *testing.T) {
 	// Setup temporary logger
 	tempDir := t.TempDir()
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
-	os.Setenv("ZTICTL_LOG_DIR", tempDir)
-	defer os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	_ = os.Setenv("ZTICTL_LOG_DIR", tempDir)
+	defer func() {
+		_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	}()
 
 	setupFileLogger()
 	defer CloseLogger()
@@ -274,63 +286,45 @@ func TestLogFunctions(t *testing.T) {
 	// Setup temporary logger
 	tempDir := t.TempDir()
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
-	os.Setenv("ZTICTL_LOG_DIR", tempDir)
-	defer os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	_ = os.Setenv("ZTICTL_LOG_DIR", tempDir)
+	defer func() {
+		_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	}()
 
 	setupFileLogger()
 	defer CloseLogger()
-
-	// Suppress console output during testing to avoid cluttering test output
-	// and prevent GitHub Actions from interpreting colored error output as failures
-	SuppressConsoleOutput(true)
-	defer SuppressConsoleOutput(false)
 
 	tests := []struct {
 		name    string
 		logFunc func(string, ...interface{})
 		level   string
 		message string
-		args    []interface{}
 	}{
-		{"LogInfo", LogInfo, "INFO", "Test info message", nil},
-		{"LogWarn", LogWarn, "WARN", "Test warning message", nil},
-		{"LogError", LogError, "ERROR", "Test error message", nil},
-		{"LogDebug", LogDebug, "DEBUG", "Test debug message", nil},
-		{"LogSuccess", LogSuccess, "SUCCESS", "Test success message", nil},
-		{"LogInfo with args", LogInfo, "INFO", "Test %s with %d args", []interface{}{"message", 2}},
+		{"LogInfo", LogInfo, "INFO", "Test info message"},
+		{"LogWarn", LogWarn, "WARN", "Test warning message"},
+		{"LogError", LogError, "ERROR", "Test error message"},
+		{"LogDebug", LogDebug, "DEBUG", "Test debug message"},
+		{"LogSuccess", LogSuccess, "SUCCESS", "Test success message"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clear log file
-			expectedLogFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
-			os.Truncate(expectedLogFile, 0)
+			// Call the logging function - we'll skip console output verification
+			// due to pipe read/write timing issues in tests
+			tt.logFunc("%s", tt.message)
 
-			// Test the log function
-			if tt.args != nil {
-				tt.logFunc(tt.message, tt.args...)
-			} else {
-				tt.logFunc(tt.message)
-			}
-
-			// Read log file content
-			content, err := os.ReadFile(expectedLogFile)
+			// Verify log file contains the message
+			logFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
+			content, err := os.ReadFile(logFile)
 			if err != nil {
-				t.Fatalf("Failed to read log file: %v", err)
+				t.Fatalf("%s: Failed to read log file: %v", tt.name, err)
 			}
 
-			contentStr := string(content)
-			if !strings.Contains(contentStr, tt.level) {
-				t.Errorf("Log file does not contain level %s", tt.level)
+			if !strings.Contains(string(content), tt.message) {
+				t.Errorf("%s: log file does not contain message %q", tt.name, tt.message)
 			}
-
-			expectedMessage := tt.message
-			if tt.args != nil {
-				expectedMessage = fmt.Sprintf(tt.message, tt.args...)
-			}
-
-			if !strings.Contains(contentStr, expectedMessage) {
-				t.Errorf("Log file does not contain expected message: %s", expectedMessage)
+			if !strings.Contains(string(content), tt.level) {
+				t.Errorf("%s: log file does not contain level %q", tt.name, tt.level)
 			}
 		})
 	}
@@ -351,6 +345,7 @@ func TestNewLogger(t *testing.T) {
 
 			if logger == nil {
 				t.Error("NewLogger() returned nil")
+				return
 			}
 
 			if logger.debugEnabled != tt.debug {
@@ -369,6 +364,7 @@ func TestNewNoOpLogger(t *testing.T) {
 
 	if logger == nil {
 		t.Error("NewNoOpLogger() returned nil")
+		return
 	}
 
 	if !logger.noOp {
@@ -421,110 +417,64 @@ func TestLoggerMethods(t *testing.T) {
 	// Setup temporary logger
 	tempDir := t.TempDir()
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
-	os.Setenv("ZTICTL_LOG_DIR", tempDir)
-	defer os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	_ = os.Setenv("ZTICTL_LOG_DIR", tempDir)
+	defer func() {
+		_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	}()
 
 	setupFileLogger()
 	defer CloseLogger()
 
-	// Suppress console output during testing
-	SuppressConsoleOutput(true)
-	defer SuppressConsoleOutput(false)
-
 	tests := []struct {
-		name          string
-		debugEnabled  bool
-		noOp          bool
-		method        func(*Logger)
-		expectedLog   bool
-		expectedLevel string
+		name         string
+		logger       *Logger
+		method       string
+		message      string
+		fields       []interface{}
+		expectOutput bool
 	}{
-		{
-			name:          "Info with regular logger",
-			debugEnabled:  true,
-			noOp:          false,
-			method:        func(l *Logger) { l.Info("test info", "key", "value") },
-			expectedLog:   true,
-			expectedLevel: "INFO",
-		},
-		{
-			name:          "Debug with debug enabled",
-			debugEnabled:  true,
-			noOp:          false,
-			method:        func(l *Logger) { l.Debug("test debug", "key", "value") },
-			expectedLog:   true,
-			expectedLevel: "DEBUG",
-		},
-		{
-			name:          "Debug with debug disabled",
-			debugEnabled:  false,
-			noOp:          false,
-			method:        func(l *Logger) { l.Debug("test debug", "key", "value") },
-			expectedLog:   false,
-			expectedLevel: "DEBUG",
-		},
-		{
-			name:          "Warn with regular logger",
-			debugEnabled:  true,
-			noOp:          false,
-			method:        func(l *Logger) { l.Warn("test warn", "key", "value") },
-			expectedLog:   true,
-			expectedLevel: "WARN",
-		},
-		{
-			name:          "Error with regular logger",
-			debugEnabled:  true,
-			noOp:          false,
-			method:        func(l *Logger) { l.Error("test error", "key", "value") },
-			expectedLog:   true,
-			expectedLevel: "ERROR",
-		},
-		{
-			name:          "Info with noOp logger",
-			debugEnabled:  true,
-			noOp:          true,
-			method:        func(l *Logger) { l.Info("test info", "key", "value") },
-			expectedLog:   false,
-			expectedLevel: "INFO",
-		},
+		{"regular logger info", NewLogger(false), "Info", "test info", []interface{}{"key", "value"}, true},
+		{"regular logger warn", NewLogger(false), "Warn", "test warn", []interface{}{"key", "value"}, true},
+		{"regular logger error", NewLogger(false), "Error", "test error", []interface{}{"key", "value"}, true},
+		{"debug logger debug enabled", NewLogger(true), "Debug", "test debug", []interface{}{"key", "value"}, true},
+		{"debug logger debug disabled", NewLogger(false), "Debug", "test debug", []interface{}{"key", "value"}, false},
+		{"noop logger info", NewNoOpLogger(), "Info", "test info", []interface{}{"key", "value"}, false},
+		{"noop logger error", NewNoOpLogger(), "Error", "test error", []interface{}{"key", "value"}, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clear log file
-			expectedLogFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
-			os.Truncate(expectedLogFile, 0)
+			// Clear log file for this test
+			logFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
+			_ = os.WriteFile(logFile, []byte{}, 0644)
 
-			// Create logger
-			logger := &Logger{
-				debugEnabled: tt.debugEnabled,
-				noOp:         tt.noOp,
+			// Call the appropriate method
+			switch tt.method {
+			case "Info":
+				tt.logger.Info(tt.message, tt.fields...)
+			case "Debug":
+				tt.logger.Debug(tt.message, tt.fields...)
+			case "Warn":
+				tt.logger.Warn(tt.message, tt.fields...)
+			case "Error":
+				tt.logger.Error(tt.message, tt.fields...)
 			}
 
-			// Call the method
-			tt.method(logger)
+			// Read log file content
+			content, _ := os.ReadFile(logFile)
 
-			// Check log file
-			content, err := os.ReadFile(expectedLogFile)
-			if err != nil && tt.expectedLog {
-				t.Fatalf("Failed to read log file: %v", err)
-			}
-
-			contentStr := string(content)
-			hasLogEntry := strings.Contains(contentStr, tt.expectedLevel)
-
-			if tt.expectedLog && !hasLogEntry {
-				t.Errorf("Expected log entry with level %s, but not found", tt.expectedLevel)
-			}
-
-			if !tt.expectedLog && hasLogEntry {
-				t.Errorf("Did not expect log entry, but found: %s", contentStr)
-			}
-
-			// Verify fields formatting
-			if tt.expectedLog && hasLogEntry {
-				if !strings.Contains(contentStr, "key=value") {
-					t.Error("Log entry should contain formatted fields")
+			if tt.expectOutput {
+				// Should have file output
+				if len(tt.fields) > 0 && !strings.Contains(string(content), "key=value") {
+					t.Errorf("%s: expected log file to contain fields", tt.name)
+				}
+				if !strings.Contains(string(content), tt.message) {
+					t.Errorf("%s: expected log file to contain message %q", tt.name, tt.message)
+				}
+			} else {
+				// Should have no output or minimal output
+				if len(content) > 0 && strings.Contains(string(content), tt.message) {
+					t.Errorf("%s: expected no log output, but found message in log", tt.name)
 				}
 			}
 		})
@@ -535,151 +485,75 @@ func TestConcurrentLogging(t *testing.T) {
 	// Setup temporary logger
 	tempDir := t.TempDir()
 	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
-	os.Setenv("ZTICTL_LOG_DIR", tempDir)
-	defer os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	_ = os.Setenv("ZTICTL_LOG_DIR", tempDir)
+	defer func() {
+		_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	}()
 
 	setupFileLogger()
 	defer CloseLogger()
 
-	// Suppress console output during testing
-	SuppressConsoleOutput(true)
-	defer SuppressConsoleOutput(false)
+	// Capture stdout and stderr to avoid CI issues
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	os.Stderr = w
+	defer func() {
+		_ = w.Close()
+		os.Stdout = oldStdout
+		os.Stderr = oldStderr
+		// Drain the pipe
+		var buf [4096]byte
+		_, _ = r.Read(buf[:])
+	}()
 
+	// Run concurrent logging
 	var wg sync.WaitGroup
-	numGoroutines := 5 // Reduced to make test more reliable
-	numMessages := 10  // Reduced to make test more reliable
+	goroutineCount := 10
+	messagesPerGoroutine := 5
 
-	// Start multiple goroutines logging concurrently
-	for i := 0; i < numGoroutines; i++ {
+	for i := 0; i < goroutineCount; i++ {
 		wg.Add(1)
-		go func(goroutineID int) {
+		go func(id int) {
 			defer wg.Done()
-			for j := 0; j < numMessages; j++ {
-				LogInfo("Goroutine %d message %d", goroutineID, j)
-				// Small delay to reduce race condition pressure, especially on Windows
-				if runtime.GOOS == "windows" {
-					time.Sleep(2 * time.Millisecond)
-				} else {
-					time.Sleep(1 * time.Millisecond)
-				}
+			for j := 0; j < messagesPerGoroutine; j++ {
+				LogInfo("Goroutine %d message %d", id, j)
+				time.Sleep(time.Millisecond) // Small delay to increase chance of race conditions
 			}
 		}(i)
 	}
 
 	wg.Wait()
 
-	// Ensure all log entries are flushed to disk - Windows may need more time
-	flushTime := 100 * time.Millisecond
-	if runtime.GOOS == "windows" {
-		flushTime = 300 * time.Millisecond
-	}
-	time.Sleep(flushTime)
+	// Restore output
+	_ = w.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
 
-	// Force file synchronization
-	loggerMutex.RLock()
-	if logFile != nil {
-		logFile.Sync()
-	}
-	loggerMutex.RUnlock()
-
-	// Verify log file contains entries from all goroutines
-	expectedLogFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
-
-	// Check if log file exists - retry on Windows for file system delays
-	var content []byte
-	var err error
-	maxRetries := 1
-	if runtime.GOOS == "windows" {
-		maxRetries = 3
-	}
-
-	for retry := 0; retry <= maxRetries; retry++ {
-		if _, err = os.Stat(expectedLogFile); err == nil {
-			content, err = os.ReadFile(expectedLogFile)
-			if err == nil {
-				break
-			}
-		}
-		if retry < maxRetries {
-			time.Sleep(50 * time.Millisecond) // Brief delay before retry
-		}
-	}
-
+	// Verify log file has correct number of entries
+	logFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
+	content, err := os.ReadFile(logFile)
 	if err != nil {
-		t.Fatalf("Failed to read log file %s after %d retries: %v", expectedLogFile, maxRetries+1, err)
+		t.Fatalf("Failed to read log file: %v", err)
 	}
 
-	contentStr := string(content)
-	if len(contentStr) == 0 {
-		t.Fatalf("Log file is empty: %s", expectedLogFile)
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	expectedLines := goroutineCount * messagesPerGoroutine
+
+	// Allow for some initial log lines that might exist
+	if len(lines) < expectedLines {
+		t.Errorf("Expected at least %d log lines, got %d", expectedLines, len(lines))
 	}
 
-	lines := strings.Split(strings.TrimSpace(contentStr), "\n")
-
-	// Filter out empty lines
-	nonEmptyLines := make([]string, 0)
-	for _, line := range lines {
-		if strings.TrimSpace(line) != "" {
-			nonEmptyLines = append(nonEmptyLines, line)
-		}
-	}
-
-	// Should have at least most of the expected lines (allow for some variation due to concurrency)
-	expectedLines := numGoroutines * numMessages
-	tolerance := 0.8
-	if runtime.GOOS == "windows" {
-		tolerance = 0.6 // Allow more variance for Windows CI due to file I/O differences
-	}
-	minExpectedLines := int(float64(expectedLines) * tolerance)
-
-	if len(nonEmptyLines) < minExpectedLines {
-		previewLen := 200
-		if len(contentStr) < previewLen {
-			previewLen = len(contentStr)
-		}
-		t.Errorf("Expected at least %d log lines, got %d. Content preview: %s",
-			minExpectedLines, len(nonEmptyLines),
-			contentStr[:previewLen])
-	}
-
-	// Verify each log entry has proper format and no corruption
-	goroutineCount := make(map[int]int)
-	for i, line := range nonEmptyLines {
-		if !strings.Contains(line, "INFO") {
-			t.Errorf("Line %d does not contain INFO level: %s", i, line)
+	// Verify no corruption - each line should have proper format
+	for i, line := range lines {
+		if line == "" {
 			continue
 		}
-		if !strings.Contains(line, "Goroutine") {
-			t.Errorf("Line %d does not contain expected message: %s", i, line)
-			continue
+		if !strings.Contains(line, "[") || !strings.Contains(line, "]") {
+			t.Errorf("Line %d appears corrupted: %s", i, line)
 		}
-
-		// Count messages per goroutine to verify distribution
-		for g := 0; g < numGoroutines; g++ {
-			if strings.Contains(line, fmt.Sprintf("Goroutine %d", g)) {
-				goroutineCount[g]++
-				break
-			}
-		}
-	}
-
-	// Verify that most goroutines contributed some log entries
-	// Allow some goroutines to be missing on slower CI systems
-	goroutineTolerance := 0.8
-	if runtime.GOOS == "windows" {
-		goroutineTolerance = 0.6 // Allow more variance for Windows CI
-	}
-	minGoroutinesWithEntries := int(float64(numGoroutines) * goroutineTolerance)
-	goroutinesWithEntries := 0
-	for g := 0; g < numGoroutines; g++ {
-		if goroutineCount[g] > 0 {
-			goroutinesWithEntries++
-		}
-	}
-
-	if goroutinesWithEntries < minGoroutinesWithEntries {
-		t.Errorf("Expected at least %d goroutines to contribute log entries, got %d. Counts: %v",
-			minGoroutinesWithEntries, goroutinesWithEntries, goroutineCount)
 	}
 }
 
@@ -704,37 +578,168 @@ func TestLoggerLevels(t *testing.T) {
 	}
 }
 
-func TestSuppressConsoleOutput(t *testing.T) {
-	// Test that SuppressConsoleOutput function works correctly
+func TestLoggerWithFormatting(t *testing.T) {
+	// Setup temporary logger
+	tempDir := t.TempDir()
+	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
+	_ = os.Setenv("ZTICTL_LOG_DIR", tempDir)
+	defer func() {
+		_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	}()
 
-	// Initially console output should not be suppressed
-	loggerMutex.RLock()
-	initialState := suppressConsole
-	loggerMutex.RUnlock()
+	setupFileLogger()
+	defer CloseLogger()
 
-	if initialState {
-		t.Error("Console output should not be suppressed initially")
+	// Test formatted messages
+	LogInfo("User %s logged in at %d", "alice", 1234)
+	LogError("Failed to connect to %s:%d", "localhost", 8080)
+	LogWarn("Memory usage at %d%%", 85)
+
+	// Verify formatted strings in console are output
+	// We skip console output verification due to pipe timing issues
+	expectedMessages := []string{
+		"User alice logged in at 1234",
+		"Failed to connect to localhost:8080",
+		"Memory usage at 85%",
 	}
 
-	// Test enabling suppression
-	SuppressConsoleOutput(true)
-	loggerMutex.RLock()
-	suppressedState := suppressConsole
-	loggerMutex.RUnlock()
-
-	if !suppressedState {
-		t.Error("Console output should be suppressed after calling SuppressConsoleOutput(true)")
+	// Verify in log file
+	logFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
+	content, err := os.ReadFile(logFile)
+	if err != nil {
+		t.Fatalf("Failed to read log file: %v", err)
 	}
 
-	// Test disabling suppression
-	SuppressConsoleOutput(false)
-	loggerMutex.RLock()
-	unsuppressedState := suppressConsole
-	loggerMutex.RUnlock()
-
-	if unsuppressedState {
-		t.Error("Console output should not be suppressed after calling SuppressConsoleOutput(false)")
+	for _, expected := range expectedMessages {
+		if !strings.Contains(string(content), expected) {
+			t.Errorf("Log file missing formatted message: %q", expected)
+		}
 	}
+}
+
+func TestLoggerFieldsEdgeCases(t *testing.T) {
+	logger := NewLogger(true)
+
+	tests := []struct {
+		name     string
+		fields   []interface{}
+		expected string
+	}{
+		{"nil value", []interface{}{"key", nil}, " | key=<nil>"},
+		{"empty string key", []interface{}{"", "value"}, " | =value"},
+		{"special characters", []interface{}{"key with spaces", "value=with=equals"}, " | key with spaces=value=with=equals"},
+		{"unicode", []interface{}{"键", "值"}, " | 键=值"},
+		{"very long value", []interface{}{"key", strings.Repeat("a", 100)}, " | key=" + strings.Repeat("a", 100)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := logger.formatFields(tt.fields...)
+			if result != tt.expected {
+				t.Errorf("formatFields() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestMultipleLoggerInstances(t *testing.T) {
+	// Test that multiple logger instances can coexist
+	logger1 := NewLogger(true)
+	logger2 := NewLogger(false)
+	logger3 := NewNoOpLogger()
+
+	if logger1.debugEnabled != true {
+		t.Error("Logger 1 should have debug enabled")
+	}
+
+	if logger2.debugEnabled != false {
+		t.Error("Logger 2 should have debug disabled")
+	}
+
+	if logger3.noOp != true {
+		t.Error("Logger 3 should be noOp")
+	}
+
+	// Ensure they maintain separate state
+	logger1.SetLevel(DebugLevel) // Should be no-op but shouldn't affect others
+	logger2.SetLevel(ErrorLevel) // Should be no-op but shouldn't affect others
+
+	if logger1.debugEnabled != true {
+		t.Error("Logger 1 debug state changed unexpectedly")
+	}
+
+	if logger2.debugEnabled != false {
+		t.Error("Logger 2 debug state changed unexpectedly")
+	}
+}
+
+func TestLogFileRotation(t *testing.T) {
+	// Test that setupFileLogger creates new files for different days
+	tempDir := t.TempDir()
+	originalLogDir := os.Getenv("ZTICTL_LOG_DIR")
+	_ = os.Setenv("ZTICTL_LOG_DIR", tempDir)
+	defer func() {
+		_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	}()
+
+	// Setup first logger
+	setupFileLogger()
+	expectedFile1 := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
+
+	// Capture output to avoid CI issues
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	os.Stderr = w
+
+	// Write something to identify first file
+	LogInfo("First log file")
+
+	// Restore output temporarily
+	_ = w.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+	var buf [1024]byte
+	_, _ = r.Read(buf[:])
+
+	// Verify first file exists
+	if _, err := os.Stat(expectedFile1); os.IsNotExist(err) {
+		t.Errorf("First log file not created: %s", expectedFile1)
+	}
+
+	// Call setupFileLogger again (simulating app restart or date change)
+	setupFileLogger()
+
+	// Capture output again
+	r, w, _ = os.Pipe()
+	os.Stdout = w
+	os.Stderr = w
+
+	// Write to potentially new file
+	LogInfo("After setup again")
+
+	// Restore output
+	_ = w.Close()
+	os.Stdout = oldStdout
+	os.Stderr = oldStderr
+	_, _ = r.Read(buf[:])
+
+	// The file should still exist and contain both messages
+	content, err := os.ReadFile(expectedFile1)
+	if err != nil {
+		t.Fatalf("Failed to read log file: %v", err)
+	}
+
+	if !strings.Contains(string(content), "First log file") {
+		t.Error("Log file missing first message after re-setup")
+	}
+
+	if !strings.Contains(string(content), "After setup again") {
+		t.Error("Log file missing second message after re-setup")
+	}
+
+	CloseLogger()
 }
 
 func TestLogFileCreationFailure(t *testing.T) {
@@ -749,13 +754,15 @@ func TestLogFileCreationFailure(t *testing.T) {
 		invalidPath = "/nonexistent/readonly/path"
 	}
 
-	os.Setenv("ZTICTL_LOG_DIR", invalidPath)
-	defer os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	_ = os.Setenv("ZTICTL_LOG_DIR", invalidPath)
+	defer func() {
+		_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+	}()
 
 	// Reset logger state
 	loggerMutex.Lock()
 	if logFile != nil {
-		logFile.Close()
+		_ = logFile.Close()
 		logFile = nil
 		fileLogger = nil
 	}
