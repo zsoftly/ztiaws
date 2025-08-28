@@ -1,14 +1,29 @@
-name: Test quickssm
+name: Test Shell Scripts
 
 on:
   push:
     branches: [ main, 'feature/*', 'feat/*', 'issue/*' ]
+    paths:
+      - 'authaws'
+      - 'ssm'
+      - 'src/**'
+      - 'tests/**'
+      - 'tools/**'
+      - '.github/workflows/test.yml'
   pull_request:
     branches: [ main ]
     types: [ opened, synchronize, reopened ]
+    paths:
+      - 'authaws'
+      - 'ssm'
+      - 'src/**'
+      - 'tests/**'
+      - 'tools/**'
+      - '.github/workflows/test.yml'
 
 jobs:
-  test:
+  test-shell:
+    name: Test Shell Scripts
     runs-on: ${{ matrix.os }}
     
     strategy:
