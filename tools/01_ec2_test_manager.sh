@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source utilities from the parent src directory
 if [ -f "${SCRIPT_DIR}/../src/00_utils.sh" ]; then
-    # shellcheck source=../src/00_utils.sh
+    # shellcheck source=../src/00_utils.sh disable=SC1091
     source "${SCRIPT_DIR}/../src/00_utils.sh"
 else
     echo "[ERROR] src/00_utils.sh not found. This script requires 00_utils.sh for logging functions." >&2
@@ -180,8 +180,10 @@ ensure_iam() {
     local cache_file=".iam_ready"
     
     # Skip if recently checked (within 5 minutes)
-    local current_time=$(date +%s)
-    local file_mtime=$(get_file_mtime "$cache_file")
+    local current_time
+    current_time=$(date +%s)
+    local file_mtime
+    file_mtime=$(get_file_mtime "$cache_file")
     if [[ -f "$cache_file" && $((current_time - file_mtime)) -lt 300 ]]; then
         return 0
     fi
@@ -281,6 +283,8 @@ verify_instances() {
     
     # Batch query all instances
     local result
+    # shellcheck disable=SC2016
+    # The backticks here are part of AWS CLI's JMESPath syntax, not shell command substitution
     result=$(aws ec2 describe-instances \
         --instance-ids "${INSTANCE_IDS[@]}" \
         --query 'Reservations[].Instances[].[InstanceId,State.Name,Tags[?Key==`Name`].Value|[0],Tags[?Key==`Owner`].Value|[0]]' \

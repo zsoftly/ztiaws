@@ -28,6 +28,12 @@ Thumbs.db
 go.work
 go.work.sum
 
+# Test coverage files
+coverage.out
+coverage*.out
+coverage.html
+*.coverage
+
 # Test files
 *.log
 test_results/
@@ -41,6 +47,7 @@ test_results/
 .env
 .env.local
 *.local
+.claude/
 
 # Debug files
 *.debug
