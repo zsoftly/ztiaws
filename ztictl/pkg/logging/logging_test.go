@@ -757,6 +757,8 @@ func TestLogFileCreationFailure(t *testing.T) {
 	_ = os.Setenv("ZTICTL_LOG_DIR", invalidPath)
 	defer func() {
 		_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
+		// IMPORTANT: Restore the logger to a working state after the test
+		setupFileLogger()
 	}()
 
 	// Reset logger state
