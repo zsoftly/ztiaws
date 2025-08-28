@@ -1,7 +1,7 @@
 # ZTiAWS
 
-![Ubuntu](https://github.com/zsoftly/ztiaws/actions/workflows/test.yml/badge.svg)
-![macOS](https://github.com/zsoftly/ztiaws/actions/workflows/test.yml/badge.svg)
+![Ubuntu](https://github.com/zsoftly/ztiaws/actions/workflows/test-all.yml/badge.svg)
+![macOS](https://github.com/zsoftly/ztiaws/actions/workflows/test-all.yml/badge.svg)
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 <p align="center">

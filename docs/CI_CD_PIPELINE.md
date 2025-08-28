@@ -21,7 +21,10 @@ Jobs run only when needed, optimizing CI/CD resource usage and developer experie
 
 ## Pipeline Architecture
 
-### Workflow: `.github/workflows/build.yml`
+The ZTiAWS CI/CD pipeline consists of three optimized workflows:
+
+### Primary Workflow: `.github/workflows/build.yml` (Go Code)
+**Focus**: Go ztictl development, testing, security, and releases
 
 #### **Triggers**
 ```yaml
@@ -61,6 +64,21 @@ graph TD
     
     I --> J[GitHub Release]
 ```
+
+### Supporting Workflow: `.github/workflows/test-all.yml` (Smart Test Orchestrator)
+**Focus**: Efficient testing of shell scripts and Go code based on change detection
+
+**Key Features:**
+- **Path-based filtering**: Uses `dorny/paths-filter` to detect changes
+- **Conditional execution**: Only runs tests for changed components  
+- **Multi-platform**: Tests shell scripts on Ubuntu + macOS, Go code on Ubuntu + Windows + macOS
+- **Cost optimization**: Prevents wasted CI minutes by running only necessary tests
+
+### Documentation Workflow: `.github/workflows/auto-generate-docs.yml`
+**Focus**: Automated release documentation generation
+
+**Triggers**: Push to `release/*` branches
+**Purpose**: Generates CHANGELOG.md and RELEASE_NOTES.txt using tools/02_release_docs_generator.sh
 
 ### **Job Details**
 
@@ -217,11 +235,14 @@ needs: [release]
 ## Migration from Legacy Workflows
 
 ### **Consolidated from Multiple Files**
-Previously had separate workflows:
-- `build.yml` - Release builds
-- `go-test.yml` - Development testing
-- `test.yml` - Legacy testing
-- `release.yml` - Release management
+Current optimized workflow structure:
+- `build.yml` - Primary CI/CD pipeline (Go code)
+- `test-all.yml` - Smart test orchestrator (shell scripts and Go)  
+- `auto-generate-docs.yml` - Release documentation automation
+
+Previously had redundant workflows (now removed):
+- `test.yml` - Legacy testing (replaced by test-all.yml)
+- `release.yml` - Release management (consolidated into build.yml)
 
 ### **Benefits of Consolidation**
 - **Single source of truth** for CI/CD logic
@@ -272,7 +293,9 @@ Previously had separate workflows:
 ## Quick Reference
 
 **Key Files:**
-- Primary workflow: `.github/workflows/build.yml`
+- Primary workflow: `.github/workflows/build.yml` (Go code CI/CD)
+- Test orchestrator: `.github/workflows/test-all.yml` (smart multi-component testing)
+- Documentation: `.github/workflows/auto-generate-docs.yml` (release docs)
 - Build configuration: `ztictl/Makefile`
 - Dependencies: `ztictl/go.mod`
 
