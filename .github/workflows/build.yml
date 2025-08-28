@@ -83,23 +83,6 @@ jobs:
         done
         echo "Shell script syntax is valid"
 
-    - name: Notify on Test Failure
-      if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened') && github.base_ref == 'main'
-      env:
-        GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-      run: |
-        if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
-          ./scripts/send-pr-notification.sh \
-            --pr-title '${{ github.event.pull_request.title }}' \
-            --pr-number '${{ github.event.pull_request.number }}' \
-            --pr-url '${{ github.event.pull_request.html_url }}' \
-            --author '${{ github.event.pull_request.user.login }}' \
-            --repository '${{ github.repository }}' \
-            --status "failure" \
-            --message "[FAIL] Shell tests failed - PR needs attention" || true
-        fi
-      continue-on-error: true
-
   test-go:
     name: Test Go Code
     runs-on: ${{ matrix.os }}
@@ -185,23 +168,6 @@ jobs:
         
         # Test system check (should work without AWS)
         $ZTICTL_EXE config check || echo "Expected to show missing dependencies"
-    
-    - name: Notify on Test Failure
-      if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened') && github.base_ref == 'main'
-      env:
-        GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-      run: |
-        if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
-          ./scripts/send-pr-notification.sh \
-            --pr-title '${{ github.event.pull_request.title }}' \
-            --pr-number '${{ github.event.pull_request.number }}' \
-            --pr-url '${{ github.event.pull_request.html_url }}' \
-            --author '${{ github.event.pull_request.user.login }}' \
-            --repository '${{ github.repository }}' \
-            --status "failure" \
-            --message "[FAIL] Go tests failed - PR needs attention" || true
-        fi
-      continue-on-error: true
 
   security:
     name: Security Analysis
@@ -270,40 +236,6 @@ jobs:
         echo "📊 Dependency update check completed"
       continue-on-error: true
     
-    - name: Notify on Security Failure
-      if: failure() && github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened') && github.base_ref == 'main'
-      env:
-        GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-      run: |
-        if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
-          ./scripts/send-pr-notification.sh \
-            --pr-title '${{ github.event.pull_request.title }}' \
-            --pr-number '${{ github.event.pull_request.number }}' \
-            --pr-url '${{ github.event.pull_request.html_url }}' \
-            --author '${{ github.event.pull_request.user.login }}' \
-            --repository '${{ github.repository }}' \
-            --status "failure" \
-            --message "[FAIL] Security scan failed - PR needs attention" || true
-        fi
-      continue-on-error: true
-    
-    - name: Notify on All Tests Success
-      if: success() && github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened') && github.base_ref == 'main'
-      env:
-        GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-      run: |
-        if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
-          ./scripts/send-pr-notification.sh \
-            --pr-title '${{ github.event.pull_request.title }}' \
-            --pr-number '${{ github.event.pull_request.number }}' \
-            --pr-url '${{ github.event.pull_request.html_url }}' \
-            --author '${{ github.event.pull_request.user.login }}' \
-            --repository '${{ github.repository }}' \
-            --status "success" \
-            --message "[PASS] All tests passed - PR is ready for review" || true
-        fi
-      continue-on-error: true
-    
     - name: Security scan summary
       run: |
         echo "🛡️  Security Analysis Summary"
@@ -316,6 +248,43 @@ jobs:
         echo "ℹ️  This job runs security scans for informational purposes."
         echo "ℹ️  Review the output above for any security findings."
         echo "ℹ️  Consider updating outdated dependencies regularly."
+
+  # Simple notification that always runs
+  notify:
+    runs-on: ubuntu-latest
+    if: always() && github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'reopened') && github.base_ref == 'main'
+    needs: [test-shell, test-go, security]
+    steps:
+      - uses: actions/checkout@v4
+        
+      - name: Send PR notification
+        env:
+          GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+        run: |
+          SHELL_RESULT="${{ needs.test-shell.result }}"
+          GO_RESULT="${{ needs.test-go.result }}"
+          SECURITY_RESULT="${{ needs.security.result }}"
+          
+          # Determine overall status and message
+          if [[ "$SHELL_RESULT" == "success" && "$GO_RESULT" == "success" && "$SECURITY_RESULT" == "success" ]]; then
+            STATUS="success"
+            MESSAGE="[PASS] All tests passed - PR is ready for review"
+          else
+            STATUS="failure"
+            MESSAGE="Tests failed: Shell=$SHELL_RESULT, Go=$GO_RESULT, Security=$SECURITY_RESULT"
+          fi
+          
+          if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
+            ./scripts/send-pr-notification.sh \
+              --pr-title '${{ github.event.pull_request.title }}' \
+              --pr-number '${{ github.event.pull_request.number }}' \
+              --pr-url '${{ github.event.pull_request.html_url }}' \
+              --author '${{ github.event.pull_request.user.login }}' \
+              --repository '${{ github.repository }}' \
+              --status "$STATUS" \
+              --message "$MESSAGE" || true
+          fi
+        continue-on-error: true
 
   build:
     name: Cross-Platform Build
