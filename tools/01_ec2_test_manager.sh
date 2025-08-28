@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source utilities from the parent src directory
 if [ -f "${SCRIPT_DIR}/../src/00_utils.sh" ]; then
-    # shellcheck source=../src/00_utils.sh
+    # shellcheck source=../src/00_utils.sh disable=SC1091
     source "${SCRIPT_DIR}/../src/00_utils.sh"
 else
     echo "[ERROR] src/00_utils.sh not found. This script requires 00_utils.sh for logging functions." >&2
@@ -283,6 +283,8 @@ verify_instances() {
     
     # Batch query all instances
     local result
+    # shellcheck disable=SC2016
+    # The backticks here are part of AWS CLI's JMESPath syntax, not shell command substitution
     result=$(aws ec2 describe-instances \
         --instance-ids "${INSTANCE_IDS[@]}" \
         --query 'Reservations[].Instances[].[InstanceId,State.Name,Tags[?Key==`Name`].Value|[0],Tags[?Key==`Owner`].Value|[0]]' \

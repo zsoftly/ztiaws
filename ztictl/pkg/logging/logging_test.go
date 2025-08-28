@@ -764,6 +764,13 @@ func TestLogFileCreationFailure(t *testing.T) {
 
 	// Ensure cleanup happens
 	defer func() {
+		// Close any open file before restoring
+		loggerMutex.Lock()
+		if logFile != nil && logFile != originalLogFile {
+			_ = logFile.Close()
+		}
+		loggerMutex.Unlock()
+
 		// Restore environment
 		if originalLogDir == "" {
 			_ = os.Unsetenv("ZTICTL_LOG_DIR")
@@ -771,29 +778,20 @@ func TestLogFileCreationFailure(t *testing.T) {
 			_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
 		}
 
-		// Restore logger state
+		// Restore original logger state
 		loggerMutex.Lock()
 		fileLogger = originalFileLogger
 		logFile = originalLogFile
 		loggerMutex.Unlock()
-
-		// If no original logger, create a new one with valid settings
-		if originalFileLogger == nil {
-			// Create temporary directory for new logger
-			tempDir := t.TempDir()
-			_ = os.Setenv("ZTICTL_LOG_DIR", tempDir)
-			setupFileLogger()
-			_ = os.Setenv("ZTICTL_LOG_DIR", originalLogDir)
-		}
 	}()
 
 	// Reset logger state for the test
 	loggerMutex.Lock()
-	if logFile != nil {
+	if logFile != nil && logFile != originalLogFile {
 		_ = logFile.Close()
-		logFile = nil
-		fileLogger = nil
 	}
+	logFile = nil
+	fileLogger = nil
 	loggerMutex.Unlock()
 
 	// Test setup failure - this should handle the error gracefully

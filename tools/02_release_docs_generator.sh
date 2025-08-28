@@ -234,6 +234,8 @@ generate_changelog() {
         local temp_changelog
         temp_changelog=$(mktemp)
         head -n 1 CHANGELOG.md > "$temp_changelog"
+        # shellcheck disable=SC2129
+        # Multiple redirects are intentional for clarity and safety
         echo "" >> "$temp_changelog"
         cat "$temp_entry" >> "$temp_changelog"
         tail -n +2 CHANGELOG.md >> "$temp_changelog"
@@ -241,6 +243,8 @@ generate_changelog() {
         log_info "Updated existing CHANGELOG.md"
     else
         echo "# Changelog" > CHANGELOG.md
+        # shellcheck disable=SC2129
+        # Multiple redirects are intentional for clarity and safety
         echo "" >> CHANGELOG.md
         cat "$temp_entry" >> CHANGELOG.md
         log_info "Created new CHANGELOG.md"
