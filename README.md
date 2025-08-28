@@ -1,7 +1,7 @@
 # ZTiAWS
 
-![Ubuntu](https://github.com/zsoftly/ztiaws/actions/workflows/test-all.yml/badge.svg)
-![macOS](https://github.com/zsoftly/ztiaws/actions/workflows/test-all.yml/badge.svg)
+[![CI/CD](https://github.com/zsoftly/ztiaws/actions/workflows/build.yml/badge.svg)](https://github.com/zsoftly/ztiaws/actions/workflows/build.yml)
+[![Go Coverage](https://img.shields.io/codecov/c/github/zsoftly/ztiaws?label=Go%20Coverage&logo=codecov)](https://codecov.io/github/zsoftly/ztiaws)
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 <p align="center">

@@ -2,7 +2,7 @@
 
 ## Overview
 
-ZTiAWS uses a consolidated, intelligent CI/CD pipeline designed for efficient development workflows and reliable releases. The pipeline automatically adapts its behavior based on the type of change, providing fast feedback for development and comprehensive validation for releases.
+ZTiAWS uses a streamlined, intelligent CI/CD pipeline with two optimized workflows designed for efficient development and reliable releases. The pipeline automatically adapts its behavior based on the type of change, providing fast feedback for development and comprehensive validation for releases.
 
 ## Design Philosophy
 
@@ -21,29 +21,33 @@ Jobs run only when needed, optimizing CI/CD resource usage and developer experie
 
 ## Pipeline Architecture
 
-The ZTiAWS CI/CD pipeline consists of three optimized workflows:
+The ZTiAWS CI/CD pipeline consists of two optimized workflows:
 
-### Primary Workflow: `.github/workflows/build.yml` (Go Code)
-**Focus**: Go ztictl development, testing, security, and releases
+### Primary Workflow: `.github/workflows/build.yml` (Unified CI/CD)
+**Focus**: Complete testing, security, and release pipeline for all components
 
 #### **Triggers**
 ```yaml
 on:
   push:
-    branches: [ main, 'feature/*', 'feat/*', 'issue/*' ]
+    branches: [ main, 'feature/*', 'feat/*', 'issue/*', 'release/*' ]
     tags: [ 'v*' ]
-    paths: [ 'ztictl/**' ]
+    paths: [ 
+      'ztictl/**', 'authaws', 'ssm', 'src/**', 'tools/**', 
+      'install.sh', 'uninstall.sh', 'go.mod', 'go.sum', 'Makefile'
+    ]
   pull_request:
-    branches: [ main ]
-    paths: [ 'ztictl/**' ]
+    branches: [ main, 'release/*' ]
+    paths: [ /* same as above */ ]
   workflow_dispatch:
 ```
 
-**Why this design:**
-- **Path filtering** (`ztictl/**`) ensures pipeline runs only for relevant changes
-- **Branch patterns** support standard Git flow (feature branches, main)
+**Why this unified design:**
+- **Comprehensive path filtering** covers all project components
+- **Single workflow** eliminates duplicate testing overhead
+- **Branch patterns** support complete Git flow
 - **Tag-based releases** enable automated release creation
-- **Manual dispatch** allows on-demand builds
+- **Dependency awareness** (go.mod, Makefile changes trigger rebuilds)
 
 #### **Job Architecture**
 
@@ -51,12 +55,12 @@ on:
 graph TD
     A[Trigger Event] --> B{Event Type?}
     
-    B -->|PR or Feature Push| C[test]
-    B -->|PR to main| D[test → security]
-    B -->|Tag Push| E[build → release]
+    B -->|PR or Feature Push| C[test-shell + test-go]
+    B -->|PR to main| D[test-shell + test-go → security → pr-notify]
+    B -->|Tag Push| E[build → release → release-notify]
     B -->|Manual Dispatch| F[build only]
     
-    C --> G[Ubuntu + Windows Testing]
+    C --> G[Shell: Ubuntu + macOS<br/>Go: Ubuntu + Windows + macOS]
     D --> G
     G --> H[Security Analysis]
     E --> I[6-Platform Build Matrix]
@@ -65,55 +69,64 @@ graph TD
     I --> J[GitHub Release]
 ```
 
-### Supporting Workflow: `.github/workflows/test-all.yml` (Smart Test Orchestrator)
-**Focus**: Efficient testing of shell scripts and Go code based on change detection
-
-**Key Features:**
-- **Path-based filtering**: Uses `dorny/paths-filter` to detect changes
-- **Conditional execution**: Only runs tests for changed components  
-- **Multi-platform**: Tests shell scripts on Ubuntu + macOS, Go code on Ubuntu + Windows + macOS
-- **Cost optimization**: Prevents wasted CI minutes by running only necessary tests
-
 ### Documentation Workflow: `.github/workflows/auto-generate-docs.yml`
 **Focus**: Automated release documentation generation
 
-**Triggers**: Push to `release/*` branches
+**Triggers**: Push to `release/*` branches  
 **Purpose**: Generates CHANGELOG.md and RELEASE_NOTES.txt using tools/02_release_docs_generator.sh
 
 ### **Job Details**
 
-#### 1. **test** - Test & Validate
+#### 1. **test-shell** - Shell Script Validation
 ```yaml
 if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
 strategy:
   matrix:
-    os: [ubuntu-latest, windows-latest]
+    os: [ubuntu-latest, macos-latest]
 ```
 
-**Purpose:** Provide rapid feedback during development
+**Purpose:** Validate shell scripts on Unix-like systems
 **When it runs:** All PRs and feature branch pushes (not tags)
 **What it does:**
-- Unit tests (`go test -v ./...`)
+- ShellCheck static analysis (`shellcheck -x`)
+- Syntax validation (`bash -n`)
+- Cross-platform compatibility testing
+
+**Why Ubuntu + macOS:**
+- Covers primary shell script target platforms
+- Windows shell script support not needed (ztictl handles Windows)
+
+#### 2. **test-go** - Go Code Testing
+```yaml
+if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
+strategy:
+  matrix:
+    os: [ubuntu-latest, windows-latest, macos-latest]
+```
+
+**Purpose:** Comprehensive Go code testing and validation
+**When it runs:** All PRs and feature branch pushes (not tags)
+**What it does:**
+- Unit tests with coverage (`go test -v -race -coverprofile=coverage.out`)
 - Static analysis (`go vet`)
 - Code formatting validation (`gofmt`)
 - Build verification
 - CLI functionality testing
 
-**Why Ubuntu + Windows:**
-- Covers majority of development environments
-- Tests cross-platform compatibility early
-- Faster than full 6-platform matrix
-- Sufficient for development validation
+**Why 3 platforms:**
+- Full cross-platform compatibility validation
+- Early detection of platform-specific issues
+- Comprehensive testing before security analysis
 
-#### 2. **security** - Security Analysis
+#### 3. **security** - Security Analysis
 ```yaml
 if: github.event_name == 'pull_request' && github.base_ref == 'main'
-needs: test
+needs: [test-shell, test-go]
 ```
 
 **Purpose:** Security validation for main branch changes
-**When it runs:** Only PRs targeting main branch, after tests pass
-**Dependencies:** Requires `test` job to complete successfully
+**When it runs:** Only PRs targeting main branch, after all tests pass
+**Dependencies:** Requires both `test-shell` and `test-go` jobs to complete successfully
 **Tools used:**
 - **Trivy**: Comprehensive vulnerability scanner (filesystem, dependencies)
 - **GoSec**: Go-specific security analysis (injection, crypto issues) via official GitHub Action
@@ -132,7 +145,7 @@ needs: test
 - **GoSec**: Uses official GitHub Action `securego/gosec@master`
 - **Non-blocking**: All security scans use `continue-on-error: true` for informational purposes
 
-#### 3. **build** - Cross-Platform Build
+#### 4. **build** - Cross-Platform Build
 ```yaml
 if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 strategy:
@@ -159,7 +172,7 @@ strategy:
 - ARM64 support for modern hardware (Apple Silicon, ARM servers)
 - Future-proofing for emerging architectures
 
-#### 4. **release** - GitHub Release
+#### 5. **release** - GitHub Release
 ```yaml
 if: startsWith(github.ref, 'refs/tags/v')
 needs: [build]
@@ -174,19 +187,19 @@ needs: [build]
 3. Create GitHub release with auto-generated release notes
 4. Attach all binaries to release
 
-#### 5. **pr-notification** - PR Notifications
+#### 6. **pr-notification** - PR Notifications
 ```yaml
 if: github.event_name == 'pull_request' && github.event.action == 'opened' && github.base_ref == 'main'
-needs: [security]
+needs: [test-shell, test-go, security]
 ```
 
 **Purpose:** Notify team of new PRs opened to main branch
-**When it runs:** PRs opened to main branch, after security scan passes
-**Dependencies:** Requires `security` job to complete successfully
+**When it runs:** PRs opened to main branch, after all tests and security scans pass
+**Dependencies:** Requires `test-shell`, `test-go`, and `security` jobs to complete successfully
 **Integration:** Uses same Google Chat webhook as zsoftly-services repository
 **Message format:** Includes PR title, author, and direct link to PR
 
-#### 6. **release-notification** - Release Notifications
+#### 7. **release-notification** - Release Notifications
 ```yaml
 if: startsWith(github.ref, 'refs/tags/v')
 needs: [release]
@@ -202,9 +215,9 @@ needs: [release]
 
 | Scenario | Triggered Jobs | Execution Order |
 |----------|---------------|-----------------|
-| **Feature branch push** | `test` | Parallel (Ubuntu + Windows) |
-| **PR to feature branch** | `test` | Parallel (Ubuntu + Windows) |
-| **PR to main branch** | `test` → `security` → `pr-notification` | Sequential (fail fast) |
+| **Feature branch push** | `test-shell` + `test-go` | Parallel (Shell: Ubuntu+macOS, Go: Ubuntu+Windows+macOS) |
+| **PR to feature branch** | `test-shell` + `test-go` | Parallel (Shell: Ubuntu+macOS, Go: Ubuntu+Windows+macOS) |
+| **PR to main branch** | `test-shell` + `test-go` → `security` → `pr-notification` | Sequential (fail fast) |
 | **Tag push (v1.0.0)** | `build` → `release` → `release-notification` | Sequential |
 | **Manual dispatch** | `build` | Single job matrix |
 
@@ -235,14 +248,16 @@ needs: [release]
 ## Migration from Legacy Workflows
 
 ### **Consolidated from Multiple Files**
-Current optimized workflow structure:
-- `build.yml` - Primary CI/CD pipeline (Go code)
-- `test-all.yml` - Smart test orchestrator (shell scripts and Go)  
+**Final optimized workflow structure:**
+- `build.yml` - Unified CI/CD pipeline (shell + Go testing, security, releases)
 - `auto-generate-docs.yml` - Release documentation automation
 
-Previously had redundant workflows (now removed):
-- `test.yml` - Legacy testing (replaced by test-all.yml)
+**Previously had redundant workflows (now removed):**
+- `test.yml` - Legacy testing (consolidated into build.yml)
+- `test-all.yml` - Smart test orchestrator (consolidated into build.yml) 
 - `release.yml` - Release management (consolidated into build.yml)
+
+**Result:** 50% reduction in workflow files with zero functionality loss
 
 ### **Benefits of Consolidation**
 - **Single source of truth** for CI/CD logic
@@ -293,9 +308,8 @@ Previously had redundant workflows (now removed):
 ## Quick Reference
 
 **Key Files:**
-- Primary workflow: `.github/workflows/build.yml` (Go code CI/CD)
-- Test orchestrator: `.github/workflows/test-all.yml` (smart multi-component testing)
-- Documentation: `.github/workflows/auto-generate-docs.yml` (release docs)
+- Unified pipeline: `.github/workflows/build.yml` (complete CI/CD for all components)
+- Documentation: `.github/workflows/auto-generate-docs.yml` (release docs automation)
 - Build configuration: `ztictl/Makefile`
 - Dependencies: `ztictl/go.mod`
 
