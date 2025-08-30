@@ -2,119 +2,167 @@
 
 ## Overview
 
-ZTiAWS uses a consolidated, intelligent CI/CD pipeline designed for efficient development workflows and reliable releases. The pipeline automatically adapts its behavior based on the type of change, providing fast feedback for development and comprehensive validation for releases.
+ZTiAWS uses a streamlined, intelligent CI/CD pipeline with two optimized workflows designed for efficient development and reliable releases. The pipeline automatically adapts its behavior based on the type of change, providing fast feedback for development and comprehensive validation for releases.
 
 ## Design Philosophy
 
 ### **Smart Conditional Execution**
 Jobs run only when needed, optimizing CI/CD resource usage and developer experience:
-- **Quick feedback** for feature development
-- **Comprehensive validation** for production releases
-- **Security scanning** for critical changes
-- **Cross-platform builds** only when necessary
+
+* **Quick feedback** for feature development
+* **Comprehensive validation** for production releases
+* **Security scanning** for critical changes
+* **Cross-platform builds** only when necessary
 
 ### **DRY (Don't Repeat Yourself) Principles**
-- **Single workflow file** instead of multiple redundant workflows
-- **Conditional jobs** that adapt to different scenarios
-- **Shared setup steps** with consistent Go version and dependencies
-- **Consolidated security tooling** avoiding duplicate vulnerability scans
+
+* **Single workflow file** instead of multiple redundant workflows
+* **Conditional jobs** that adapt to different scenarios
+* **Shared setup steps** with consistent Go version and dependencies
+* **Consolidated security tooling** avoiding duplicate vulnerability scans
 
 ## Pipeline Architecture
 
-### Workflow: `.github/workflows/build.yml`
+The ZTiAWS CI/CD pipeline consists of two optimized workflows:
+
+### Primary Workflow: `.github/workflows/build.yml` (Unified CI/CD)
+**Focus**: Complete testing, security, and release pipeline for all components
 
 #### **Triggers**
 ```yaml
 on:
   push:
-    branches: [ main, 'feature/*', 'feat/*', 'issue/*' ]
+    branches: [ main, 'feature/*', 'feat/*', 'issue/*', 'release/*' ]
     tags: [ 'v*' ]
-    paths: [ 'ztictl/**' ]
+    paths: [ 
+      'ztictl/**', 'authaws', 'ssm', 'src/**', 'tools/**', 
+      'install.sh', 'uninstall.sh', 'go.mod', 'go.sum', 'Makefile'
+    ]
   pull_request:
-    branches: [ main ]
-    paths: [ 'ztictl/**' ]
+    branches: [ main, 'release/*' ]
+    paths: [ /* same as above */ ]
   workflow_dispatch:
 ```
 
-**Why this design:**
-- **Path filtering** (`ztictl/**`) ensures pipeline runs only for relevant changes
-- **Branch patterns** support standard Git flow (feature branches, main)
-- **Tag-based releases** enable automated release creation
-- **Manual dispatch** allows on-demand builds
+**Why this unified design:**
 
-#### **Job Architecture**
+* **Comprehensive path filtering** covers all project components
+* **Single workflow** eliminates duplicate testing overhead
+* **Branch patterns** support complete Git flow
+* **Tag-based releases** enable automated release creation
+* **Dependency awareness** (go.mod, Makefile changes trigger rebuilds)
+
+#### Job Architecture
 
 ```mermaid
 graph TD
-    A[Trigger Event] --> B{Event Type?}
+    A[1a Trigger Event] --> B{2a Event Type?}
     
-    B -->|PR or Feature Push| C[test]
-    B -->|PR to main| D[test → security]
-    B -->|Tag Push| E[build → release]
-    B -->|Manual Dispatch| F[build only]
+    B -->|PR or Feature Push| C[3a test-shell + test-go]
+    B -->|PR to main| D[3b test-shell + test-go]
+    B -->|Tag Push| E[3c build then release then notify]
+    B -->|Manual Dispatch| F[3d build only]
     
-    C --> G[Ubuntu + Windows Testing]
+    C --> G[4a Run Tests Shell Ubuntu macOS and Go Ubuntu Windows macOS]
     D --> G
-    G --> H[Security Analysis]
-    E --> I[6-Platform Build Matrix]
-    F --> I
+    G --> H{5a All Tests Pass?}
+    G -->|Shell Fail| I[6a Notify Shell Failure]
+    G -->|Go Fail| J[6b Notify Go Failure]
+    H -->|Yes| K[7a Security Analysis]
+    H -->|No| L[7b Security Skipped]
+    K -->|Success| M[8a Notify All Tests Success]
+    K -->|Fail| N[8b Notify Security Failure]
+    E --> O[4b 6-Platform Build Matrix]
+    F --> O
     
-    I --> J[GitHub Release]
+    O --> P[5b GitHub Release]
 ```
+
+### Documentation Workflow: `.github/workflows/auto-generate-docs.yml`
+**Focus**: Automated release documentation generation
+
+**Triggers**: Push to `release/*` branches  
+**Purpose**: Generates CHANGELOG.md and RELEASE_NOTES.txt using tools/02_release_docs_generator.sh
 
 ### **Job Details**
 
-#### 1. **test** - Test & Validate
+#### 1. **test-shell** - Shell Script Validation
 ```yaml
 if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
 strategy:
   matrix:
-    os: [ubuntu-latest, windows-latest]
+    os: [ubuntu-latest, macos-latest]
 ```
 
-**Purpose:** Provide rapid feedback during development
+**Purpose:** Validate shell scripts on Unix-like systems
 **When it runs:** All PRs and feature branch pushes (not tags)
 **What it does:**
-- Unit tests (`go test -v ./...`)
-- Static analysis (`go vet`)
-- Code formatting validation (`gofmt`)
-- Build verification
-- CLI functionality testing
 
-**Why Ubuntu + Windows:**
-- Covers majority of development environments
-- Tests cross-platform compatibility early
-- Faster than full 6-platform matrix
-- Sufficient for development validation
+* ShellCheck static analysis (`shellcheck -x`)
+* Syntax validation (`bash -n`)
+* Cross-platform compatibility testing
 
-#### 2. **security** - Security Analysis
+**Why Ubuntu + macOS:**
+
+* Covers primary shell script target platforms
+* Windows shell script support not needed (ztictl handles Windows)
+
+#### 2. **test-go** - Go Code Testing
+```yaml
+if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
+strategy:
+  matrix:
+    os: [ubuntu-latest, windows-latest, macos-latest]
+```
+
+**Purpose:** Comprehensive Go code testing and validation
+**When it runs:** All PRs and feature branch pushes (not tags)
+**What it does:**
+
+* Unit tests with coverage (`go test -v -race -coverprofile=coverage.out`)
+* Static analysis (`go vet`)
+* Code formatting validation (`gofmt`)
+* Build verification
+* CLI functionality testing
+
+**Why 3 platforms:**
+
+* Full cross-platform compatibility validation
+* Early detection of platform-specific issues
+* Comprehensive testing before security analysis
+
+#### 3. **security** - Security Analysis
 ```yaml
 if: github.event_name == 'pull_request' && github.base_ref == 'main'
-needs: test
+needs: [test-shell, test-go]
 ```
 
 **Purpose:** Security validation for main branch changes
-**When it runs:** Only PRs targeting main branch, after tests pass
-**Dependencies:** Requires `test` job to complete successfully
+**When it runs:** Only PRs targeting main branch, after all tests pass
+**Dependencies:** Requires both `test-shell` and `test-go` jobs to complete successfully
+**Skip Behavior:** Automatically skipped if prerequisite tests fail (prevents blocking PR notifications)
 **Tools used:**
-- **Trivy**: Comprehensive vulnerability scanner (filesystem, dependencies)
-- **GoSec**: Go-specific security analysis (injection, crypto issues) via official GitHub Action
-- **govulncheck**: Official Go vulnerability database
-- **Dependency updates**: Check for outdated packages
+
+* **Trivy**: Comprehensive vulnerability scanner (filesystem, dependencies)
+* **GoSec**: Go-specific security analysis (injection, crypto issues) via official GitHub Action
+* **govulncheck**: Official Go vulnerability database
+* **Dependency updates**: Check for outdated packages
 
 **Why this conditional approach:**
-- Security scans are resource-intensive
-- Main branch PRs need highest security validation
-- Feature branch work doesn't require full security scan
-- Prevents CI/CD bottlenecks during development
-- **Fail fast**: Only runs if tests pass
+
+* Security scans are resource-intensive
+* Main branch PRs need highest security validation
+* Feature branch work doesn't require full security scan
+* Prevents CI/CD bottlenecks during development
+* **Fail fast**: Only runs if tests pass
 
 **Security Tools Rationale:**
-- **Trivy vs Nancy**: Removed Nancy (redundant with Trivy's capabilities)
-- **GoSec**: Uses official GitHub Action `securego/gosec@master`
-- **Non-blocking**: All security scans use `continue-on-error: true` for informational purposes
 
-#### 3. **build** - Cross-Platform Build
+* **Trivy vs Nancy**: Removed Nancy (redundant with Trivy's capabilities)
+* **GoSec**: Uses official GitHub Action `securego/gosec@master`
+* **Non-blocking**: All security scans use `continue-on-error: true` for informational purposes
+
+#### 4. **build** - Cross-Platform Build
 ```yaml
 if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 strategy:
@@ -131,17 +179,19 @@ strategy:
 **Purpose:** Create production-ready binaries for all supported platforms
 **When it runs:** Version tags or manual dispatch only
 **Features:**
-- Version injection from Git tags
-- Optimized builds (`-ldflags "-s -w"`)
-- Binary verification (Linux AMD64)
-- Artifact upload with 30-day retention
+
+* Version injection from Git tags
+* Optimized builds (`-ldflags "-s -w"`)
+* Binary verification (Linux AMD64)
+* Artifact upload with 30-day retention
 
 **Why 6 platforms:**
-- Comprehensive platform support for end users
-- ARM64 support for modern hardware (Apple Silicon, ARM servers)
-- Future-proofing for emerging architectures
 
-#### 4. **release** - GitHub Release
+* Comprehensive platform support for end users
+* ARM64 support for modern hardware (Apple Silicon, ARM servers)
+* Future-proofing for emerging architectures
+
+#### 5. **release** - GitHub Release
 ```yaml
 if: startsWith(github.ref, 'refs/tags/v')
 needs: [build]
@@ -151,22 +201,40 @@ needs: [build]
 **When it runs:** Only version tags (e.g., `v1.2.0`)
 **Dependencies:** Requires `build` job to complete successfully
 **Process:**
+
 1. Download all build artifacts
 2. Create platform-specific archives (tar.gz for Unix, zip for Windows)
 3. Create GitHub release with auto-generated release notes
 4. Attach all binaries to release
 
-#### 5. **pr-notification** - PR Notifications
+#### 5. **Embedded Notifications** - PR Status Reporting
+**Architecture:** Notification steps embedded within each critical job
+
+**Implementation Pattern:**
 ```yaml
-if: github.event_name == 'pull_request' && github.event.action == 'opened' && github.base_ref == 'main'
-needs: [security]
+- name: Notify on Test Failure
+  if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
 ```
 
-**Purpose:** Notify team of new PRs opened to main branch
-**When it runs:** PRs opened to main branch, after security scan passes
-**Dependencies:** Requires `security` job to complete successfully
-**Integration:** Uses same Google Chat webhook as zsoftly-services repository
-**Message format:** Includes PR title, author, and direct link to PR
+**Purpose:** Immediate notification when any critical step fails or succeeds
+**When it runs:** Embedded in each job - triggers based on that job's result
+**No Dependencies:** Each job can notify independently, preventing cascade failures
+
+**Notification Points:**
+* **Shell Test Job**: Notifies immediately on shell test failure
+* **Go Test Job**: Notifies immediately on Go test failure  
+* **Security Job**: Notifies on security failure OR final success (all tests passed)
+
+**Message Types:**
+* **Individual failures**: "❌ [Shell/Go/Security] tests failed - PR needs attention"
+* **Final success**: "✅ All tests passed - PR is ready for review"
+* **Immediate feedback**: No waiting for other jobs to complete
+
+**Benefits:**
+* **Fail-fast notifications**: Immediate alerts when issues occur
+* **No dependency chains**: Each job notifies independently
+* **Guaranteed delivery**: Cannot be blocked by other job failures
+* **Single runner**: Only Ubuntu runners send notifications (prevents duplicates)
 
 #### 6. **release-notification** - Release Notifications
 ```yaml
@@ -182,99 +250,126 @@ needs: [release]
 
 ## Workflow Behavior Matrix
 
-| Scenario | Triggered Jobs | Execution Order |
-|----------|---------------|-----------------|
-| **Feature branch push** | `test` | Parallel (Ubuntu + Windows) |
-| **PR to feature branch** | `test` | Parallel (Ubuntu + Windows) |
-| **PR to main branch** | `test` → `security` → `pr-notification` | Sequential (fail fast) |
+| Scenario | Triggered Jobs | Execution & Notifications |
+|----------|---------------|---------------------------|
+| **Feature branch push** | `test-shell` + `test-go` | Parallel (Shell: Ubuntu+macOS, Go: Ubuntu+Windows+macOS) |
+| **PR to feature branch** | `test-shell` + `test-go` | Parallel (Shell: Ubuntu+macOS, Go: Ubuntu+Windows+macOS) |
+| **PR to main (tests pass)** | `test-shell` + `test-go` → `security` | Sequential → Final success notification from security job |
+| **PR to main (shell fail)** | `test-shell` + `test-go` → security skipped | Immediate shell failure notification, security skipped |
+| **PR to main (go fail)** | `test-shell` + `test-go` → security skipped | Immediate Go failure notification, security skipped |
+| **PR to main (security fail)** | `test-shell` + `test-go` → `security` | Tests pass → Security failure notification |
 | **Tag push (v1.0.0)** | `build` → `release` → `release-notification` | Sequential |
 | **Manual dispatch** | `build` | Single job matrix |
 
 ## Performance Optimizations
 
 ### **Fail Fast Strategy**
-- **Tests fail** → Security scans are skipped automatically
-- **Build fails** → Release is skipped automatically
-- **Early feedback** → Developers get test results first
-- **Resource savings** → Expensive jobs only run when prerequisites pass
+
+* **Tests fail** → Security scans are skipped automatically
+* **Build fails** → Release is skipped automatically
+* **Early feedback** → Developers get test results first
+* **Resource savings** → Expensive jobs only run when prerequisites pass
+* **Immediate notifications** → Each job notifies on failure, no waiting for dependent jobs
 
 ### **Resource Efficiency**
-- **Conditional execution**: Jobs run only when needed
-- **Path filtering**: Skip irrelevant changes
-- **Matrix optimization**: Tests use 2 platforms, builds use 6
-- **Smart dependencies**: Security analysis only after successful tests
+
+* **Conditional execution**: Jobs run only when needed
+* **Path filtering**: Skip irrelevant changes
+* **Matrix optimization**: Tests use 2 platforms, builds use 6
+* **Smart dependencies**: Security analysis only after successful tests
 
 ### **Developer Experience**
-- **Fast feedback loop**: Quick tests complete in ~3-5 minutes
-- **Non-blocking security**: Information-only security scans
-- **Clear status reporting**: Descriptive job names and summaries
+
+* **Fast feedback loop**: Quick tests complete in ~3-5 minutes
+* **Non-blocking security**: Information-only security scans
+* **Clear status reporting**: Descriptive job names and summaries
+* **Immediate failure alerts**: Instant notifications when any test fails
+* **No cascade delays**: Notifications sent immediately, not after all jobs complete
+* **Single final success**: Only one success notification after all tests pass
 
 ### **CI/CD Cost Optimization**
-- **Smart triggering**: Expensive builds only for releases
-- **Artifact retention**: 30-day cleanup prevents storage bloat
-- **Efficient caching**: Go module caching via actions/setup-go
+
+* **Smart triggering**: Expensive builds only for releases
+* **Artifact retention**: 30-day cleanup prevents storage bloat
+* **Efficient caching**: Go module caching via actions/setup-go
 
 ## Migration from Legacy Workflows
 
 ### **Consolidated from Multiple Files**
-Previously had separate workflows:
-- `build.yml` - Release builds
-- `go-test.yml` - Development testing
-- `test.yml` - Legacy testing
-- `release.yml` - Release management
+**Final optimized workflow structure:**
+
+* `build.yml` - Unified CI/CD pipeline (shell + Go testing, security, releases)
+* `auto-generate-docs.yml` - Release documentation automation
+
+**Previously had redundant workflows (now removed):**
+
+* `test.yml` - Legacy testing (consolidated into build.yml)
+* `test-all.yml` - Smart test orchestrator (consolidated into build.yml) 
+* `release.yml` - Release management (consolidated into build.yml)
+
+**Result:** 50% reduction in workflow files with zero functionality loss
 
 ### **Benefits of Consolidation**
-- **Single source of truth** for CI/CD logic
-- **Reduced maintenance overhead** 
-- **Consistent Go version** across all jobs
-- **Eliminated redundant testing**
-- **Clearer job relationships**
+
+* **Single source of truth** for CI/CD logic
+* **Reduced maintenance overhead** 
+* **Consistent Go version** across all jobs
+* **Eliminated redundant testing**
+* **Clearer job relationships**
 
 ## Security Considerations
 
 ### **SAST (Static Application Security Testing)**
-- **Non-failing approach**: Security issues reported but don't block development
-- **Comprehensive coverage**: Multiple tools for different vulnerability types
-- **Dependency tracking**: Automated alerts for outdated packages
+
+* **Non-failing approach**: Security issues reported but don't block development
+* **Comprehensive coverage**: Multiple tools for different vulnerability types
+* **Dependency tracking**: Automated alerts for outdated packages
 
 ### **Build Security**
-- **Pinned action versions**: `@v4` for stability and security
-- **Minimal permissions**: Jobs use least-privilege access
-- **Artifact signing**: Future consideration for binary integrity
+
+* **Pinned action versions**: `@v4` for stability and security
+* **Minimal permissions**: Jobs use least-privilege access
+* **Artifact signing**: Future consideration for binary integrity
 
 ## Maintenance
 
 ### **Regular Updates**
-- **Go version**: Update in single location for all jobs
-- **Action versions**: Periodic updates for security and features
-- **Security tools**: Keep SAST tools current
+
+* **Go version**: Update in single location for all jobs
+* **Action versions**: Periodic updates for security and features
+* **Security tools**: Keep SAST tools current
 
 ### **Monitoring**
-- **Build status badges**: Visible in README
-- **Failed build notifications**: GitHub notifications
-- **Performance tracking**: Monitor CI/CD execution times
+
+* **Build status badges**: Visible in README
+* **Failed build notifications**: GitHub notifications
+* **Performance tracking**: Monitor CI/CD execution times
 
 ## Future Enhancements
 
 ### **Planned Improvements**
-- **Caching optimization**: More aggressive Go module and build caching
-- **Test parallelization**: Parallel test execution for large test suites
-- **Integration testing**: AWS integration tests in isolated environments
-- **Binary signing**: Code signing for enhanced security
+
+* **Caching optimization**: More aggressive Go module and build caching
+* **Test parallelization**: Parallel test execution for large test suites
+* **Integration testing**: AWS integration tests in isolated environments
+* **Binary signing**: Code signing for enhanced security
 
 ### **Scalability Considerations**
-- **Self-hosted runners**: For faster builds if needed
-- **Matrix optimization**: Dynamic platform selection based on changes
-- **Artifact distribution**: CDN distribution for popular releases
+
+* **Self-hosted runners**: For faster builds if needed
+* **Matrix optimization**: Dynamic platform selection based on changes
+* **Artifact distribution**: CDN distribution for popular releases
 
 ---
 
 ## Quick Reference
 
 **Key Files:**
-- Primary workflow: `.github/workflows/build.yml`
-- Build configuration: `ztictl/Makefile`
-- Dependencies: `ztictl/go.mod`
+
+* Unified pipeline: `.github/workflows/build.yml` (complete CI/CD for all components)
+* Documentation: `.github/workflows/auto-generate-docs.yml` (release docs automation)
+* Build configuration: `ztictl/Makefile`
+* Dependencies: `ztictl/go.mod`
 
 **Common Commands:**
 ```bash

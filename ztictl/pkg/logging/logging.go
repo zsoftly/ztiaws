@@ -139,35 +139,35 @@ func logToFile(level string, message string) {
 // LogInfo logs an info message - colored to console, timestamped to file
 func LogInfo(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	colors.Success.Printf("[INFO] %s\n", message)
+	_, _ = colors.Success.Printf("[INFO] %s\n", message)
 	logToFile("INFO", message)
 }
 
 // LogWarn logs a warning message - colored to console, timestamped to file
 func LogWarn(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	colors.Warning.Printf("[WARN] %s\n", message)
+	_, _ = colors.Warning.Printf("[WARN] %s\n", message)
 	logToFile("WARN", message)
 }
 
 // LogError logs an error message - colored to console, timestamped to file
 func LogError(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	colors.Error.Printf("[ERROR] %s\n", message)
+	_, _ = colors.Error.Printf("[ERROR] %s\n", message)
 	logToFile("ERROR", message)
 }
 
 // LogDebug logs a debug message - colored to console, timestamped to file
 func LogDebug(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	colors.Data.Printf("[DEBUG] %s\n", message)
+	_, _ = colors.Data.Printf("[DEBUG] %s\n", message)
 	logToFile("DEBUG", message)
 }
 
 // LogSuccess logs a success message - colored to console, timestamped to file
 func LogSuccess(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	colors.Success.Printf("[SUCCESS] %s\n", message)
+	_, _ = colors.Success.Printf("[SUCCESS] %s\n", message)
 	logToFile("SUCCESS", message)
 }
 
