@@ -226,8 +226,8 @@ needs: [build]
 * **Security Job**: Notifies on security failure OR final success (all tests passed)
 
 **Message Types:**
-* **Individual failures**: "[FAIL] [Shell/Go/Security] tests failed - PR needs attention"
-* **Final success**: "[PASS] All tests passed - PR is ready for review"
+* **Individual failures**: "❌ [Shell/Go/Security] tests failed - PR needs attention"
+* **Final success**: "✅ All tests passed - PR is ready for review"
 * **Immediate feedback**: No waiting for other jobs to complete
 
 **Benefits:**

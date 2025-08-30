@@ -144,7 +144,7 @@ if: startsWith(github.ref, 'refs/tags/v')
   run: |
     ./scripts/send-pr-notification.sh \
       --status "failure" \
-      --message "[FAIL] Specific test failed - PR needs attention"
+      --message "❌ Specific test failed - PR needs attention"
   continue-on-error: true
 ```
 
@@ -168,7 +168,7 @@ if: startsWith(github.ref, 'refs/tags/v')
 
 ### For Development Team
 - **Fail-fast notifications** - Immediate alerts when any test fails (no waiting for all jobs)
-- **Single success notification** - Clean, consolidated "[PASS]" message when all tests pass
+- **Single success notification** - Clean, consolidated "✅" message when all tests pass
 - **No dependency chain failures** - Each job notifies independently
 - **Broader coverage** - Works for all PRs, not just ones targeting `main`
 - **Automated release announcements** without manual coordination

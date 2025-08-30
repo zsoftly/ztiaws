@@ -119,20 +119,20 @@ create_chat_payload() {
     local files_url="${PR_URL}/files"
     local escaped_pr_url=$(escape_json "$PR_URL")
     local escaped_files_url=$(escape_json "$files_url")
-    local escaped_message=$(escape_json "${MESSAGE:-New pull request opened}")
+    local escaped_message=$(escape_json "${MESSAGE:-🔄 New pull request opened}")
     
     # Determine status icon and header
     local status_icon="NOTIFICATION_ICON"
-    local header_title="New Pull Request"
+    local header_title="🔄 New Pull Request"
     local status_color=""
     
     if [[ "$STATUS" == "success" ]]; then
         status_icon="STAR"
-        header_title="PR Ready for Review"
+        header_title="✅ PR Ready for Review"
         status_color=""
     elif [[ "$STATUS" == "failure" ]]; then
         status_icon="ERROR"
-        header_title="PR Tests Failed"
+        header_title="❌ PR Tests Failed"
         status_color=""
     fi
     

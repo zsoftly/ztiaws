@@ -96,7 +96,7 @@ jobs:
             --author '${{ github.event.pull_request.user.login }}' \
             --repository '${{ github.repository }}' \
             --status "failure" \
-            --message "[FAIL] Shell script tests failed - PR needs attention" || true
+            --message "❌ Shell script tests failed - PR needs attention" || true
         fi
       continue-on-error: true
 
@@ -199,7 +199,7 @@ jobs:
             --author '${{ github.event.pull_request.user.login }}' \
             --repository '${{ github.repository }}' \
             --status "failure" \
-            --message "[FAIL] Go tests failed - PR needs attention" || true
+            --message "❌ Go tests failed - PR needs attention" || true
         fi
       continue-on-error: true
 
@@ -296,7 +296,7 @@ jobs:
             --author '${{ github.event.pull_request.user.login }}' \
             --repository '${{ github.repository }}' \
             --status "failure" \
-            --message "[FAIL] Security analysis failed - PR needs attention" || true
+            --message "❌ Security analysis failed - PR needs attention" || true
         fi
       continue-on-error: true
 
@@ -313,7 +313,7 @@ jobs:
             --author '${{ github.event.pull_request.user.login }}' \
             --repository '${{ github.repository }}' \
             --status "success" \
-            --message "[PASS] All tests passed - PR is ready for review" || true
+            --message "✅ All tests passed - PR is ready for review" || true
         fi
       continue-on-error: true
 
