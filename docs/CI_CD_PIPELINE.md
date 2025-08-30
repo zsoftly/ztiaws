@@ -207,7 +207,7 @@ needs: [build]
 3. Create GitHub release with auto-generated release notes
 4. Attach all binaries to release
 
-#### 6. **Embedded Notifications** - PR Status Reporting
+#### 5. **Embedded Notifications** - PR Status Reporting
 **Architecture:** Notification steps embedded within each critical job
 
 **Implementation Pattern:**
@@ -236,7 +236,7 @@ needs: [build]
 * **Guaranteed delivery**: Cannot be blocked by other job failures
 * **Single runner**: Only Ubuntu runners send notifications (prevents duplicates)
 
-#### 7. **release-notification** - Release Notifications
+#### 6. **release-notification** - Release Notifications
 ```yaml
 if: startsWith(github.ref, 'refs/tags/v')
 needs: [release]

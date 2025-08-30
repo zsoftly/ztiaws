@@ -79,10 +79,12 @@ Following the zsoftly-services pattern, notifications are implemented using dedi
 
 ### Integration with CI/CD Pipeline
 
-The notification system is implemented as conditional jobs in the main CI/CD workflow (`.github/workflows/build.yml`):
+The notification system uses **embedded notifications** architecture in the main CI/CD workflow (`.github/workflows/build.yml`):
 
-- **PR notifications** run after the `security` job completes
+- **PR notifications** are embedded within each critical job (`test-shell`, `test-go`, `security`)
 - **Release notifications** run after the `release` job completes
+- **Immediate feedback** - notifications sent as soon as any test fails
+- **Final success notification** sent only when all tests pass
 - Both use shell scripts with the same Google Chat webhook as zsoftly-services
 - Scripts are checked out and executed with proper environment variables
 
@@ -105,22 +107,56 @@ The notification system is implemented as conditional jobs in the main CI/CD wor
 - Shared across ZSoftly repositories for consistency
 - Points to team's Google Chat room
 
-**Job Conditions:**
+**Embedded Notification Conditions:**
 ```yaml
-# PR Notification
-if: github.event_name == 'pull_request' && github.event.action == 'opened' && github.base_ref == 'main'
+# Test Failure Notifications (immediate)
+if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
+
+# Success Notification (final, from security job)
+if: success() && github.event_name == 'pull_request'
 
 # Release Notification  
 if: startsWith(github.ref, 'refs/tags/v')
 ```
 
+## Embedded Notifications Architecture
+
+### **Why Embedded vs Centralized?**
+
+**Previous Design Issues:**
+- Centralized `notify` job created dependency chain failures
+- No notifications if any prerequisite job was skipped
+- Single point of failure blocked all notifications
+- Only worked for PRs targeting `main` branch
+
+**New Embedded Design Benefits:**
+- **Fail-fast**: Immediate notifications when tests fail
+- **Independent**: Each job notifies without dependencies  
+- **Reliable**: Cannot be blocked by other job failures
+- **Comprehensive**: Works for all PRs, any branch target
+
+### **Implementation Pattern:**
+```yaml
+- name: Notify on test failure
+  if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
+  env:
+    GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+  run: |
+    ./scripts/send-pr-notification.sh \
+      --status "failure" \
+      --message "[FAIL] Specific test failed - PR needs attention"
+  continue-on-error: true
+```
+
 ## Notification Flow
 
 ### Pull Request Flow
-1. Developer opens PR to `main` branch
-2. CI/CD triggers: `test` → `security` → `pr-notification`
-3. If all previous jobs succeed, notification is sent
-4. Team receives immediate alert in Google Chat
+1. Developer opens PR (to any branch)
+2. CI/CD triggers: `test-shell` + `test-go` jobs run in parallel
+3. **Immediate failure notifications**: If any test fails, notification sent immediately
+4. **Security analysis**: If PR targets `main`, security job runs after tests pass
+5. **Final success notification**: Only sent when ALL tests pass (from security job)
+6. **Fail-fast feedback**: Team gets alerts as soon as issues occur
 
 ### Release Flow
 1. Maintainer pushes version tag (e.g., `git push origin v1.0.0`)
@@ -131,7 +167,10 @@ if: startsWith(github.ref, 'refs/tags/v')
 ## Benefits
 
 ### For Development Team
-- **Immediate awareness** of new PRs requiring review
+- **Fail-fast notifications** - Immediate alerts when any test fails (no waiting for all jobs)
+- **Single success notification** - Clean, consolidated "[PASS]" message when all tests pass
+- **No dependency chain failures** - Each job notifies independently
+- **Broader coverage** - Works for all PRs, not just ones targeting `main`
 - **Automated release announcements** without manual coordination
 - **Consistent notification format** across all ZSoftly repositories
 - **Integration with existing workflows** (same chat room as zsoftly-services)
