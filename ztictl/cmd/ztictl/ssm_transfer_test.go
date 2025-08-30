@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -385,6 +386,16 @@ func TestPathValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Skip platform-specific tests on incompatible platforms
+			if runtime.GOOS == "windows" && tt.platform == "unix" {
+				t.Skip("Skipping Unix path test on Windows")
+				return
+			}
+			if runtime.GOOS != "windows" && tt.platform == "windows" {
+				t.Skip("Skipping Windows path test on Unix-like system")
+				return
+			}
+
 			// Validate absolute path (Unix or Windows)
 			isAbsolute := filepath.IsAbs(tt.path) || strings.HasPrefix(tt.path, "\\\\") ||
 				(len(tt.path) >= 3 && tt.path[1] == ':' && (tt.path[2] == '\\' || tt.path[2] == '/'))

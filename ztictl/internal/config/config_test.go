@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -506,14 +507,25 @@ func TestExists(t *testing.T) {
 					t.Fatalf("Failed to create temp directory: %v", err)
 				}
 
-				origHome := os.Getenv("HOME")
-				os.Setenv("HOME", tempDir)
+				// Save original environment variables for both Windows and Unix
+				var origHome, origUserProfile string
+				if runtime.GOOS == "windows" {
+					origUserProfile = os.Getenv("USERPROFILE")
+					os.Setenv("USERPROFILE", tempDir)
+				} else {
+					origHome = os.Getenv("HOME")
+					os.Setenv("HOME", tempDir)
+				}
 
 				configPath := filepath.Join(tempDir, ".ztictl.yaml")
 				ioutil.WriteFile(configPath, []byte("test: config"), 0644)
 
 				return func() {
-					os.Setenv("HOME", origHome)
+					if runtime.GOOS == "windows" {
+						os.Setenv("USERPROFILE", origUserProfile)
+					} else {
+						os.Setenv("HOME", origHome)
+					}
 					os.RemoveAll(tempDir)
 				}
 			},
@@ -527,11 +539,22 @@ func TestExists(t *testing.T) {
 					t.Fatalf("Failed to create temp directory: %v", err)
 				}
 
-				origHome := os.Getenv("HOME")
-				os.Setenv("HOME", tempDir)
+				// Save original environment variables for both Windows and Unix
+				var origHome, origUserProfile string
+				if runtime.GOOS == "windows" {
+					origUserProfile = os.Getenv("USERPROFILE")
+					os.Setenv("USERPROFILE", tempDir)
+				} else {
+					origHome = os.Getenv("HOME")
+					os.Setenv("HOME", tempDir)
+				}
 
 				return func() {
-					os.Setenv("HOME", origHome)
+					if runtime.GOOS == "windows" {
+						os.Setenv("USERPROFILE", origUserProfile)
+					} else {
+						os.Setenv("HOME", origHome)
+					}
 					os.RemoveAll(tempDir)
 				}
 			},
@@ -554,12 +577,24 @@ func TestExists(t *testing.T) {
 }
 
 func TestGetConfigPath(t *testing.T) {
-	origHome := os.Getenv("HOME")
-	defer os.Setenv("HOME", origHome)
+	// Save original environment variables for both Windows and Unix
+	var origHome, origUserProfile string
+	if runtime.GOOS == "windows" {
+		origUserProfile = os.Getenv("USERPROFILE")
+		defer os.Setenv("USERPROFILE", origUserProfile)
+	} else {
+		origHome = os.Getenv("HOME")
+		defer os.Setenv("HOME", origHome)
+	}
 
 	// Test with known home directory
 	testHome := "/tmp/test_home"
-	os.Setenv("HOME", testHome)
+	if runtime.GOOS == "windows" {
+		testHome = "C:\\tmp\\test_home"
+		os.Setenv("USERPROFILE", testHome)
+	} else {
+		os.Setenv("HOME", testHome)
+	}
 
 	result := getConfigPath()
 	expected := filepath.Join(testHome, ".ztictl.yaml")
