@@ -60,31 +60,39 @@ Examples:
 
 // ssmExecTaggedCmd represents the exec-tagged command for multi-instance execution
 var ssmExecTaggedCmd = &cobra.Command{
-	Use:   "exec-tagged <region-shortcode> <tag-key> <tag-value> <command>",
-	Short: "Execute a command on all instances with specified tag",
-	Long: `Execute a command on all EC2 instances that have the specified tag via SSM.
+	Use:   "exec-tagged <region-shortcode> <command>",
+	Short: "Execute a command on all instances with specified tags",
+	Long: `Execute a command on all EC2 instances that match the specified tags via SSM.
 Region shortcuts supported: cac1, use1, euw1, etc.
+Use --tags flag to specify one or more tag filters in key=value format, separated by commas.
 
 Examples:
-  ztictl ssm exec-tagged cac1 Environment Production "uptime"
-  ztictl ssm exec-tagged use1 Role web-server "sudo systemctl restart nginx"`,
-	Args: cobra.MinimumNArgs(4),
+  ztictl ssm exec-tagged cac1 --tags Environment=Production "uptime"
+  ztictl ssm exec-tagged use1 --tags Environment=dev,Component=fts "sudo systemctl restart nginx"
+  ztictl ssm exec-tagged cac1 --tags Team=backend,Environment=staging,Component=api "ps aux | grep java"`,
+	Args: cobra.MinimumNArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		regionCode := args[0]
-		tagKey := args[1]
-		tagValue := args[2]
-		command := strings.Join(args[3:], " ")
+		command := strings.Join(args[1:], " ")
+
+		// Get tags flag
+		tagsFlag, _ := cmd.Flags().GetString("tags")
+		if tagsFlag == "" {
+			colors.PrintError("✗ --tags flag is required\n")
+			logging.LogError("No tags specified for exec-tagged command")
+			os.Exit(1)
+		}
 
 		region := resolveRegion(regionCode)
 
-		logging.LogInfo("Executing command '%s' on instances tagged %s=%s in region: %s", command, tagKey, tagValue, region)
+		logging.LogInfo("Executing command '%s' on instances with tags '%s' in region: %s", command, tagsFlag, region)
 
 		ssmManager := ssm.NewManager(logger)
 		ctx := context.Background()
 
-		// First, list instances with the specified tag
+		// First, list instances with the specified tags
 		filters := &ssm.ListFilters{
-			Tag: fmt.Sprintf("%s=%s", tagKey, tagValue),
+			Tags: tagsFlag,
 		}
 
 		instances, err := ssmManager.ListInstances(ctx, region, filters)
@@ -95,7 +103,7 @@ Examples:
 		}
 
 		if len(instances) == 0 {
-			logging.LogInfo("No instances found with tag %s=%s", tagKey, tagValue)
+			logging.LogInfo("No instances found with tags: %s", tagsFlag)
 			return
 		}
 
@@ -144,6 +152,10 @@ Examples:
 }
 
 func init() {
+	// Add flags for exec-tagged command
+	ssmExecTaggedCmd.Flags().StringP("tags", "t", "", "Tag filters in key=value format, separated by commas (required)")
+	ssmExecTaggedCmd.MarkFlagRequired("tags")
+
 	// Register exec commands - this ensures they're available when ssm.go's init runs
 	// Commands will be added to ssmCmd in ssm.go's init function
 }

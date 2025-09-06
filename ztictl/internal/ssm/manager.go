@@ -63,7 +63,8 @@ type CommandResult struct {
 
 // ListFilters represents filters for listing instances
 type ListFilters struct {
-	Tag    string `json:"tag,omitempty"`    // Format: key=value
+	Tag    string `json:"tag,omitempty"`    // Format: key=value (deprecated, use Tags)
+	Tags   string `json:"tags,omitempty"`   // Format: key1=value1,key2=value2
 	Status string `json:"status,omitempty"` // Instance state
 	Name   string `json:"name,omitempty"`   // Name pattern
 }
@@ -438,6 +439,39 @@ func (m *Manager) ListInstanceStatuses(ctx context.Context, region string) ([]In
 }
 
 // Helper methods
+
+// parseTagFilters parses comma-separated tag filters into individual key=value pairs
+func parseTagFilters(tagsStr string) (map[string]string, error) {
+	if tagsStr == "" {
+		return nil, nil
+	}
+
+	tags := make(map[string]string)
+	tagPairs := strings.Split(tagsStr, ",")
+
+	for _, tagPair := range tagPairs {
+		tagPair = strings.TrimSpace(tagPair)
+		if tagPair == "" {
+			continue
+		}
+
+		parts := strings.SplitN(tagPair, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid tag format '%s'. Expected format: key=value", tagPair)
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		if key == "" || value == "" {
+			return nil, fmt.Errorf("empty tag key or value in '%s'", tagPair)
+		}
+
+		tags[key] = value
+	}
+
+	return tags, nil
+}
 
 // resolveInstanceIdentifier resolves an instance name or ID to an instance ID
 func (m *Manager) resolveInstanceIdentifier(ctx context.Context, identifier, region string) (string, error) {
@@ -927,6 +961,7 @@ func (m *Manager) getAllEC2Instances(ctx context.Context, ec2Client *ec2.Client,
 			})
 		}
 
+		// Handle legacy single tag filter (backward compatibility)
 		if filters.Tag != "" {
 			// Parse tag filter (format: key=value)
 			parts := strings.SplitN(filters.Tag, "=", 2)
@@ -934,6 +969,22 @@ func (m *Manager) getAllEC2Instances(ctx context.Context, ec2Client *ec2.Client,
 				ec2Filters = append(ec2Filters, types.Filter{
 					Name:   aws.String("tag:" + parts[0]),
 					Values: []string{parts[1]},
+				})
+			}
+		}
+
+		// Handle multiple tags filter
+		if filters.Tags != "" {
+			tagFilters, err := parseTagFilters(filters.Tags)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse tag filters: %w", err)
+			}
+
+			// Add a filter for each tag - this creates an AND condition
+			for key, value := range tagFilters {
+				ec2Filters = append(ec2Filters, types.Filter{
+					Name:   aws.String("tag:" + key),
+					Values: []string{value},
 				})
 			}
 		}
