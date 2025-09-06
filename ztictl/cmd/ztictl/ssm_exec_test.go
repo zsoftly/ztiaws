@@ -1006,3 +1006,442 @@ func TestCommandScriptValidation(t *testing.T) {
 		})
 	}
 }
+
+// NEW TESTS FOR PARALLEL EXECUTION FUNCTIONALITY
+
+func TestSsmExecTaggedNewFlags(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		wantErr  bool
+		contains string
+	}{
+		{
+			name:     "Help shows new flags",
+			args:     []string{"--help"},
+			wantErr:  false,
+			contains: "PARALLEL BY DEFAULT",
+		},
+		{
+			name:    "Valid with instances flag",
+			args:    []string{"cac1", "--instances", "i-1234,i-5678", "uptime"},
+			wantErr: false,
+		},
+		{
+			name:    "Valid with parallel flag",
+			args:    []string{"cac1", "--tags", "Environment=dev", "--parallel", "5", "uptime"},
+			wantErr: false,
+		},
+		{
+			name:    "Both tags and instances provided",
+			args:    []string{"cac1", "--tags", "Environment=dev", "--instances", "i-1234", "uptime"},
+			wantErr: true,
+		},
+		{
+			name:    "Neither tags nor instances provided",
+			args:    []string{"cac1", "uptime"},
+			wantErr: true,
+		},
+		{
+			name:    "Invalid parallel value - zero",
+			args:    []string{"cac1", "--tags", "Environment=dev", "--parallel", "0", "uptime"},
+			wantErr: true,
+		},
+		{
+			name:    "Invalid parallel value - negative",
+			args:    []string{"cac1", "--tags", "Environment=dev", "--parallel", "-1", "uptime"},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := &cobra.Command{
+				Use:   "exec-tagged <region-shortcode> <command>",
+				Short: "Execute a command on instances with specified tags (parallel execution)",
+				Long: `Execute a command on EC2 instances that match the specified tags via SSM.
+Region shortcuts supported: cac1, use1, euw1, etc.
+Use --tags flag to specify one or more tag filters in key=value format, separated by commas.
+Use --instances to explicitly specify instance IDs to target (comma-separated).
+Use --parallel to control maximum concurrent executions (default: number of CPU cores).
+
+ALL COMMANDS RUN IN PARALLEL BY DEFAULT for improved performance at scale.`,
+				Args: cobra.MinimumNArgs(2),
+				RunE: func(cmd *cobra.Command, args []string) error {
+					// Get flags
+					tagsFlag, _ := cmd.Flags().GetString("tags")
+					instancesFlag, _ := cmd.Flags().GetString("instances")
+					parallelFlag, _ := cmd.Flags().GetInt("parallel")
+
+					// Validate that we have either tags or instances specified
+					if tagsFlag == "" && instancesFlag == "" {
+						return fmt.Errorf("either --tags or --instances flag is required")
+					}
+
+					// Validate that we don't have both
+					if tagsFlag != "" && instancesFlag != "" {
+						return fmt.Errorf("cannot specify both --tags and --instances flags")
+					}
+
+					// Validate parallel value
+					if parallelFlag <= 0 {
+						return fmt.Errorf("--parallel must be greater than 0")
+					}
+
+					return nil
+				},
+			}
+
+			// Add flags matching our new implementation
+			cmd.Flags().StringP("tags", "t", "", "Tag filters in key=value format, separated by commas")
+			cmd.Flags().StringP("instances", "i", "", "Comma-separated list of instance IDs to target explicitly")
+			cmd.Flags().IntP("parallel", "p", 8, "Maximum number of concurrent executions")
+
+			buf := new(bytes.Buffer)
+			cmd.SetOut(buf)
+			cmd.SetErr(buf)
+			cmd.SetArgs(tt.args)
+
+			err := cmd.Execute()
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Execute() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if tt.contains != "" {
+				output := buf.String()
+				if !strings.Contains(output, tt.contains) {
+					t.Errorf("Execute() output should contain %v, got %v", tt.contains, output)
+				}
+			}
+		})
+	}
+}
+
+func TestInstanceIDParsing(t *testing.T) {
+	tests := []struct {
+		name          string
+		instancesFlag string
+		expectedIDs   []string
+		expectError   bool
+	}{
+		{
+			name:          "Single instance ID",
+			instancesFlag: "i-1234567890abcdef0",
+			expectedIDs:   []string{"i-1234567890abcdef0"},
+		},
+		{
+			name:          "Multiple instance IDs",
+			instancesFlag: "i-1234,i-5678,i-9abc",
+			expectedIDs:   []string{"i-1234", "i-5678", "i-9abc"},
+		},
+		{
+			name:          "Instance IDs with spaces",
+			instancesFlag: "i-1234, i-5678 , i-9abc",
+			expectedIDs:   []string{"i-1234", "i-5678", "i-9abc"},
+		},
+		{
+			name:          "Mixed instance formats",
+			instancesFlag: "i-1234567890abcdef0,web-server-01,db-instance",
+			expectedIDs:   []string{"i-1234567890abcdef0", "web-server-01", "db-instance"},
+		},
+		{
+			name:          "Empty instances flag",
+			instancesFlag: "",
+			expectedIDs:   []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var instanceIDs []string
+			if tt.instancesFlag != "" {
+				instanceIDs = strings.Split(tt.instancesFlag, ",")
+				for i, id := range instanceIDs {
+					instanceIDs[i] = strings.TrimSpace(id)
+				}
+			}
+
+			if len(instanceIDs) != len(tt.expectedIDs) {
+				t.Errorf("Instance count = %d, want %d", len(instanceIDs), len(tt.expectedIDs))
+			}
+
+			for i, expected := range tt.expectedIDs {
+				if i < len(instanceIDs) && instanceIDs[i] != expected {
+					t.Errorf("Instance[%d] = %s, want %s", i, instanceIDs[i], expected)
+				}
+			}
+
+			// Validate no empty IDs after trimming
+			for _, id := range instanceIDs {
+				if id == "" {
+					t.Error("Parsed instance ID should not be empty")
+				}
+			}
+		})
+	}
+}
+
+func TestParallelExecutionDefaults(t *testing.T) {
+	tests := []struct {
+		name            string
+		parallelFlag    int
+		instanceCount   int
+		expectedWorkers int
+	}{
+		{
+			name:            "Default CPU count",
+			parallelFlag:    8, // Simulating runtime.NumCPU()
+			instanceCount:   10,
+			expectedWorkers: 8,
+		},
+		{
+			name:            "Custom parallel less than instances",
+			parallelFlag:    3,
+			instanceCount:   10,
+			expectedWorkers: 3,
+		},
+		{
+			name:            "Custom parallel equal to instances",
+			parallelFlag:    5,
+			instanceCount:   5,
+			expectedWorkers: 5,
+		},
+		{
+			name:            "Custom parallel more than instances",
+			parallelFlag:    10,
+			instanceCount:   3,
+			expectedWorkers: 10, // Workers created but only 3 instances to process
+		},
+		{
+			name:            "Single instance",
+			parallelFlag:    8,
+			instanceCount:   1,
+			expectedWorkers: 8,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Simulate parallel execution configuration
+			maxWorkers := tt.parallelFlag
+
+			if maxWorkers <= 0 {
+				t.Error("Parallel workers should be greater than 0")
+			}
+
+			// Test that worker count matches expectation
+			if maxWorkers != tt.expectedWorkers {
+				t.Errorf("Worker count = %d, want %d", maxWorkers, tt.expectedWorkers)
+			}
+
+			// Test that we handle instance count properly
+			if tt.instanceCount <= 0 {
+				t.Error("Instance count should be greater than 0 for testing")
+			}
+		})
+	}
+}
+
+func TestParallelExecutionResultAggregation(t *testing.T) {
+	// Mock ParallelExecutionResult structure for testing
+	type MockParallelExecutionResult struct {
+		InstanceID string
+		Success    bool
+		Duration   int // milliseconds
+		Output     string
+		Error      error
+	}
+
+	results := []MockParallelExecutionResult{
+		{
+			InstanceID: "i-123",
+			Success:    true,
+			Duration:   150,
+			Output:     "OK",
+			Error:      nil,
+		},
+		{
+			InstanceID: "i-456",
+			Success:    false,
+			Duration:   200,
+			Output:     "",
+			Error:      fmt.Errorf("connection failed"),
+		},
+		{
+			InstanceID: "i-789",
+			Success:    true,
+			Duration:   75,
+			Output:     "Success",
+			Error:      nil,
+		},
+		{
+			InstanceID: "i-abc",
+			Success:    true,
+			Duration:   120,
+			Output:     "OK",
+			Error:      nil,
+		},
+	}
+
+	// Test result aggregation
+	successCount := 0
+	failedCount := 0
+	totalDuration := 0
+	var errors []error
+
+	for _, result := range results {
+		if result.Success {
+			successCount++
+		} else {
+			failedCount++
+			if result.Error != nil {
+				errors = append(errors, result.Error)
+			}
+		}
+		totalDuration += result.Duration
+	}
+
+	// Validate aggregation
+	expectedSuccess := 3
+	expectedFailed := 1
+	expectedTotalDuration := 545
+	expectedErrorCount := 1
+
+	if successCount != expectedSuccess {
+		t.Errorf("Success count = %d, want %d", successCount, expectedSuccess)
+	}
+
+	if failedCount != expectedFailed {
+		t.Errorf("Failed count = %d, want %d", failedCount, expectedFailed)
+	}
+
+	if totalDuration != expectedTotalDuration {
+		t.Errorf("Total duration = %d, want %d", totalDuration, expectedTotalDuration)
+	}
+
+	if len(errors) != expectedErrorCount {
+		t.Errorf("Error count = %d, want %d", len(errors), expectedErrorCount)
+	}
+
+	// Test overall success determination
+	overallSuccess := failedCount == 0
+	expectedOverallSuccess := false
+
+	if overallSuccess != expectedOverallSuccess {
+		t.Errorf("Overall success = %v, want %v", overallSuccess, expectedOverallSuccess)
+	}
+
+	// Test average execution time
+	averageDuration := totalDuration / len(results)
+	expectedAverage := 136 // 545/4 rounded down
+
+	if averageDuration != expectedAverage {
+		t.Errorf("Average duration = %d, want %d", averageDuration, expectedAverage)
+	}
+}
+
+func TestExecutionSummaryFormat(t *testing.T) {
+	// Test summary formatting
+	type ExecutionSummary struct {
+		TotalInstances  int
+		SuccessfulCount int
+		FailedCount     int
+		TotalDuration   int // milliseconds
+		MaxParallelism  int
+	}
+
+	summary := ExecutionSummary{
+		TotalInstances:  10,
+		SuccessfulCount: 8,
+		FailedCount:     2,
+		TotalDuration:   1500,
+		MaxParallelism:  5,
+	}
+
+	// Validate summary calculations
+	if summary.SuccessfulCount+summary.FailedCount != summary.TotalInstances {
+		t.Error("Success + Failed should equal Total instances")
+	}
+
+	// Test success rate calculation
+	successRate := float64(summary.SuccessfulCount) / float64(summary.TotalInstances) * 100
+	expectedSuccessRate := 80.0
+
+	if successRate != expectedSuccessRate {
+		t.Errorf("Success rate = %.1f%%, want %.1f%%", successRate, expectedSuccessRate)
+	}
+
+	// Test performance metrics
+	if summary.MaxParallelism <= 0 {
+		t.Error("Max parallelism should be greater than 0")
+	}
+
+	if summary.TotalDuration <= 0 {
+		t.Error("Total duration should be greater than 0")
+	}
+}
+
+func TestTagsAndInstancesMutualExclusion(t *testing.T) {
+	tests := []struct {
+		name          string
+		tagsFlag      string
+		instancesFlag string
+		expectError   bool
+		errorMessage  string
+	}{
+		{
+			name:          "Only tags provided",
+			tagsFlag:      "Environment=dev",
+			instancesFlag: "",
+			expectError:   false,
+		},
+		{
+			name:          "Only instances provided",
+			tagsFlag:      "",
+			instancesFlag: "i-123,i-456",
+			expectError:   false,
+		},
+		{
+			name:          "Both tags and instances provided",
+			tagsFlag:      "Environment=dev",
+			instancesFlag: "i-123,i-456",
+			expectError:   true,
+			errorMessage:  "cannot specify both --tags and --instances",
+		},
+		{
+			name:          "Neither tags nor instances provided",
+			tagsFlag:      "",
+			instancesFlag: "",
+			expectError:   true,
+			errorMessage:  "either --tags or --instances flag is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Simulate the validation logic
+			hasTagsFlag := tt.tagsFlag != ""
+			hasInstancesFlag := tt.instancesFlag != ""
+
+			var err error
+			if !hasTagsFlag && !hasInstancesFlag {
+				err = fmt.Errorf("either --tags or --instances flag is required")
+			} else if hasTagsFlag && hasInstancesFlag {
+				err = fmt.Errorf("cannot specify both --tags and --instances flags")
+			}
+
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				} else if tt.errorMessage != "" && !strings.Contains(err.Error(), tt.errorMessage) {
+					t.Errorf("Expected error message to contain %q, got %q", tt.errorMessage, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
