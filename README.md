@@ -214,7 +214,18 @@ ssm --exec-tagged --region use1 --tag-key Role --tag-value web --command "df -h"
 # Mixed syntax (also supported)
 ssm exec-tagged use1 --tag-key Role --tag-value web --command "df -h"
 ```
-This will run `df -h` on all instances in the `us-east-1` region that have a tag with `Key=Role` and `Value=web`. The script provides clear feedback if no instances match the specified tags.
+
+**🆕 ztictl Multi-Tag Filtering (Enhanced)**
+```bash
+# Single tag filtering
+ztictl ssm exec-tagged use1 --tags Environment=production "df -h"
+# Multiple tag filtering (AND logic)
+ztictl ssm exec-tagged use1 --tags Environment=prod,Role=web,Team=backend "df -h"  
+# Short flag syntax
+ztictl ssm exec-tagged use1 -t "Owner=james,Environment=dev" "systemctl status nginx"
+```
+
+This will run `df -h` on all instances that match **ALL** specified tags. The script provides clear feedback if no instances match the specified tags.
 
 ##### File Transfer Operations
 Upload and download files with automatic size-based routing:

@@ -1,5 +1,25 @@
 # Changelog
 
+## [v2.2.0] - 2025-09-06
+
+### Added
+- **Multi-tag filtering for ztictl exec-tagged** - Enhanced `--tags` flag supporting multiple tag filters with AND logic
+- **Comprehensive test coverage** - Added unit tests for tag parsing and integration tests for multi-tag functionality
+- **Backward compatibility** - Maintained support for legacy single-tag filtering alongside new multi-tag syntax
+
+### Changed
+- **Breaking: exec-tagged command syntax** - Changed from positional `<tag-key> <tag-value>` to `--tags key=value,key2=value2` flag format
+- **Enhanced documentation** - Updated README files with multi-tag examples and usage patterns
+- **Improved error handling** - Better validation and error messages for malformed tag filters
+
+### Examples
+```bash
+# Single tag filtering
+ztictl ssm exec-tagged cac1 --tags Environment=production "df -h"
+# Multiple tag filtering (AND logic)  
+ztictl ssm exec-tagged use1 --tags Environment=dev,Component=fts,Team=backend "systemctl status nginx"
+```
+
 ## [v1.6.0] - 2025-08-19
 
 ### Added
