@@ -17,8 +17,8 @@ Examples:
   ztictl ssm forward <instance> <ports> # Port forwarding via SSM
   ztictl ssm transfer <src> <dst>       # File transfer via SSM
   ztictl ssm command <instance> <cmd>   # Execute command via SSM
-  ztictl ssm exec <region> <instance> <cmd>    # Quick exec with region shortcode
-  ztictl ssm exec-tagged <region> <tag> <cmd> # Execute on tagged instances
+  ztictl ssm exec <region> <instance> <cmd>           # Quick exec with region shortcode
+  ztictl ssm exec-tagged <region> --tags <tags> <cmd> # Execute on tagged instances
   ztictl ssm status [instance]          # Check SSM agent status`,
 }
 

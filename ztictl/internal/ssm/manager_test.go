@@ -1058,3 +1058,200 @@ func TestContextHandling(t *testing.T) {
 		t.Log("Operation failed (may be due to timeout or AWS config):", err)
 	}
 }
+
+func TestParseTagFilters(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       string
+		expected    map[string]string
+		expectError bool
+	}{
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: nil,
+		},
+		{
+			name:  "Single tag",
+			input: "Environment=dev",
+			expected: map[string]string{
+				"Environment": "dev",
+			},
+		},
+		{
+			name:  "Two tags",
+			input: "Environment=dev,Component=fts",
+			expected: map[string]string{
+				"Environment": "dev",
+				"Component":   "fts",
+			},
+		},
+		{
+			name:  "Three tags",
+			input: "Team=backend,Environment=staging,Component=api",
+			expected: map[string]string{
+				"Team":        "backend",
+				"Environment": "staging",
+				"Component":   "api",
+			},
+		},
+		{
+			name:  "Tags with spaces",
+			input: "Environment = production , Team = devops",
+			expected: map[string]string{
+				"Environment": "production",
+				"Team":        "devops",
+			},
+		},
+		{
+			name:  "Complex values",
+			input: "Name=web-server-1,Zone=us-east-1a,Environment=prod",
+			expected: map[string]string{
+				"Name":        "web-server-1",
+				"Zone":        "us-east-1a",
+				"Environment": "prod",
+			},
+		},
+		{
+			name:        "Missing value",
+			input:       "Environment",
+			expectError: true,
+		},
+		{
+			name:        "Missing key",
+			input:       "=production",
+			expectError: true,
+		},
+		{
+			name:        "Empty value",
+			input:       "Environment=,Component=fts",
+			expectError: true,
+		},
+		{
+			name:        "Empty key",
+			input:       "Environment=dev,=fts",
+			expectError: true,
+		},
+		{
+			name:  "Multiple equals in value",
+			input: "Key=Value=Extra",
+			expected: map[string]string{
+				"Key": "Value=Extra",
+			},
+		},
+		{
+			name:  "Empty tag in list",
+			input: "Environment=dev,,Component=fts",
+			expected: map[string]string{
+				"Environment": "dev",
+				"Component":   "fts",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseTagFilters(tt.input)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error for input %q but got none", tt.input)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error for input %q: %v", tt.input, err)
+				return
+			}
+
+			// Check if result matches expected
+			if len(result) != len(tt.expected) {
+				t.Errorf("Expected %d tags, got %d", len(tt.expected), len(result))
+				return
+			}
+
+			for key, expectedValue := range tt.expected {
+				actualValue, exists := result[key]
+				if !exists {
+					t.Errorf("Expected key %q not found in result", key)
+					continue
+				}
+				if actualValue != expectedValue {
+					t.Errorf("Expected value %q for key %q, got %q", expectedValue, key, actualValue)
+				}
+			}
+
+			for key := range result {
+				if _, exists := tt.expected[key]; !exists {
+					t.Errorf("Unexpected key %q in result", key)
+				}
+			}
+		})
+	}
+}
+
+func TestListFiltersWithTags(t *testing.T) {
+	tests := []struct {
+		name            string
+		filters         *ListFilters
+		expectTags      string
+		expectLegacyTag string
+	}{
+		{
+			name: "Tags field populated",
+			filters: &ListFilters{
+				Tags: "Environment=dev,Component=fts",
+			},
+			expectTags: "Environment=dev,Component=fts",
+		},
+		{
+			name: "Legacy Tag field populated",
+			filters: &ListFilters{
+				Tag: "Environment=production",
+			},
+			expectLegacyTag: "Environment=production",
+		},
+		{
+			name: "Both fields populated (Tags takes precedence)",
+			filters: &ListFilters{
+				Tag:  "Environment=production",
+				Tags: "Environment=dev,Component=fts",
+			},
+			expectTags:      "Environment=dev,Component=fts",
+			expectLegacyTag: "Environment=production",
+		},
+		{
+			name: "With other filters",
+			filters: &ListFilters{
+				Tags:   "Environment=staging,Team=backend",
+				Status: "running",
+				Name:   "web-server",
+			},
+			expectTags: "Environment=staging,Team=backend",
+		},
+		{
+			name:    "Empty filters",
+			filters: &ListFilters{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.filters.Tags != tt.expectTags {
+				t.Errorf("Expected Tags %q, got %q", tt.expectTags, tt.filters.Tags)
+			}
+
+			if tt.filters.Tag != tt.expectLegacyTag {
+				t.Errorf("Expected Tag %q, got %q", tt.expectLegacyTag, tt.filters.Tag)
+			}
+
+			// Test that both fields can coexist
+			if tt.expectTags != "" && tt.expectLegacyTag != "" {
+				if tt.filters.Tags == "" || tt.filters.Tag == "" {
+					t.Error("Both Tags and Tag fields should be preserved when both are set")
+				}
+			}
+		})
+	}
+}

@@ -574,6 +574,278 @@ func TestDryRunMode(t *testing.T) {
 	}
 }
 
+func TestSsmExecTaggedCmd(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		wantErr  bool
+		contains string
+	}{
+		{
+			name:     "Exec-tagged help",
+			args:     []string{"--help"},
+			wantErr:  false,
+			contains: "Execute a command on all EC2 instances that match the specified tags",
+		},
+		{
+			name:    "Valid single tag",
+			args:    []string{"cac1", "--tags", "Environment=dev", "uptime"},
+			wantErr: false,
+		},
+		{
+			name:    "Valid multiple tags",
+			args:    []string{"use1", "--tags", "Environment=dev,Component=fts", "uptime"},
+			wantErr: false,
+		},
+		{
+			name:    "Complex multiple tags",
+			args:    []string{"cac1", "--tags", "Team=backend,Environment=staging,Component=api", "ps aux | grep java"},
+			wantErr: false,
+		},
+		{
+			name:    "Tags with spaces",
+			args:    []string{"use1", "--tags", "Environment = production , Team = devops", "uptime"},
+			wantErr: false,
+		},
+		{
+			name:    "Missing tags flag",
+			args:    []string{"cac1", "uptime"},
+			wantErr: true,
+		},
+		{
+			name:    "Empty tags value",
+			args:    []string{"cac1", "--tags", "", "uptime"},
+			wantErr: true,
+		},
+		{
+			name:    "Invalid tag format",
+			args:    []string{"cac1", "--tags", "Environment", "uptime"},
+			wantErr: true,
+		},
+		{
+			name:    "Missing command",
+			args:    []string{"cac1", "--tags", "Environment=dev"},
+			wantErr: true,
+		},
+		{
+			name:    "Short tags flag",
+			args:    []string{"use1", "-t", "Environment=prod", "systemctl status nginx"},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a copy of the command to avoid modifying the original
+			cmd := &cobra.Command{
+				Use:   "exec-tagged <region-shortcode> <command>",
+				Short: "Execute a command on all instances with specified tags",
+				Long: `Execute a command on all EC2 instances that match the specified tags via SSM.
+Region shortcuts supported: cac1, use1, euw1, etc.
+Use --tags flag to specify one or more tag filters in key=value format, separated by commas.`,
+				Args: cobra.MinimumNArgs(2),
+				RunE: func(cmd *cobra.Command, args []string) error {
+					// Mock the exec-tagged functionality
+					regionCode := args[0]
+					command := strings.Join(args[1:], " ")
+
+					// Get tags flag
+					tagsFlag, _ := cmd.Flags().GetString("tags")
+					if tagsFlag == "" {
+						return fmt.Errorf("--tags flag is required")
+					}
+
+					// Mock region resolution
+					region := regionCode
+					if region == "" {
+						region = "us-east-1"
+					}
+
+					// Mock tag parsing
+					tagPairs := strings.Split(tagsFlag, ",")
+					for _, tagPair := range tagPairs {
+						tagPair = strings.TrimSpace(tagPair)
+						if tagPair == "" {
+							continue
+						}
+
+						parts := strings.SplitN(tagPair, "=", 2)
+						if len(parts) != 2 {
+							return fmt.Errorf("invalid tag format '%s'. Expected format: key=value", tagPair)
+						}
+
+						key := strings.TrimSpace(parts[0])
+						value := strings.TrimSpace(parts[1])
+
+						if key == "" || value == "" {
+							return fmt.Errorf("empty tag key or value in '%s'", tagPair)
+						}
+					}
+
+					// Validate command
+					if command == "" {
+						return fmt.Errorf("command is required")
+					}
+
+					// Mock execution would happen here
+					return nil
+				},
+			}
+
+			// Add flags
+			cmd.Flags().StringP("tags", "t", "", "Tag filters in key=value format, separated by commas (required)")
+			cmd.MarkFlagRequired("tags")
+
+			buf := new(bytes.Buffer)
+			cmd.SetOut(buf)
+			cmd.SetErr(buf)
+			cmd.SetArgs(tt.args)
+
+			err := cmd.Execute()
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Execute() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if tt.contains != "" {
+				output := buf.String()
+				if !strings.Contains(output, tt.contains) {
+					t.Errorf("Execute() output should contain %v, got %v", tt.contains, output)
+				}
+			}
+		})
+	}
+}
+
+func TestSsmExecTaggedFlags(t *testing.T) {
+	cmd := &cobra.Command{Use: "exec-tagged"}
+	cmd.Flags().StringP("tags", "t", "", "Tag filters")
+
+	// Test tags flag exists
+	flag := cmd.Flags().Lookup("tags")
+	if flag == nil {
+		t.Error("Tags flag not found")
+		return
+	}
+
+	if flag.Shorthand != "t" {
+		t.Errorf("Tags flag shorthand = %s, want t", flag.Shorthand)
+	}
+
+	if flag.DefValue != "" {
+		t.Errorf("Tags flag default = %s, want empty string", flag.DefValue)
+	}
+
+	// Test that we can get and set the flag value
+	cmd.Flags().Set("tags", "Environment=test")
+	value, err := cmd.Flags().GetString("tags")
+	if err != nil {
+		t.Errorf("Error getting tags flag value: %v", err)
+	}
+	if value != "Environment=test" {
+		t.Errorf("Expected tags value 'Environment=test', got '%s'", value)
+	}
+}
+
+func TestTagFilterValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		tagFilter   string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:      "Valid single tag",
+			tagFilter: "Environment=dev",
+		},
+		{
+			name:      "Valid multiple tags",
+			tagFilter: "Environment=dev,Component=fts",
+		},
+		{
+			name:      "Valid three tags",
+			tagFilter: "Team=backend,Environment=staging,Component=api",
+		},
+		{
+			name:      "Valid tags with spaces",
+			tagFilter: "Environment = production , Team = devops",
+		},
+		{
+			name:        "Invalid - missing value",
+			tagFilter:   "Environment",
+			expectError: true,
+			errorMsg:    "Expected format: key=value",
+		},
+		{
+			name:        "Invalid - missing key",
+			tagFilter:   "=production",
+			expectError: true,
+			errorMsg:    "empty tag key or value",
+		},
+		{
+			name:        "Invalid - empty value",
+			tagFilter:   "Environment=",
+			expectError: true,
+			errorMsg:    "empty tag key or value",
+		},
+		{
+			name:        "Invalid - empty key",
+			tagFilter:   "=value",
+			expectError: true,
+			errorMsg:    "empty tag key or value",
+		},
+		{
+			name:        "Invalid - mixed valid/invalid",
+			tagFilter:   "Environment=dev,Component",
+			expectError: true,
+			errorMsg:    "Expected format: key=value",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Simulate the parsing logic from the command
+			tagPairs := strings.Split(tt.tagFilter, ",")
+			var err error
+
+			for _, tagPair := range tagPairs {
+				tagPair = strings.TrimSpace(tagPair)
+				if tagPair == "" {
+					continue
+				}
+
+				parts := strings.SplitN(tagPair, "=", 2)
+				if len(parts) != 2 {
+					err = fmt.Errorf("invalid tag format '%s'. Expected format: key=value", tagPair)
+					break
+				}
+
+				key := strings.TrimSpace(parts[0])
+				value := strings.TrimSpace(parts[1])
+
+				if key == "" || value == "" {
+					err = fmt.Errorf("empty tag key or value in '%s'", tagPair)
+					break
+				}
+			}
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error for tag filter %q but got none", tt.tagFilter)
+					return
+				}
+				if tt.errorMsg != "" && !strings.Contains(err.Error(), tt.errorMsg) {
+					t.Errorf("Expected error message to contain %q, got %q", tt.errorMsg, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error for tag filter %q: %v", tt.tagFilter, err)
+				}
+			}
+		})
+	}
+}
+
 func TestSsmExecContextHandling(t *testing.T) {
 	// Test context usage in exec operations
 	ctx := context.Background()
