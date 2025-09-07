@@ -7,7 +7,7 @@
 all: build
 
 # Version - can be overridden via environment
-BASE_VERSION ?= 2.5.1
+BASE_VERSION ?= 2.5.2
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION := $(BASE_VERSION)-$(GIT_COMMIT)
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## [v2.5.1] - 2025-09-07
+## [v2.5.2] - 2025-09-07
 
 ### Security
 - **Critical Directory Traversal Fix**: Enhanced cross-platform path validation security
