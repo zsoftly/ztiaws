@@ -41,14 +41,8 @@ Examples:
 		region := resolveRegion(regionCode)
 
 		// Validate arguments and flags
-		if len(args) == 0 && instancesFlag == "" {
-			colors.PrintError("✗ Either provide an instance identifier or use --instances flag\n")
-			os.Exit(1)
-		}
-
-		// Validate mutual exclusion
-		if len(args) > 0 && instancesFlag != "" {
-			colors.PrintError("✗ Cannot specify both instance identifier and --instances flag\n")
+		if err := validatePowerCommandArgs(args, instancesFlag); err != nil {
+			colors.PrintError("✗ %v\n", err)
 			os.Exit(1)
 		}
 
@@ -74,7 +68,9 @@ Examples:
 			startTime := time.Now()
 			results := executePowerOperationParallel(ctx, awsClient, instanceIDs, region, "start", parallelFlag)
 			totalDuration := time.Since(startTime)
-			displayPowerOperationResults(results, "start", totalDuration, parallelFlag)
+			if err := displayPowerOperationResults(results, "start", totalDuration, parallelFlag); err != nil {
+				os.Exit(1)
+			}
 		} else {
 			// Single instance
 			instanceIdentifier := args[0]
@@ -125,14 +121,8 @@ Examples:
 		region := resolveRegion(regionCode)
 
 		// Validate arguments and flags
-		if len(args) == 0 && instancesFlag == "" {
-			colors.PrintError("✗ Either provide an instance identifier or use --instances flag\n")
-			os.Exit(1)
-		}
-
-		// Validate mutual exclusion
-		if len(args) > 0 && instancesFlag != "" {
-			colors.PrintError("✗ Cannot specify both instance identifier and --instances flag\n")
+		if err := validatePowerCommandArgs(args, instancesFlag); err != nil {
+			colors.PrintError("✗ %v\n", err)
 			os.Exit(1)
 		}
 
@@ -158,7 +148,9 @@ Examples:
 			startTime := time.Now()
 			results := executePowerOperationParallel(ctx, awsClient, instanceIDs, region, "stop", parallelFlag)
 			totalDuration := time.Since(startTime)
-			displayPowerOperationResults(results, "stop", totalDuration, parallelFlag)
+			if err := displayPowerOperationResults(results, "stop", totalDuration, parallelFlag); err != nil {
+				os.Exit(1)
+			}
 		} else {
 			// Single instance
 			instanceIdentifier := args[0]
@@ -209,14 +201,8 @@ Examples:
 		region := resolveRegion(regionCode)
 
 		// Validate arguments and flags
-		if len(args) == 0 && instancesFlag == "" {
-			colors.PrintError("✗ Either provide an instance identifier or use --instances flag\n")
-			os.Exit(1)
-		}
-
-		// Validate mutual exclusion
-		if len(args) > 0 && instancesFlag != "" {
-			colors.PrintError("✗ Cannot specify both instance identifier and --instances flag\n")
+		if err := validatePowerCommandArgs(args, instancesFlag); err != nil {
+			colors.PrintError("✗ %v\n", err)
 			os.Exit(1)
 		}
 
@@ -242,7 +228,9 @@ Examples:
 			startTime := time.Now()
 			results := executePowerOperationParallel(ctx, awsClient, instanceIDs, region, "reboot", parallelFlag)
 			totalDuration := time.Since(startTime)
-			displayPowerOperationResults(results, "reboot", totalDuration, parallelFlag)
+			if err := displayPowerOperationResults(results, "reboot", totalDuration, parallelFlag); err != nil {
+				os.Exit(1)
+			}
 		} else {
 			// Single instance
 			instanceIdentifier := args[0]
@@ -294,23 +282,10 @@ Examples:
 
 		region := resolveRegion(regionCode)
 
-		// Validate that we have either tags or instances specified
-		if tagsFlag == "" && instancesFlag == "" {
-			colors.PrintError("✗ Either --tags or --instances flag is required\n")
-			logging.LogError("No tags or instances specified for start-tagged command")
-			os.Exit(1)
-		}
-
-		// Validate mutual exclusion - cannot specify both tags and instances
-		if tagsFlag != "" && instancesFlag != "" {
-			colors.PrintError("✗ Cannot specify both --tags and --instances flags\n")
-			logging.LogError("Both tags and instances flags provided - only one is allowed")
-			os.Exit(1)
-		}
-
-		// Validate parallel value
-		if parallelFlag <= 0 {
-			colors.PrintError("✗ --parallel must be greater than 0\n")
+		// Validate arguments and flags
+		if err := validateTaggedCommandArgs(tagsFlag, instancesFlag, parallelFlag); err != nil {
+			colors.PrintError("✗ %v\n", err)
+			logging.LogError("Validation error for start-tagged command: %v", err)
 			os.Exit(1)
 		}
 
@@ -357,7 +332,9 @@ Examples:
 		totalDuration := time.Since(startTime)
 
 		// Process and display results
-		displayPowerOperationResults(results, "start", totalDuration, parallelFlag)
+		if err := displayPowerOperationResults(results, "start", totalDuration, parallelFlag); err != nil {
+			os.Exit(1)
+		}
 	},
 }
 
@@ -383,23 +360,10 @@ Examples:
 
 		region := resolveRegion(regionCode)
 
-		// Validate that we have either tags or instances specified
-		if tagsFlag == "" && instancesFlag == "" {
-			colors.PrintError("✗ Either --tags or --instances flag is required\n")
-			logging.LogError("No tags or instances specified for stop-tagged command")
-			os.Exit(1)
-		}
-
-		// Validate mutual exclusion - cannot specify both tags and instances
-		if tagsFlag != "" && instancesFlag != "" {
-			colors.PrintError("✗ Cannot specify both --tags and --instances flags\n")
-			logging.LogError("Both tags and instances flags provided - only one is allowed")
-			os.Exit(1)
-		}
-
-		// Validate parallel value
-		if parallelFlag <= 0 {
-			colors.PrintError("✗ --parallel must be greater than 0\n")
+		// Validate arguments and flags
+		if err := validateTaggedCommandArgs(tagsFlag, instancesFlag, parallelFlag); err != nil {
+			colors.PrintError("✗ %v\n", err)
+			logging.LogError("Validation error for stop-tagged command: %v", err)
 			os.Exit(1)
 		}
 
@@ -446,7 +410,9 @@ Examples:
 		totalDuration := time.Since(startTime)
 
 		// Process and display results
-		displayPowerOperationResults(results, "stop", totalDuration, parallelFlag)
+		if err := displayPowerOperationResults(results, "stop", totalDuration, parallelFlag); err != nil {
+			os.Exit(1)
+		}
 	},
 }
 
@@ -472,23 +438,10 @@ Examples:
 
 		region := resolveRegion(regionCode)
 
-		// Validate that we have either tags or instances specified
-		if tagsFlag == "" && instancesFlag == "" {
-			colors.PrintError("✗ Either --tags or --instances flag is required\n")
-			logging.LogError("No tags or instances specified for reboot-tagged command")
-			os.Exit(1)
-		}
-
-		// Validate mutual exclusion - cannot specify both tags and instances
-		if tagsFlag != "" && instancesFlag != "" {
-			colors.PrintError("✗ Cannot specify both --tags and --instances flags\n")
-			logging.LogError("Both tags and instances flags provided - only one is allowed")
-			os.Exit(1)
-		}
-
-		// Validate parallel value
-		if parallelFlag <= 0 {
-			colors.PrintError("✗ --parallel must be greater than 0\n")
+		// Validate arguments and flags
+		if err := validateTaggedCommandArgs(tagsFlag, instancesFlag, parallelFlag); err != nil {
+			colors.PrintError("✗ %v\n", err)
+			logging.LogError("Validation error for reboot-tagged command: %v", err)
 			os.Exit(1)
 		}
 
@@ -535,7 +488,9 @@ Examples:
 		totalDuration := time.Since(startTime)
 
 		// Process and display results
-		displayPowerOperationResults(results, "reboot", totalDuration, parallelFlag)
+		if err := displayPowerOperationResults(results, "reboot", totalDuration, parallelFlag); err != nil {
+			os.Exit(1)
+		}
 	},
 }
 
@@ -545,6 +500,41 @@ type PowerOperationResult struct {
 	Operation  string
 	Error      error
 	Duration   time.Duration
+}
+
+// validatePowerCommandArgs validates arguments and flags for power commands
+func validatePowerCommandArgs(args []string, instancesFlag string) error {
+	// Validate arguments and flags
+	if len(args) == 0 && instancesFlag == "" {
+		return fmt.Errorf("either provide an instance identifier or use --instances flag")
+	}
+
+	// Validate mutual exclusion
+	if len(args) > 0 && instancesFlag != "" {
+		return fmt.Errorf("cannot specify both instance identifier and --instances flag")
+	}
+
+	return nil
+}
+
+// validateTaggedCommandArgs validates arguments and flags for tagged commands
+func validateTaggedCommandArgs(tagsFlag, instancesFlag string, parallelFlag int) error {
+	// Validate that we have either tags or instances specified
+	if tagsFlag == "" && instancesFlag == "" {
+		return fmt.Errorf("either --tags or --instances flag is required")
+	}
+
+	// Validate mutual exclusion - cannot specify both tags and instances
+	if tagsFlag != "" && instancesFlag != "" {
+		return fmt.Errorf("cannot specify both --tags and --instances flags")
+	}
+
+	// Validate parallel value
+	if parallelFlag <= 0 {
+		return fmt.Errorf("--parallel must be greater than 0")
+	}
+
+	return nil
 }
 
 // capitalize returns a copy of the string with the first letter capitalized
@@ -691,8 +681,8 @@ func executePowerOperationParallel(ctx context.Context, awsClient *aws.Client, i
 	return results
 }
 
-// displayPowerOperationResults displays the results of power operations
-func displayPowerOperationResults(results []PowerOperationResult, operation string, totalDuration time.Duration, maxParallel int) {
+// displayPowerOperationResults displays the results of power operations and returns error if any operations failed
+func displayPowerOperationResults(results []PowerOperationResult, operation string, totalDuration time.Duration, maxParallel int) error {
 	successCount := 0
 	for _, result := range results {
 		fmt.Printf("\n")
@@ -719,9 +709,10 @@ func displayPowerOperationResults(results []PowerOperationResult, operation stri
 
 	if successCount < len(results) {
 		logging.LogWarn("Some %s operations failed: %d successful, %d failed", operation, successCount, len(results)-successCount)
-		os.Exit(1)
+		return fmt.Errorf("some %s operations failed: %d successful, %d failed", operation, successCount, len(results)-successCount)
 	} else {
 		logging.LogSuccess("All %s operations completed successfully", operation)
+		return nil
 	}
 }
 

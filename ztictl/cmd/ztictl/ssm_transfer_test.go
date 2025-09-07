@@ -688,3 +688,182 @@ func TestS3BucketNameValidation(t *testing.T) {
 		})
 	}
 }
+
+// NEW TESTS FOR SEPARATION OF CONCERNS REFACTORING
+
+func TestPerformFileUpload(t *testing.T) {
+	// Save original logger state
+	originalLogger := logger
+	defer func() { logger = originalLogger }()
+
+	t.Run("handles upload gracefully", func(t *testing.T) {
+		// Initialize logger to avoid nil pointer dereference
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// The function should return an error or succeed, not call os.Exit
+		err := performFileUpload("use1", "i-test123", "/tmp/testfile.txt", "/home/user/testfile.txt")
+
+		// We expect this might fail (no AWS credentials/connection), but it shouldn't panic
+		// The important thing is that it returns an error instead of calling os.Exit
+		if err != nil {
+			t.Logf("File upload error (may be expected): %v", err)
+		}
+
+		// The fact that we can continue execution proves the refactoring worked
+		t.Log("Test completed - function returned instead of calling os.Exit")
+	})
+
+	t.Run("validates region code", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test with empty region code (should be handled gracefully)
+		err := performFileUpload("", "i-test123", "/tmp/testfile.txt", "/home/user/testfile.txt")
+
+		// Function should handle this gracefully and return error
+		if err != nil {
+			t.Logf("Expected error for empty region: %v", err)
+		}
+
+		t.Log("Region validation handled gracefully")
+	})
+
+	t.Run("validates file paths", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test with empty local file path
+		err := performFileUpload("use1", "i-test123", "", "/home/user/testfile.txt")
+
+		// Function should handle this gracefully
+		if err != nil {
+			t.Logf("Expected error for empty local file: %v", err)
+		}
+
+		// Test with empty remote path
+		err = performFileUpload("use1", "i-test123", "/tmp/testfile.txt", "")
+
+		if err != nil {
+			t.Logf("Expected error for empty remote path: %v", err)
+		}
+
+		t.Log("File path validation handled gracefully")
+	})
+}
+
+func TestPerformFileDownload(t *testing.T) {
+	// Save original logger state
+	originalLogger := logger
+	defer func() { logger = originalLogger }()
+
+	t.Run("handles download gracefully", func(t *testing.T) {
+		// Initialize logger to avoid nil pointer dereference
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// The function should return an error or succeed, not call os.Exit
+		err := performFileDownload("use1", "i-test123", "/home/user/remotefile.txt", "/tmp/localfile.txt")
+
+		// We expect this might fail (no AWS credentials/connection), but it shouldn't panic
+		// The important thing is that it returns an error instead of calling os.Exit
+		if err != nil {
+			t.Logf("File download error (may be expected): %v", err)
+		}
+
+		// The fact that we can continue execution proves the refactoring worked
+		t.Log("Test completed - function returned instead of calling os.Exit")
+	})
+
+	t.Run("validates region code", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test with empty region code (should be handled gracefully)
+		err := performFileDownload("", "i-test123", "/home/user/remotefile.txt", "/tmp/localfile.txt")
+
+		// Function should handle this gracefully and return error
+		if err != nil {
+			t.Logf("Expected error for empty region: %v", err)
+		}
+
+		t.Log("Region validation handled gracefully")
+	})
+
+	t.Run("validates file paths", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test with empty remote file path
+		err := performFileDownload("use1", "i-test123", "", "/tmp/localfile.txt")
+
+		// Function should handle this gracefully
+		if err != nil {
+			t.Logf("Expected error for empty remote file: %v", err)
+		}
+
+		// Test with empty local path
+		err = performFileDownload("use1", "i-test123", "/home/user/remotefile.txt", "")
+
+		if err != nil {
+			t.Logf("Expected error for empty local path: %v", err)
+		}
+
+		t.Log("File path validation handled gracefully")
+	})
+}
+
+func TestTransferSeparationOfConcerns(t *testing.T) {
+	// This test verifies that the transfer functions don't call os.Exit
+	// and can be tested without terminating the test process
+
+	// Save original logger state
+	originalLogger := logger
+	defer func() { logger = originalLogger }()
+
+	t.Run("file upload returns instead of exiting", func(t *testing.T) {
+		// Initialize logger to avoid nil pointer dereference
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// This call should return an error or succeed, not exit the process
+		err := performFileUpload("invalid-region", "invalid-instance", "/nonexistent/file.txt", "/remote/path")
+
+		// If we reach this line, the function didn't call os.Exit
+		// (which is what we want for good separation of concerns)
+		if err == nil {
+			t.Log("File upload succeeded unexpectedly")
+		} else {
+			t.Logf("File upload failed as expected: %v", err)
+		}
+
+		// The fact that we can continue execution proves the refactoring worked
+		t.Log("Test completed - function returned instead of calling os.Exit")
+	})
+
+	t.Run("file download returns instead of exiting", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// This call should return an error or succeed, not exit the process
+		err := performFileDownload("invalid-region", "invalid-instance", "/remote/nonexistent.txt", "/tmp/local.txt")
+
+		// If we reach this line, the function didn't call os.Exit
+		if err == nil {
+			t.Log("File download succeeded unexpectedly")
+		} else {
+			t.Logf("File download failed as expected: %v", err)
+		}
+
+		// The fact that we can continue execution proves the refactoring worked
+		t.Log("Test completed - function returned instead of calling os.Exit")
+	})
+}

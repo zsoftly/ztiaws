@@ -32,45 +32,10 @@ This will guide you through an interactive setup process to configure AWS SSO se
 		force, _ := cmd.Flags().GetBool("force")
 		interactive, _ := cmd.Flags().GetBool("interactive")
 
-		// Determine config file path
-		home, err := os.UserHomeDir()
-		if err != nil {
-			logger.Error("Unable to find home directory", "error", err)
+		if err := initializeConfigFile(force, interactive); err != nil {
+			logger.Error("Configuration initialization failed", "error", err)
 			os.Exit(1)
 		}
-
-		configPath := filepath.Join(home, ".ztictl.yaml")
-
-		// Check if config file already exists
-		if _, err := os.Stat(configPath); err == nil && !force {
-			logger.Error("Configuration file already exists", "path", configPath)
-			logger.Info("Use --force to overwrite existing configuration")
-			os.Exit(1)
-		}
-
-		// Run interactive setup if requested or if it's a first run
-		if interactive || force {
-			if err := runInteractiveConfig(configPath); err != nil {
-				logger.Error("Interactive configuration failed", "error", err)
-				os.Exit(1)
-			}
-			return
-		}
-
-		// Create sample configuration (non-interactive)
-		if err := config.CreateSampleConfig(configPath); err != nil {
-			logger.Error("Failed to create configuration file", "error", err)
-			os.Exit(1)
-		}
-
-		logger.Info("Configuration file created successfully", "path", configPath)
-		logger.Info("Please edit the configuration file with your AWS SSO settings")
-
-		fmt.Printf("\nNext steps:\n")
-		fmt.Printf("1. Edit %s with your AWS SSO settings\n", configPath)
-		fmt.Printf("2. Run 'ztictl config check' to verify requirements\n")
-		fmt.Printf("3. Run 'ztictl auth login' to authenticate\n")
-		fmt.Printf("\nOr run 'ztictl config init --interactive' for guided setup\n")
 	},
 }
 
@@ -83,57 +48,9 @@ This includes AWS CLI, Session Manager plugin, and other system requirements.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fix, _ := cmd.Flags().GetBool("fix")
 
-		logger.Info("Checking system requirements...")
-
-		checker := system.NewRequirementsChecker(logger)
-
-		// Check all requirements
-		results, err := checker.CheckAll()
-		if err != nil {
-			logger.Error("Failed to check requirements", "error", err)
+		if err := checkSystemRequirements(fix); err != nil {
+			logger.Error("System requirements check failed", "error", err)
 			os.Exit(1)
-		}
-
-		// Display results
-		allPassed := true
-		fmt.Println("\nSystem Requirements Check:")
-		fmt.Println("==========================")
-
-		for _, result := range results {
-			status := "❌ FAIL"
-			if result.Passed {
-				status = "✅ PASS"
-			} else {
-				allPassed = false
-			}
-
-			fmt.Printf("%-30s %s\n", result.Name, status)
-
-			if !result.Passed {
-				fmt.Printf("  Issue: %s\n", result.Error)
-				if result.Suggestion != "" {
-					fmt.Printf("  Fix: %s\n", result.Suggestion)
-				}
-				fmt.Println()
-			}
-		}
-
-		if allPassed {
-			logger.Info("All requirements met! ✅")
-		} else {
-			logger.Error("Some requirements are not met")
-
-			if fix {
-				logger.Info("Attempting to fix issues...")
-				if err := checker.FixIssues(results); err != nil {
-					logger.Error("Failed to fix some issues", "error", err)
-					os.Exit(1)
-				}
-				logger.Info("Issues fixed successfully. Please run check again to verify.")
-			} else {
-				logger.Info("Run with --fix to attempt automatic fixes")
-				os.Exit(1)
-			}
 		}
 	},
 }
@@ -193,38 +110,142 @@ var configValidateCmd = &cobra.Command{
 	Short: "Validate configuration file",
 	Long:  `Validate the ztictl configuration file for syntax and required fields.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		logger.Info("Validating configuration...")
-
-		// Re-load configuration to check for errors
-		if err := config.Load(); err != nil {
+		if err := validateConfiguration(); err != nil {
 			logger.Error("Configuration validation failed", "error", err)
 			os.Exit(1)
 		}
-
-		cfg := config.Get()
-
-		// Perform additional validation
-		var errors []string
-
-		if cfg.SSO.StartURL != "" {
-			if cfg.SSO.Region == "" {
-				errors = append(errors, "SSO region is required when SSO start URL is provided")
-			}
-			if cfg.SSO.DefaultProfile == "" {
-				errors = append(errors, "SSO default profile is required when SSO start URL is provided")
-			}
-		}
-
-		if len(errors) > 0 {
-			logger.Error("Configuration validation failed:")
-			for _, err := range errors {
-				fmt.Printf("  - %s\n", err)
-			}
-			os.Exit(1)
-		}
-
-		logger.Info("Configuration validation passed ✅")
 	},
+}
+
+// initializeConfigFile handles the config initialization logic and returns errors instead of calling os.Exit
+func initializeConfigFile(force, interactive bool) error {
+	// Determine config file path
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("unable to find home directory: %w", err)
+	}
+
+	configPath := filepath.Join(home, ".ztictl.yaml")
+
+	// Check if config file already exists
+	if _, err := os.Stat(configPath); err == nil && !force {
+		return fmt.Errorf("configuration file already exists at %s. Use --force to overwrite", configPath)
+	}
+
+	// Run interactive setup if requested or if it's a first run
+	if interactive || force {
+		if err := runInteractiveConfig(configPath); err != nil {
+			return fmt.Errorf("interactive configuration failed: %w", err)
+		}
+		return nil
+	}
+
+	// Create sample configuration (non-interactive)
+	if err := config.CreateSampleConfig(configPath); err != nil {
+		return fmt.Errorf("failed to create configuration file: %w", err)
+	}
+
+	logger.Info("Configuration file created successfully", "path", configPath)
+	logger.Info("Please edit the configuration file with your AWS SSO settings")
+
+	fmt.Printf("\nNext steps:\n")
+	fmt.Printf("1. Edit %s with your AWS SSO settings\n", configPath)
+	fmt.Printf("2. Run 'ztictl config check' to verify requirements\n")
+	fmt.Printf("3. Run 'ztictl auth login' to authenticate\n")
+	fmt.Printf("\nOr run 'ztictl config init --interactive' for guided setup\n")
+
+	return nil
+}
+
+// checkSystemRequirements handles the requirements checking logic and returns errors instead of calling os.Exit
+func checkSystemRequirements(fix bool) error {
+	logger.Info("Checking system requirements...")
+
+	checker := system.NewRequirementsChecker(logger)
+
+	// Check all requirements
+	results, err := checker.CheckAll()
+	if err != nil {
+		return fmt.Errorf("failed to check requirements: %w", err)
+	}
+
+	// Display results
+	allPassed := true
+	fmt.Println("\nSystem Requirements Check:")
+	fmt.Println("==========================")
+
+	for _, result := range results {
+		status := "❌ FAIL"
+		if result.Passed {
+			status = "✅ PASS"
+		} else {
+			allPassed = false
+		}
+
+		fmt.Printf("%-30s %s\n", result.Name, status)
+
+		if !result.Passed {
+			fmt.Printf("  Issue: %s\n", result.Error)
+			if result.Suggestion != "" {
+				fmt.Printf("  Fix: %s\n", result.Suggestion)
+			}
+			fmt.Println()
+		}
+	}
+
+	if allPassed {
+		logger.Info("All requirements met! ✅")
+		return nil
+	} else {
+		logger.Error("Some requirements are not met")
+
+		if fix {
+			logger.Info("Attempting to fix issues...")
+			if err := checker.FixIssues(results); err != nil {
+				return fmt.Errorf("failed to fix some issues: %w", err)
+			}
+			logger.Info("Issues fixed successfully. Please run check again to verify.")
+			return nil
+		} else {
+			logger.Info("Run with --fix to attempt automatic fixes")
+			return fmt.Errorf("some requirements are not met")
+		}
+	}
+}
+
+// validateConfiguration handles the config validation logic and returns errors instead of calling os.Exit
+func validateConfiguration() error {
+	logger.Info("Validating configuration...")
+
+	// Re-load configuration to check for errors
+	if err := config.Load(); err != nil {
+		return fmt.Errorf("configuration validation failed: %w", err)
+	}
+
+	cfg := config.Get()
+
+	// Perform additional validation
+	var errors []string
+
+	if cfg.SSO.StartURL != "" {
+		if cfg.SSO.Region == "" {
+			errors = append(errors, "SSO region is required when SSO start URL is provided")
+		}
+		if cfg.SSO.DefaultProfile == "" {
+			errors = append(errors, "SSO default profile is required when SSO start URL is provided")
+		}
+	}
+
+	if len(errors) > 0 {
+		logger.Error("Configuration validation failed:")
+		for _, err := range errors {
+			fmt.Printf("  - %s\n", err)
+		}
+		return fmt.Errorf("configuration validation failed with %d errors", len(errors))
+	}
+
+	logger.Info("Configuration validation passed ✅")
+	return nil
 }
 
 func init() {

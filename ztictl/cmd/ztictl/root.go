@@ -117,6 +117,16 @@ func initConfig() {
 	// Initialize logger with our adapter
 	logger = logging.NewLogger(debug)
 
+	// Perform configuration setup and handle any errors
+	if err := setupConfiguration(); err != nil {
+		logger.Error("Configuration setup failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+// setupConfiguration handles the actual configuration logic and returns errors
+// instead of calling os.Exit directly, improving testability and separation of concerns
+func setupConfiguration() error {
 	if configFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(configFile)
@@ -124,8 +134,7 @@ func initConfig() {
 		// Find home directory.
 		home, err := os.UserHomeDir()
 		if err != nil {
-			logger.Error("Unable to find home directory", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("unable to find home directory: %w", err)
 		}
 
 		// Search config in home directory with name ".ztictl" (without extension).
@@ -146,9 +155,10 @@ func initConfig() {
 
 	// Load configuration
 	if err := config.Load(); err != nil {
-		logger.Error("Failed to load configuration", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
+
+	return nil
 }
 
 // GetLogger returns a compatibility logger instance

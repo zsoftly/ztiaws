@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -621,4 +622,298 @@ func TestParallelExecutionValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidatePowerCommandArgs(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		instancesFlag string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "valid single argument",
+			args:          []string{"i-1234567890abcdef0"},
+			instancesFlag: "",
+			expectError:   false,
+		},
+		{
+			name:          "valid instances flag",
+			args:          []string{},
+			instancesFlag: "i-1234567890abcdef0,i-0987654321fedcba0",
+			expectError:   false,
+		},
+		{
+			name:          "no arguments or flags",
+			args:          []string{},
+			instancesFlag: "",
+			expectError:   true,
+			errorContains: "either provide an instance identifier or use --instances flag",
+		},
+		{
+			name:          "both argument and instances flag",
+			args:          []string{"i-1234567890abcdef0"},
+			instancesFlag: "i-0987654321fedcba0",
+			expectError:   true,
+			errorContains: "cannot specify both instance identifier and --instances flag",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validatePowerCommandArgs(tt.args, tt.instancesFlag)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got nil")
+					return
+				}
+				if tt.errorContains != "" && err.Error() != tt.errorContains {
+					t.Errorf("Expected error containing %q, got %q", tt.errorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestValidateTaggedCommandArgs(t *testing.T) {
+	tests := []struct {
+		name          string
+		tagsFlag      string
+		instancesFlag string
+		parallelFlag  int
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:         "valid tags flag",
+			tagsFlag:     "Environment=production,Team=backend",
+			parallelFlag: 4,
+			expectError:  false,
+		},
+		{
+			name:          "valid instances flag",
+			instancesFlag: "i-1234567890abcdef0,i-0987654321fedcba0",
+			parallelFlag:  4,
+			expectError:   false,
+		},
+		{
+			name:          "no tags or instances",
+			tagsFlag:      "",
+			instancesFlag: "",
+			parallelFlag:  4,
+			expectError:   true,
+			errorContains: "either --tags or --instances flag is required",
+		},
+		{
+			name:          "both tags and instances",
+			tagsFlag:      "Environment=production",
+			instancesFlag: "i-1234567890abcdef0",
+			parallelFlag:  4,
+			expectError:   true,
+			errorContains: "cannot specify both --tags and --instances flags",
+		},
+		{
+			name:          "invalid parallel value - zero",
+			tagsFlag:      "Environment=production",
+			parallelFlag:  0,
+			expectError:   true,
+			errorContains: "--parallel must be greater than 0",
+		},
+		{
+			name:          "invalid parallel value - negative",
+			tagsFlag:      "Environment=production",
+			parallelFlag:  -1,
+			expectError:   true,
+			errorContains: "--parallel must be greater than 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTaggedCommandArgs(tt.tagsFlag, tt.instancesFlag, tt.parallelFlag)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got nil")
+					return
+				}
+				if tt.errorContains != "" && err.Error() != tt.errorContains {
+					t.Errorf("Expected error containing %q, got %q", tt.errorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestCapitalize(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "lowercase word",
+			input:    "start",
+			expected: "Start",
+		},
+		{
+			name:     "already capitalized",
+			input:    "Stop",
+			expected: "Stop",
+		},
+		{
+			name:     "mixed case",
+			input:    "reBoot",
+			expected: "ReBoot",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "single character",
+			input:    "a",
+			expected: "A",
+		},
+		{
+			name:     "single character uppercase",
+			input:    "A",
+			expected: "A",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := capitalize(tt.input)
+			if result != tt.expected {
+				t.Errorf("Expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestDisplayPowerOperationResults(t *testing.T) {
+	tests := []struct {
+		name          string
+		results       []PowerOperationResult
+		operation     string
+		totalDuration time.Duration
+		maxParallel   int
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "all successful operations",
+			results: []PowerOperationResult{
+				{
+					InstanceID: "i-1234567890abcdef0",
+					Operation:  "start",
+					Error:      nil,
+					Duration:   time.Millisecond * 500,
+				},
+				{
+					InstanceID: "i-0987654321fedcba0",
+					Operation:  "start",
+					Error:      nil,
+					Duration:   time.Millisecond * 750,
+				},
+			},
+			operation:     "start",
+			totalDuration: time.Second * 2,
+			maxParallel:   4,
+			expectError:   false,
+		},
+		{
+			name: "mixed success and failure",
+			results: []PowerOperationResult{
+				{
+					InstanceID: "i-1234567890abcdef0",
+					Operation:  "stop",
+					Error:      nil,
+					Duration:   time.Millisecond * 500,
+				},
+				{
+					InstanceID: "i-0987654321fedcba0",
+					Operation:  "stop",
+					Error:      &stubError{"failed to stop instance"},
+					Duration:   time.Millisecond * 300,
+				},
+			},
+			operation:     "stop",
+			totalDuration: time.Second * 1,
+			maxParallel:   2,
+			expectError:   true,
+			errorContains: "some stop operations failed: 1 successful, 1 failed",
+		},
+		{
+			name: "all failed operations",
+			results: []PowerOperationResult{
+				{
+					InstanceID: "i-1234567890abcdef0",
+					Operation:  "reboot",
+					Error:      &stubError{"failed to reboot instance"},
+					Duration:   time.Millisecond * 200,
+				},
+				{
+					InstanceID: "i-0987654321fedcba0",
+					Operation:  "reboot",
+					Error:      &stubError{"instance not found"},
+					Duration:   time.Millisecond * 150,
+				},
+			},
+			operation:     "reboot",
+			totalDuration: time.Millisecond * 500,
+			maxParallel:   3,
+			expectError:   true,
+			errorContains: "some reboot operations failed: 0 successful, 2 failed",
+		},
+		{
+			name:          "empty results",
+			results:       []PowerOperationResult{},
+			operation:     "start",
+			totalDuration: time.Millisecond * 100,
+			maxParallel:   1,
+			expectError:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := displayPowerOperationResults(tt.results, tt.operation, tt.totalDuration, tt.maxParallel)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got nil")
+					return
+				}
+				if tt.errorContains != "" && err.Error() != tt.errorContains {
+					t.Errorf("Expected error containing %q, got %q", tt.errorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+// stubError is a simple error implementation for testing
+type stubError struct {
+	message string
+}
+
+func (e *stubError) Error() string {
+	return e.message
 }
