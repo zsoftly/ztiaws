@@ -8,29 +8,40 @@ Simple release process for CLI tools where users control their updates.
 
 ### 1. Create Release Branch
 ```bash
-# Create release branch from latest main
+# Create and push release branch from latest main
 git checkout main
 git pull origin main
 git checkout -b release/v<version>
+git push -u origin release/v<version>
 ```
 
-### 2. Auto-Generate Documentation
-Release branch automatically:
-- Compares latest release tag with current repo
-- Generates/updates `CHANGELOG.md` from git history
-- Generates/updates `RELEASE_NOTES.txt`
-- Commits changes directly to release branch
+### 2. Wait for Auto-Generated Documentation
+- GitHub Actions automatically detects new `release/*` branch
+- Runs documentation generator script
+- Creates unified CHANGELOG.md and RELEASE_NOTES.txt
+- Commits changes back to release branch
+- **Wait for this to complete before next step!**
 
-### 3. Create Release
+### 3. Pull Auto-Generated Changes
 ```bash
-# Create and push tag from release branch
+# Pull the auto-generated documentation
+git pull origin release/v<version>
+
+# Review the generated files
+cat CHANGELOG.md | head -50
+cat RELEASE_NOTES.txt
+```
+
+### 4. Create Release Tag
+```bash
+# Create and push tag - this triggers the build and release
 git tag v<version>
 git push origin v<version>
 ```
 
-### 4. Merge Back
+### 5. Merge Back to Main
 ```bash
-# Merge release branch to main
+# After release is successful, merge back to main
 git checkout main
 git merge release/v<version>
 git push origin main
@@ -58,10 +69,13 @@ git branch -d release/v<version>
 
 ## Quick Release Checklist
 
-- [ ] Create release branch from main
-- [ ] Auto-generate changelog and release notes
-- [ ] Review and edit if needed
-- [ ] Create and push release tag from release branch
+- [ ] Create release branch from main: `git checkout -b release/v<version>`
+- [ ] Push release branch: `git push -u origin release/v<version>`
+- [ ] **Wait for auto-generation**: Check GitHub Actions for completion
+- [ ] Pull auto-generated docs: `git pull origin release/v<version>`
+- [ ] Review CHANGELOG.md and RELEASE_NOTES.txt
+- [ ] Create release tag: `git tag v<version>`
+- [ ] Push release tag: `git push origin v<version>` (triggers build)
 - [ ] Verify automated build completes successfully
 - [ ] Merge release branch back to main
 - [ ] Clean up release branch
