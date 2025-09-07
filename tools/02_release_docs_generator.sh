@@ -13,9 +13,21 @@ DEBUG_MODE=false
 
 usage() {
     cat << EOF
-Usage: $0 [OPTIONS]
+Usage: $0     # Create release notes header
+    cat > RELEASE_NOTES.txt << EOF
+# ztictl $VERSION Release Notes
 
-Generate CHANGELOG.md and RELEASE_NOTES.txt for a release version.
+**Installation:** [Installation Guide](https://github.com/${github_repo:-your-org/your-repo}/blob/release/$VERSION/INSTALLATION.md)
+
+**Release Date:** $(date '+%B %d, %Y')
+
+## Overview
+
+ztictl is a unified AWS SSM management tool that provides both Go binary and bash script implementations. The Go version (\`ztictl\`) is the primary implementation with enhanced features, while the bash scripts (\`authaws\`, \`ssm\`) are maintained for backward compatibility only.
+
+**Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
+
+EOFrate CHANGELOG.md and RELEASE_NOTES.txt for a release version.
 
 OPTIONS:
     -v, --version VERSION    Release version (required, format: v1.2.3 or 1.2.3)
