@@ -1,5 +1,40 @@
 # Changelog
 
+## [v2.4.0] - 2025-09-07
+
+### Added
+- **EC2 Power Management Commands**: Complete suite of instance power control operations
+  - `ztictl ssm start [instance-id]` - Start stopped EC2 instances
+  - `ztictl ssm stop [instance-id]` - Stop running EC2 instances  
+  - `ztictl ssm reboot [instance-id]` - Reboot running EC2 instances
+  - `ztictl ssm start-tagged --tags <tags>` - Start multiple instances by tag
+  - `ztictl ssm stop-tagged --tags <tags>` - Stop multiple instances by tag
+  - `ztictl ssm reboot-tagged --tags <tags>` - Reboot multiple instances by tag
+- **Multi-Instance Support**: All power commands support `--instances` flag for comma-separated instance IDs
+- **Parallel Execution**: Configurable parallel processing with `--parallel` flag (defaults to CPU count)
+- **Instance Name Resolution**: Support for both instance IDs (`i-1234...`) and instance names
+- **Comprehensive Validation**: Mutual exclusion validation prevents conflicting flag combinations
+- **Extensive Test Coverage**: 35+ test scenarios covering all power management functionality
+
+### Enhanced
+- **README Documentation**: Updated with power management examples and feature descriptions
+- **Help System**: All new commands integrated into ztictl help system
+- **Error Handling**: Clear, user-friendly error messages for all validation scenarios
+
+### Examples
+```bash
+# Start/stop single instances
+ztictl ssm start i-1234567890abcdef0 --region cac1
+ztictl ssm stop web-server-1 --region use1
+
+# Bulk operations using tags
+ztictl ssm start-tagged --tags Environment=Production --region cac1
+ztictl ssm stop-tagged --tags ManagedBy=ec2-manager --parallel 5 --region use1
+
+# Multiple specific instances
+ztictl ssm reboot --instances i-123,i-456,i-789 --parallel 3 --region cac1
+```
+
 ## [v2.3.0] - 2025-09-06
 
 ### Added
