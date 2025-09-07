@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ztictl/pkg/colors"
+	"ztictl/pkg/security"
 )
 
 var (
@@ -79,7 +80,7 @@ func setupFileLogger() {
 	}
 
 	// Validate log directory path to prevent directory traversal attacks
-	if containsUnsafeLogPath(logDirPath) {
+	if security.ContainsUnsafePath(logDirPath) {
 		fmt.Fprintf(os.Stderr, "Warning: Invalid log directory path %s, using default location\n", logDirPath)
 		logDirPath = getDefaultLogDir(homeDir)
 	}
@@ -279,29 +280,4 @@ func (l *Logger) Error(msg string, fields ...interface{}) {
 	}
 	fieldsStr := l.formatFields(fields...)
 	LogError("%s%s", msg, fieldsStr)
-}
-
-// containsUnsafeLogPath checks for obvious directory traversal patterns in log paths
-// This is a lighter validation than ValidateFilePathWithWorkingDir, designed for log directories
-// that may legitimately be outside the current working directory
-func containsUnsafeLogPath(path string) bool {
-	// Clean the path for consistent checking
-	cleanPath := filepath.Clean(path)
-
-	// Check for obvious directory traversal patterns
-	if strings.Contains(cleanPath, "../") || strings.Contains(cleanPath, "..\\") {
-		return true
-	}
-
-	// Check for null bytes (can be used in path traversal attacks)
-	if strings.Contains(path, "\x00") {
-		return true
-	}
-
-	// Check for suspicious repeated separators
-	if strings.Contains(path, "//") || strings.Contains(path, "\\\\") {
-		return true
-	}
-
-	return false
 }
