@@ -230,8 +230,12 @@ jobs:
         # Install govulncheck for official Go vulnerability checking
         go install golang.org/x/vuln/cmd/govulncheck@latest
         
-        # Verify installation
+        # Install golangci-lint for comprehensive linting and security checks
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
+        
+        # Verify installations
         govulncheck -version || echo "govulncheck installation failed"
+        $(go env GOPATH)/bin/golangci-lint version || echo "golangci-lint installation failed"
     
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
@@ -243,9 +247,39 @@ jobs:
       continue-on-error: true
     
     - name: Run GoSec security scan
-      uses: securego/gosec@master
+      working-directory: ./ztictl
+      run: |
+        echo "🔒 Running comprehensive security analysis..."
+        
+        # Run golangci-lint with security linters enabled
+        echo "Running golangci-lint with security checks..."
+        $(go env GOPATH)/bin/golangci-lint run --enable gosec --out-format json > golangci-security-report.json || true
+        $(go env GOPATH)/bin/golangci-lint run --enable gosec || true
+        
+        # Try to install and run standalone gosec as backup
+        echo "Installing standalone GoSec..."
+        curl -sfL https://raw.githubusercontent.com/securecodewarrior/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest || true
+        
+        if [ -f "$(go env GOPATH)/bin/gosec" ]; then
+          echo "Running standalone GoSec analysis..."
+          $(go env GOPATH)/bin/gosec -fmt json -out gosec-report.json ./... || true
+          $(go env GOPATH)/bin/gosec -fmt table ./... || true
+        else
+          echo "Standalone GoSec installation failed, using golangci-lint results only"
+        fi
+        
+        echo "📊 Security analysis completed"
+      continue-on-error: true
+    
+    - name: Upload security reports
+      if: always()
+      uses: actions/upload-artifact@v4
       with:
-        args: './ztictl/...'
+        name: security-reports
+        path: |
+          ztictl/gosec-report.json
+          ztictl/golangci-security-report.json
+        retention-days: 30
       continue-on-error: true
     
     - name: Run Go vulnerability check
@@ -270,17 +304,45 @@ jobs:
         echo "📊 Dependency update check completed"
       continue-on-error: true
     
+    - name: Run comprehensive quality checks
+      working-directory: ./ztictl
+      run: |
+        echo "🔍 Running comprehensive quality checks..."
+        
+        # Standard Go quality checks
+        echo "Running go vet..."
+        go vet ./... || echo "go vet found issues"
+        
+        echo "Running go fmt check..."
+        UNFORMATTED=$(gofmt -s -l .)
+        if [ -n "$UNFORMATTED" ]; then
+          echo "⚠️  The following files need formatting:"
+          echo "$UNFORMATTED"
+        else
+          echo "✅ All Go files are properly formatted"
+        fi
+        
+        # Build test to ensure everything compiles
+        echo "Testing compilation..."
+        go build ./... || echo "❌ Build failed"
+        
+        echo "📊 Quality checks completed"
+      continue-on-error: true
+    
     - name: Security scan summary
       run: |
-        echo "🛡️  Security Analysis Summary"
-        echo "=============================="
+        echo "🛡️  Security & Quality Analysis Summary"
+        echo "========================================"
         echo "✅ Trivy filesystem scan completed"
-        echo "✅ GoSec security analysis completed"
+        echo "✅ golangci-lint with GoSec enabled completed"
+        echo "✅ Standalone GoSec analysis attempted"
         echo "✅ Go vulnerability check completed"
         echo "✅ Dependency update check completed"
+        echo "✅ Comprehensive quality checks completed"
         echo ""
-        echo "ℹ️  This job runs security scans for informational purposes."
-        echo "ℹ️  Review the output above for any security findings."
+        echo "ℹ️  This job runs security and quality scans for informational purposes."
+        echo "ℹ️  Review the output above for any security findings or quality issues."
+        echo "ℹ️  Security reports are uploaded as artifacts for detailed review."
         echo "ℹ️  Consider updating outdated dependencies regularly."
 
     - name: Notify on security failure

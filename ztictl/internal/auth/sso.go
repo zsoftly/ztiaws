@@ -406,7 +406,7 @@ func (m *Manager) ListProfiles(ctx context.Context) ([]Profile, error) {
 		return nil, fmt.Errorf("invalid config file path: %w", err)
 	}
 
-	content, err := os.ReadFile(configPath) // #nosec G304 - path validated above
+	content, err := os.ReadFile(configPath) // #nosec G304
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []Profile{}, nil
@@ -483,7 +483,8 @@ func (m *Manager) configureProfile(profileName string, cfg *appconfig.Config) er
 
 	// Read existing config
 	var content string
-	if existing, err := os.ReadFile(configPath); err == nil { // #nosec G304 - path validated above
+	// #nosec G304
+	if existing, err := os.ReadFile(configPath); err == nil {
 		content = string(existing)
 	} else {
 	}
@@ -521,7 +522,8 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 		return nil, fmt.Errorf("no valid SSO token found")
 	}
 
-	if content, err := os.ReadFile(expectedFile); err == nil { // #nosec G304 - path validated above
+	// #nosec G304
+	if content, err := os.ReadFile(expectedFile); err == nil {
 		var token SSOToken
 		if json.Unmarshal(content, &token) == nil && token.StartURL == startURL {
 			return &token, nil
@@ -543,7 +545,7 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 			}
 
 			// Check if this file contains our start URL
-			content, readErr := os.ReadFile(path) // #nosec G304 - path validated above
+			content, readErr := os.ReadFile(path) // #nosec G304
 			if readErr != nil {
 				return nil
 			}
@@ -566,7 +568,7 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 	}
 
 	// Read and parse the token file
-	content, err := os.ReadFile(tokenFile) // #nosec G304 - path validated in filepath.Walk above
+	content, err := os.ReadFile(tokenFile) // #nosec G304
 	if err != nil {
 		return nil, fmt.Errorf("failed to read token file: %w", err)
 	}
@@ -983,7 +985,7 @@ func (m *Manager) updateProfileWithSelection(profileName string, account *Accoun
 	}
 
 	// Read existing config
-	content, err := os.ReadFile(configPath) // #nosec G304 - path validated above
+	content, err := os.ReadFile(configPath) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to read AWS config: %w", err)
 	}
@@ -1266,7 +1268,7 @@ func (m *Manager) IsProfileAuthenticated(profileName string) bool {
 				continue
 			}
 
-			content, err := os.ReadFile(tokenFile) // #nosec G304 - path validated above
+			content, err := os.ReadFile(tokenFile) // #nosec G304
 			if err != nil {
 				continue
 			}
