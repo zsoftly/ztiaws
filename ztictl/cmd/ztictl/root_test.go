@@ -158,7 +158,7 @@ func TestInitConfig(t *testing.T) {
 	configContent := `debug: true
 default_region: "us-west-2"`
 	configPath := filepath.Join(tempDir, ".ztictl.yaml")
-	err = os.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0600)
 	if err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
 	}

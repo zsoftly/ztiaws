@@ -155,8 +155,18 @@ func (m *Manager) StartSession(ctx context.Context, instanceIdentifier, region s
 	}
 
 	// Use AWS CLI for session manager (Go SDK doesn't support interactive sessions)
-	cmd := exec.CommandContext(ctx, getAWSCommand(), "ssm", "start-session",
-		"--region", region, "--target", instanceID)
+	// Build command with validated and sanitized parameters
+	awsCmd := getAWSCommand()
+
+	// Parameters are already validated above, but create explicit parameter strings for clarity
+	regionParam := region
+	targetParam := instanceID
+
+	// #nosec G204 - Parameters are validated above using strict regex patterns for AWS instance ID and region format
+	cmd := exec.CommandContext(ctx, awsCmd,
+		"ssm", "start-session",
+		"--region", regionParam,
+		"--target", targetParam)
 
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -387,11 +397,21 @@ func (m *Manager) ForwardPort(ctx context.Context, instanceIdentifier, region st
 	}
 
 	// Use AWS CLI for port forwarding (Go SDK doesn't support this directly)
-	cmd := exec.CommandContext(ctx, getAWSCommand(), "ssm", "start-session",
-		"--region", region,
-		"--target", instanceID,
+	// Build command with validated and sanitized parameters
+	awsCmd := getAWSCommand()
+
+	// Parameters are already validated above, but create explicit parameter strings for clarity
+	regionParam := region
+	targetParam := instanceID
+	parametersJSON := fmt.Sprintf(`{"portNumber":["%d"],"localPortNumber":["%d"]}`, remotePort, localPort)
+
+	// #nosec G204 - Parameters are validated above using strict regex patterns for AWS instance ID, region format, and port ranges
+	cmd := exec.CommandContext(ctx, awsCmd,
+		"ssm", "start-session",
+		"--region", regionParam,
+		"--target", targetParam,
 		"--document-name", "AWS-StartPortForwardingSession",
-		"--parameters", fmt.Sprintf(`{"portNumber":["%d"],"localPortNumber":["%d"]}`, remotePort, localPort))
+		"--parameters", parametersJSON)
 
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -667,6 +687,7 @@ func (m *Manager) uploadFileSmall(ctx context.Context, instanceID, region, local
 	}
 
 	// Read file content
+	// #nosec G304 - cleanPath is derived from localPath which is validated in UploadFile() caller using security.ValidateFilePathWithWorkingDir()
 	content, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return fmt.Errorf("failed to read local file: %w", err)
@@ -717,7 +738,7 @@ func (m *Manager) downloadFileSmall(ctx context.Context, instanceID, region, rem
 	}
 
 	// Write to local file
-	if err := os.WriteFile(localPath, content, 0644); err != nil {
+	if err := os.WriteFile(localPath, content, 0600); err != nil {
 		return fmt.Errorf("failed to write local file: %w", err)
 	}
 

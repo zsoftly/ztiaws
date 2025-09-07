@@ -91,7 +91,7 @@ func ShowSplash(version string) (bool, error) {
 		displaySplash(config)
 
 		// Update version tracking file
-		if err := os.WriteFile(versionFile, []byte(version), 0644); err != nil {
+		if err := os.WriteFile(versionFile, []byte(version), 0600); err != nil {
 			return false, fmt.Errorf("failed to write version file: %w", err)
 		}
 

@@ -119,8 +119,8 @@ func TestGetFilePermissions(t *testing.T) {
 			t.Errorf("getFilePermissions() on Windows = %v, want 0666", result)
 		}
 	} else {
-		if result != 0644 {
-			t.Errorf("getFilePermissions() on Unix = %v, want 0644", result)
+		if result != 0600 {
+			t.Errorf("getFilePermissions() on Unix = %v, want 0600", result)
 		}
 	}
 }
@@ -457,7 +457,7 @@ func TestLoggerMethods(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clear log file for this test
 			logFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
-			_ = os.WriteFile(logFile, []byte{}, 0644)
+			_ = os.WriteFile(logFile, []byte{}, 0600)
 
 			// Call the appropriate method
 			switch tt.method {

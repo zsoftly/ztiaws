@@ -51,7 +51,7 @@ func getFilePermissions() os.FileMode {
 		// Windows doesn't use Unix-style permissions
 		return 0666
 	}
-	return 0644
+	return 0600
 }
 
 // getDirPermissions returns platform-appropriate directory permissions
@@ -78,12 +78,19 @@ func setupFileLogger() {
 		logDirPath = getDefaultLogDir(homeDir)
 	}
 
+	// Validate log directory path to prevent directory traversal attacks
+	if containsUnsafeLogPath(logDirPath) {
+		fmt.Fprintf(os.Stderr, "Warning: Invalid log directory path %s, using default location\n", logDirPath)
+		logDirPath = getDefaultLogDir(homeDir)
+	}
+
 	if err := os.MkdirAll(logDirPath, getDirPermissions()); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Could not create log directory %s, file logging disabled: %v\n", logDirPath, err)
 		return
 	}
 
 	logFilePath := filepath.Join(logDirPath, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
+	// #nosec G304 - logDirPath is validated above and log filename is controlled by application
 	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, getFilePermissions())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Could not create/open log file %s, file logging disabled: %v\n", logFilePath, err)
@@ -272,4 +279,29 @@ func (l *Logger) Error(msg string, fields ...interface{}) {
 	}
 	fieldsStr := l.formatFields(fields...)
 	LogError("%s%s", msg, fieldsStr)
+}
+
+// containsUnsafeLogPath checks for obvious directory traversal patterns in log paths
+// This is a lighter validation than ValidateFilePathWithWorkingDir, designed for log directories
+// that may legitimately be outside the current working directory
+func containsUnsafeLogPath(path string) bool {
+	// Clean the path for consistent checking
+	cleanPath := filepath.Clean(path)
+
+	// Check for obvious directory traversal patterns
+	if strings.Contains(cleanPath, "../") || strings.Contains(cleanPath, "..\\") {
+		return true
+	}
+
+	// Check for null bytes (can be used in path traversal attacks)
+	if strings.Contains(path, "\x00") {
+		return true
+	}
+
+	// Check for suspicious repeated separators
+	if strings.Contains(path, "//") || strings.Contains(path, "\\\\") {
+		return true
+	}
+
+	return false
 }

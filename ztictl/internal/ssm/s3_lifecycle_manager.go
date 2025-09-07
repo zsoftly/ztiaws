@@ -234,6 +234,7 @@ func (m *S3LifecycleManager) CleanupS3Object(ctx context.Context, bucketName, ob
 func (m *S3LifecycleManager) UploadToS3(ctx context.Context, bucketName, objectKey, filePath, region string) error {
 	m.logger.Info("Uploading to S3", "bucket", fmt.Sprintf("s3://%s/%s", bucketName, objectKey))
 
+	// #nosec G304 - filePath is validated by caller using security.ValidateFilePathWithWorkingDir()
 	file, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open file %s: %w", filePath, err)
@@ -266,6 +267,7 @@ func (m *S3LifecycleManager) DownloadFromS3(ctx context.Context, bucketName, obj
 	}
 	defer result.Body.Close()
 
+	// #nosec G304 - filePath is validated by caller using security.ValidateFilePathWithWorkingDir()
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to create local file %s: %w", filePath, err)

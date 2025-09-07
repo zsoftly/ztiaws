@@ -264,7 +264,7 @@ LOG_DIR="/tmp/logs"
 `
 				envPath := filepath.Join("..", ".env")
 				os.MkdirAll(filepath.Dir(envPath), 0755)
-				err = ioutil.WriteFile(envPath, []byte(envContent), 0644)
+				err = ioutil.WriteFile(envPath, []byte(envContent), 0600)
 				if err != nil {
 					return nil, err
 				}
@@ -465,7 +465,7 @@ SSO_REGION=us-west-2
 				}
 
 				envPath = filepath.Join(tempDir, ".env")
-				err = ioutil.WriteFile(envPath, []byte(tt.envContent), 0644)
+				err = ioutil.WriteFile(envPath, []byte(tt.envContent), 0600)
 				if err != nil {
 					t.Fatalf("Failed to write env file: %v", err)
 				}
@@ -518,7 +518,7 @@ func TestExists(t *testing.T) {
 				}
 
 				configPath := filepath.Join(tempDir, ".ztictl.yaml")
-				ioutil.WriteFile(configPath, []byte("test: config"), 0644)
+				ioutil.WriteFile(configPath, []byte("test: config"), 0600)
 
 				return func() {
 					if runtime.GOOS == "windows" {
@@ -983,14 +983,14 @@ func TestLoadLegacyEnvFileErrorHandling(t *testing.T) {
 
 	// Create env file then make it unreadable
 	envPath := filepath.Join(tempDir, ".env")
-	err = ioutil.WriteFile(envPath, []byte("TEST=value"), 0644)
+	err = ioutil.WriteFile(envPath, []byte("TEST=value"), 0600)
 	if err != nil {
 		t.Fatalf("Failed to create env file: %v", err)
 	}
 
 	// Change permissions to make it unreadable (if supported)
 	os.Chmod(envPath, 0000)
-	defer os.Chmod(envPath, 0644) // Restore for cleanup
+	defer os.Chmod(envPath, 0600) // Restore for cleanup
 
 	viper.Reset()
 	err = LoadLegacyEnvFile(envPath)

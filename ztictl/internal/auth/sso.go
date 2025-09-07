@@ -492,7 +492,7 @@ func (m *Manager) configureProfile(profileName string, cfg *appconfig.Config) er
 	content = m.updateProfileInConfig(content, profileName, cfg)
 
 	// Write back to file
-	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
 		return fmt.Errorf("failed to write AWS config: %w", err)
 	}
 
@@ -992,7 +992,7 @@ func (m *Manager) updateProfileWithSelection(profileName string, account *Accoun
 	updatedContent := m.updateProfileWithAccountRole(string(content), profileName, account, role, cfg)
 
 	// Write back
-	if err := os.WriteFile(configPath, []byte(updatedContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(updatedContent), 0600); err != nil {
 		return fmt.Errorf("failed to write AWS config: %w", err)
 	}
 
