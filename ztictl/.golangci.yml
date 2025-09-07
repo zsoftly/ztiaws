@@ -1,0 +1,59 @@
+linters:
+  enable:
+    - errcheck
+    - gosec
+    - ineffassign
+    - staticcheck
+    - unused
+    - govet
+    - gofmt
+    - goimports
+    - misspell
+    - revive
+
+linters-settings:
+  gosec:
+    excludes:
+      - G401 # Use of weak cryptographic primitive - SHA1 required for AWS CLI compatibility
+      - G505 # Import of weak cryptographic primitive - SHA1 required for AWS CLI compatibility
+    config:
+      G401:
+        # Allow SHA1 only for AWS SSO token cache filename generation
+        # This is required for AWS CLI compatibility
+        exclude-dirs:
+          - internal/auth
+      G505:
+        # Allow SHA1 import only for AWS SSO token cache
+        exclude-dirs:
+          - internal/auth
+
+issues:
+  exclude-rules:
+    # Exclude SHA1 usage in auth package - required for AWS CLI compatibility
+    - path: internal/auth/sso\.go
+      linters:
+        - gosec
+      text: "(G401|G505)"
+    
+    # Allow unchecked errors in test files for cleanup operations
+    - path: _test\.go
+      linters:
+        - errcheck
+      text: "Error return value of .*(Close|Setenv|RemoveAll|Chmod).* is not checked"
+
+    # Allow unchecked errors for deferred cleanup operations
+    - path: \.go
+      linters:
+        - errcheck
+      source: "defer.*\\.Close\\(\\)"
+
+run:
+  timeout: 5m
+  tests: true
+  build-tags:
+    - integration
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
