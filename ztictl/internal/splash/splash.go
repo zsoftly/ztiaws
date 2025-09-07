@@ -11,17 +11,19 @@ import (
 )
 
 const (
-	// ASCII art banner for ztictl with butterfly theme
+	// Clean ASCII art banner
 	banner = `
-  ╭─────────────────────────────────────────────╮
-  │    🦋 ztictl - Transform Your AWS Workflow   │
-  │         ╭─╮   Small commands,              │
-  │      ╭─╯   ╰─╮ Big impact                  │
-  │   ╭─╯  ◦ ◦  ╰─╮                            │
-  │  ╰─╮    ◦    ╱─╯  🔐 SSO • 🖥️ SSM • ⚡ More │
-  │     ╰─╮     ╱                              │
-  │       ╰─────╯                              │
-  ╰─────────────────────────────────────────────╯
+               .    o8o                .   oooo  
+             .o8    ` + "`" + `"'              .o8   ` + "`" + `888  
+  oooooooo .o888oo oooo   .ooooo.  .o888oo  888  
+ d'""7d8P    888   ` + "`" + `888  d88' ` + "`" + `"Y8   888    888  
+   .d8P'     888    888  888         888    888  
+ .d8P'  .P   888 .  888  888   .o8   888 .  888  
+d8888888P    "888" o888o ` + "`" + `Y8bod8P'   "888" o888o 
+                                                 
+                          Z S o f t l y
+                 AWS SSO & Systems Manager CLI
+                  Small commands, powerful results
 `
 
 	// Version tracking file
@@ -75,13 +77,14 @@ func ShowSplash(version string) (bool, error) {
 			IsFirstRun:   isFirstRun,
 			IsNewVersion: isNewVersion,
 			Features: []string{
+				"⚡ EC2 Power Management - Start/Stop/Reboot instances individually or in bulk",
+				"🏷️  Advanced Tag-Based Operations - Target multiple instances with flexible filtering",
+				"🚀 Parallel Execution Engine - Process multiple instances concurrently for speed",
+				"🔒 Enhanced Security - Command injection protection and input validation",
 				"🔐 AWS SSO Authentication with interactive selection",
-				"🖥️  SSM Session Manager connections",
-				"⚡ Remote command execution via SSM",
-				"📁 File transfer through SSM (with S3 for large files)",
-				"🌐 Port forwarding through SSM tunnels",
-				"🌍 Multi-region support",
-				"📊 Comprehensive logging and configuration",
+				"📁 File transfer through SSM with intelligent S3 routing for large files",
+				"🌐 Port forwarding and remote command execution via SSM",
+				"🌍 Multi-region support with comprehensive logging",
 			},
 		}
 
@@ -121,14 +124,14 @@ func displaySplash(config SplashConfig) {
 	versionColor.Printf("v%s\n", config.AppVersion)
 	descColor.Printf("  %s\n\n", config.Description)
 
-	// Welcome message based on run type with butterfly theme
+	// Welcome message
 	if config.IsFirstRun {
-		headerColor.Println("  🦋 Welcome to ztictl! Ready to transform your AWS workflow?")
-		descColor.Println("  Like a butterfly effect, small commands create powerful changes.")
+		headerColor.Println("  🎉 Welcome to ztictl!")
+		descColor.Println("  Small commands, powerful AWS transformations.")
 		fmt.Println("  Let's get you set up with everything you need.")
 	} else if config.IsNewVersion {
-		headerColor.Printf("  🦋 Welcome back! Your workflow just got more powerful with v%s\n", config.AppVersion)
-		descColor.Println("  New features await - small updates, big improvements.")
+		headerColor.Printf("  ✨ ztictl v%s is ready!\n", config.AppVersion)
+		descColor.Println("  Small updates, big improvements.")
 	}
 
 	// Feature showcase
@@ -172,18 +175,18 @@ func displaySplash(config SplashConfig) {
 	featureColor.Println("    • Help:   ztictl --help")
 	featureColor.Println("    • Config: ztictl config --help")
 
-	// Animated separator with butterfly theme
+	// Animated separator
 	fmt.Println()
-	animateMessage("  🦋" + strings.Repeat("═", 56) + "🦋")
+	animateMessage("  🎯" + strings.Repeat("═", 56) + "🎯")
 	fmt.Println()
 
 	// Pause for user to read
 	if config.IsFirstRun {
-		butterflyColor.Print("  🦋 Press Enter to begin your transformation...")
+		headerColor.Print("  🚀 Press Enter to continue...")
 		fmt.Scanln()
 	} else {
 		time.Sleep(3 * time.Second)
-		descColor.Println("  🦋 Spreading wings... Starting ztictl...")
+		descColor.Println("  🚀 Starting ztictl...")
 		time.Sleep(1 * time.Second)
 	}
 }
@@ -202,10 +205,10 @@ func animateMessage(message string) {
 
 // ShowBriefWelcome shows a minimal welcome for subsequent runs
 func ShowBriefWelcome(version string) {
-	butterflyColor := color.New(color.FgHiBlue, color.Bold)
+	accentColor := color.New(color.FgHiBlue, color.Bold)
 	titleColor := color.New(color.FgHiWhite, color.Bold)
 
-	butterflyColor.Print("🦋 ")
+	accentColor.Print("🎯 ")
 	titleColor.Printf("ztictl v%s", version)
 	fmt.Println(" - Transform your AWS workflow")
 	fmt.Println("Type 'ztictl --help' for usage information.")

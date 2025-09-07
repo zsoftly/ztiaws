@@ -306,7 +306,7 @@ system:
 	}
 
 	// Write sample config
-	if err := os.WriteFile(configPath, []byte(sampleConfig), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(sampleConfig), 0600); err != nil {
 		return errors.NewConfigError("failed to write sample config", err)
 	}
 

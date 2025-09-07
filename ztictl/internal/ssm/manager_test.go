@@ -1255,3 +1255,99 @@ func TestListFiltersWithTags(t *testing.T) {
 		})
 	}
 }
+
+// Test validation functions for command injection prevention
+func TestValidateInstanceID(t *testing.T) {
+	tests := []struct {
+		name        string
+		instanceID  string
+		expectError bool
+	}{
+		{"valid instance ID", "i-1234567890abcdef0", false},
+		{"valid short instance ID", "i-12345678", false},
+		{"valid max length ID", "i-12345678901234567", false},
+		{"invalid prefix", "inst-1234567890abcdef0", true},
+		{"too short", "i-1234567", true},
+		{"too long", "i-123456789012345678", true},
+		{"invalid characters", "i-1234567890abcdefg", true},
+		{"uppercase letters", "i-1234567890ABCDEF0", true},
+		{"with special chars", "i-1234567890abcdef0; rm -rf /", true},
+		{"empty string", "", true},
+		{"just prefix", "i-", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateInstanceID(tt.instanceID)
+			if tt.expectError && err == nil {
+				t.Errorf("Expected error for instance ID %q but got none", tt.instanceID)
+			} else if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error for instance ID %q: %v", tt.instanceID, err)
+			}
+		})
+	}
+}
+
+func TestValidateAWSRegion(t *testing.T) {
+	tests := []struct {
+		name        string
+		region      string
+		expectError bool
+	}{
+		{"valid us region", "us-east-1", false},
+		{"valid eu region", "eu-west-2", false},
+		{"valid ap region", "ap-southeast-1", false},
+		{"valid ca region", "ca-central-1", false},
+		{"three letter prefix", "aps-south-1", false},
+		{"invalid format", "invalid-region", true},
+		{"no dashes", "useast1", true},
+		{"too many dashes", "us-east-1-extra", true},
+		{"uppercase", "US-EAST-1", true},
+		{"with special chars", "us-east-1; echo", true},
+		{"empty string", "", true},
+		{"just dashes", "--", true},
+		{"missing number", "us-east-", true},
+		{"missing direction", "us--1", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateAWSRegion(tt.region)
+			if tt.expectError && err == nil {
+				t.Errorf("Expected error for region %q but got none", tt.region)
+			} else if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error for region %q: %v", tt.region, err)
+			}
+		})
+	}
+}
+
+func TestValidatePortNumber(t *testing.T) {
+	tests := []struct {
+		name        string
+		port        int
+		expectError bool
+	}{
+		{"valid port 80", 80, false},
+		{"valid port 8080", 8080, false},
+		{"valid port 22", 22, false},
+		{"valid port 443", 443, false},
+		{"port 1", 1, false},
+		{"port 65535", 65535, false},
+		{"port 0", 0, true},
+		{"negative port", -1, true},
+		{"port too high", 65536, true},
+		{"port too high", 100000, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validatePortNumber(tt.port)
+			if tt.expectError && err == nil {
+				t.Errorf("Expected error for port %d but got none", tt.port)
+			} else if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error for port %d: %v", tt.port, err)
+			}
+		})
+	}
+}

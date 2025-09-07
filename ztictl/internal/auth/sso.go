@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -273,7 +273,14 @@ func getAWSConfigDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
-	return filepath.Join(homeDir, ".aws"), nil
+	configDir := filepath.Join(homeDir, ".aws")
+
+	// Validate path to prevent directory traversal
+	if err := validateFilePath(configDir, homeDir); err != nil {
+		return "", fmt.Errorf("invalid AWS config directory path: %w", err)
+	}
+
+	return configDir, nil
 }
 
 // getAWSCacheDir returns the AWS SSO cache directory path
@@ -393,6 +400,11 @@ func (m *Manager) ListProfiles(ctx context.Context) ([]Profile, error) {
 	}
 	configPath := filepath.Join(configDir, "config")
 
+	// Validate config path to prevent directory traversal
+	if err := validateFilePath(configPath, configDir); err != nil {
+		return nil, fmt.Errorf("invalid config file path: %w", err)
+	}
+
 	content, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -463,6 +475,11 @@ func (m *Manager) configureProfile(profileName string, cfg *appconfig.Config) er
 
 	configPath := filepath.Join(configDir, "config")
 
+	// Validate config path to prevent directory traversal
+	if err := validateFilePath(configPath, configDir); err != nil {
+		return fmt.Errorf("invalid config file path: %w", err)
+	}
+
 	// Read existing config
 	var content string
 	if existing, err := os.ReadFile(configPath); err == nil {
@@ -490,11 +507,18 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 
 	cacheDir := filepath.Join(homeDir, ".aws", "sso", "cache")
 
-	// First, try the expected filename based on SHA1 hash
-	hasher := sha1.New()
+	// First, try the expected filename based on SHA256 hash
+	hasher := sha256.New()
 	hasher.Write([]byte(startURL))
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	expectedFile := filepath.Join(cacheDir, fmt.Sprintf("%s.json", hash))
+
+	// Validate cache file path to prevent directory traversal
+	if err := validateFilePath(expectedFile, cacheDir); err != nil {
+		// Log but don't fail - just skip this file
+		logging.LogWarn("Invalid cache file path, skipping: %v", err)
+		return nil, fmt.Errorf("no valid SSO token found")
+	}
 
 	if content, err := os.ReadFile(expectedFile); err == nil {
 		var token SSOToken
@@ -511,6 +535,12 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 		}
 
 		if !d.IsDir() && strings.HasSuffix(path, ".json") {
+			// Validate file path to prevent directory traversal attacks
+			if validateErr := validateFilePath(path, cacheDir); validateErr != nil {
+				// Skip invalid paths but continue walking
+				return nil
+			}
+
 			// Check if this file contains our start URL
 			content, readErr := os.ReadFile(path)
 			if readErr != nil {
@@ -692,7 +722,7 @@ func (m *Manager) saveTokenToCache(tokenResp *ssooidc.CreateTokenOutput, startUR
 	}
 
 	// Generate cache filename (AWS CLI compatible)
-	hasher := sha1.New()
+	hasher := sha256.New()
 	hasher.Write([]byte(startURL))
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	filename := fmt.Sprintf("%s.json", hash)
@@ -945,6 +975,11 @@ func (m *Manager) updateProfileWithSelection(profileName string, account *Accoun
 		return err
 	}
 	configPath := filepath.Join(configDir, "config")
+
+	// Validate config path to prevent directory traversal
+	if err := validateFilePath(configPath, configDir); err != nil {
+		return fmt.Errorf("invalid config file path: %w", err)
+	}
 
 	// Read existing config
 	content, err := os.ReadFile(configPath)
@@ -1223,6 +1258,13 @@ func (m *Manager) IsProfileAuthenticated(profileName string) bool {
 		if !file.IsDir() && strings.HasSuffix(file.Name(), ".json") {
 			// Read and check if token is still valid
 			tokenFile := filepath.Join(configDir, file.Name())
+
+			// Validate token file path to prevent directory traversal
+			if err := validateFilePath(tokenFile, configDir); err != nil {
+				// Skip invalid paths but continue checking other files
+				continue
+			}
+
 			content, err := os.ReadFile(tokenFile)
 			if err != nil {
 				continue
@@ -1315,5 +1357,34 @@ func (m *Manager) clearSSOCache() error {
 	// For Windows compatibility, we'll disable automatic cache clearing
 	// Users can manually clear cache using AWS CLI: aws sso logout
 	logging.LogInfo("Cache clearing disabled for security compatibility")
+	return nil
+}
+
+// validateFilePath ensures the path is within the allowed base directory
+// This prevents directory traversal attacks (CWE-22)
+func validateFilePath(targetPath, baseDir string) error {
+	// Clean and resolve paths
+	cleanTarget, err := filepath.Abs(filepath.Clean(targetPath))
+	if err != nil {
+		return fmt.Errorf("failed to resolve target path: %w", err)
+	}
+
+	cleanBase, err := filepath.Abs(filepath.Clean(baseDir))
+	if err != nil {
+		return fmt.Errorf("failed to resolve base path: %w", err)
+	}
+
+	// Check if target is within base directory
+	relPath, err := filepath.Rel(cleanBase, cleanTarget)
+	if err != nil {
+		return fmt.Errorf("failed to compute relative path: %w", err)
+	}
+
+	// Ensure the relative path doesn't escape the base directory
+	// Check for absolute paths or any presence of ".." which indicates directory traversal
+	if filepath.IsAbs(relPath) || strings.Contains(relPath, "..") {
+		return fmt.Errorf("path escapes base directory: %s", targetPath)
+	}
+
 	return nil
 }

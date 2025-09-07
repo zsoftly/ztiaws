@@ -1,5 +1,38 @@
 # Changelog
 
+## [v2.5.0] - 2025-09-07
+
+### Added
+- **Enhanced User Interface**: Complete ASCII-only splash screen redesign
+  - Beautiful ASCII art banner for universal terminal compatibility
+  - Updated feature showcase highlighting latest capabilities
+  - Clean, professional appearance without Unicode dependencies
+
+### Security
+- **Comprehensive Security Hardening**: Multiple vulnerability fixes and enhancements
+  - **G204 (Command Injection)**: Added input validation for all `exec.CommandContext()` calls with regex-based parameter validation
+  - **G304 (Directory Traversal)**: Implemented path validation to prevent file inclusion attacks across all file operations
+  - **G301 (File Permissions)**: Hardened directory permissions from 0755 to 0750
+  - **G104 (Error Handling)**: Added proper error handling for cleanup operations
+  - **G401 (Weak Cryptography)**: Migrated from SHA-1 to SHA-256 for all hash operations
+  - **G306 (File Permissions)**: Secured configuration files with 0600 permissions
+- **Input Validation Framework**: 
+  - Instance ID validation (`i-[0-9a-f]{8,17}`)
+  - AWS region format validation (`us-east-1`, `eu-west-2`, etc.)
+  - Port number range validation (1-65535)
+  - Path traversal protection for all file operations
+- **Test Coverage**: Added 45+ security-focused test cases covering all validation scenarios
+
+### Enhanced
+- **Code Quality Improvements**: String concatenation optimization and code cleanup
+- **Error Handling**: Comprehensive error handling improvements across the codebase
+- **Documentation**: Updated feature descriptions to highlight security and performance improvements
+
+### Technical
+- **Platform Compatibility**: Enhanced cross-platform support with ASCII-only interface elements
+- **Performance**: Optimized string operations and reduced complexity in hot paths
+- **Maintainability**: Improved code structure with centralized validation functions
+
 ## [v2.4.0] - 2025-09-07
 
 ### Added

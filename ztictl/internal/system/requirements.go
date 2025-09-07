@@ -328,7 +328,11 @@ func (c *RequirementsChecker) installSSMPluginUbuntu() error {
 	}
 
 	// Clean up
-	os.Remove("session-manager-plugin.deb")
+	if err := os.Remove("session-manager-plugin.deb"); err != nil {
+		// Log error but don't fail - cleanup is best effort
+		// Using fmt.Printf since we don't have logger in this context
+		fmt.Printf("Warning: failed to cleanup session-manager-plugin.deb: %v\n", err)
+	}
 
 	return nil
 }
