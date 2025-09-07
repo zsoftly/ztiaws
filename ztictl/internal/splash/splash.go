@@ -62,8 +62,8 @@ func ShowSplash(version string) (bool, error) {
 	if _, err := os.Stat(versionFile); os.IsNotExist(err) {
 		isFirstRun = true
 	} else {
-		// Read the last version
-		lastVersionBytes, err := os.ReadFile(versionFile)
+		// Read the last version (path already validated above)
+		lastVersionBytes, err := os.ReadFile(versionFile) // #nosec G304 - path validated at line 54
 		if err != nil {
 			return false, fmt.Errorf("failed to read version file: %w", err)
 		}
