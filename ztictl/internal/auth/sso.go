@@ -838,7 +838,7 @@ func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
 	// Adjust index since we added header and separator
 	if idx < 2 {
 		// User selected header or separator, treat as cancellation
-		color.New(color.FgRed).Printf("❌ Invalid selection\n")
+		_, _ = color.New(color.FgRed).Printf("❌ Invalid selection\n") // #nosec G104
 		return nil, fmt.Errorf("invalid selection")
 	}
 
@@ -846,14 +846,14 @@ func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
 
 	if err != nil {
 		if err.Error() == "abort" {
-			color.New(color.FgRed).Printf("❌ Account selection cancelled\n")
+			_, _ = color.New(color.FgRed).Printf("❌ Account selection cancelled\n") // #nosec G104
 			return nil, fmt.Errorf("account selection cancelled")
 		}
 		return nil, fmt.Errorf("account selection failed: %w", err)
 	}
 
 	// Display selection confirmation
-	color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s (%s)\n", accounts[actualIdx].AccountName, accounts[actualIdx].AccountID)
+	_, _ = color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s (%s)\n", accounts[actualIdx].AccountName, accounts[actualIdx].AccountID) // #nosec G104
 
 	return &accounts[actualIdx], nil
 }
@@ -951,7 +951,7 @@ func (m *Manager) selectRoleFuzzy(roles []Role, account *Account) (*Role, error)
 	// Adjust index since we added header and separator
 	if idx < 2 {
 		// User selected header or separator, treat as cancellation
-		color.New(color.FgRed).Printf("❌ Invalid selection\n")
+		_, _ = color.New(color.FgRed).Printf("❌ Invalid selection\n") // #nosec G104
 		return nil, fmt.Errorf("invalid selection")
 	}
 
@@ -959,14 +959,14 @@ func (m *Manager) selectRoleFuzzy(roles []Role, account *Account) (*Role, error)
 
 	if err != nil {
 		if err.Error() == "abort" {
-			color.New(color.FgRed).Printf("❌ Role selection cancelled\n")
+			_, _ = color.New(color.FgRed).Printf("❌ Role selection cancelled\n") // #nosec G104
 			return nil, fmt.Errorf("role selection cancelled")
 		}
 		return nil, fmt.Errorf("role selection failed: %w", err)
 	}
 
 	// Display selection confirmation
-	color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s\n", roles[actualIdx].RoleName)
+	_, _ = color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s\n", roles[actualIdx].RoleName) // #nosec G104
 
 	return &roles[actualIdx], nil
 }
@@ -1319,41 +1319,41 @@ func (m *Manager) printSuccessMessage(profileName string, account *Account, role
 	commandColor := color.New(color.FgHiYellow)
 
 	fmt.Println()
-	successColor.Println("🎉 Successfully configured AWS SSO profile.")
+	_, _ = successColor.Println("🎉 Successfully configured AWS SSO profile.") // #nosec G104
 	fmt.Println("----------------------------------------")
-	infoColor.Printf("Account: %s\n", account.AccountName)
-	infoColor.Printf("Role: %s\n", role.RoleName)
-	infoColor.Printf("Profile: %s\n", profileName)
+	_, _ = infoColor.Printf("Account: %s\n", account.AccountName) // #nosec G104
+	_, _ = infoColor.Printf("Role: %s\n", role.RoleName)          // #nosec G104
+	_, _ = infoColor.Printf("Profile: %s\n", profileName)         // #nosec G104
 	fmt.Println()
 
 	// Platform-specific instructions
-	infoColor.Println("To use this profile, run:")
+	_, _ = infoColor.Println("To use this profile, run:") // #nosec G104
 
 	switch runtime.GOOS {
 	case "windows":
 		// Windows Command Prompt instructions
 		fmt.Println()
-		infoColor.Println("For Command Prompt (cmd):")
-		commandColor.Printf("set AWS_PROFILE=%s\n", profileName)
-		commandColor.Printf("set AWS_DEFAULT_REGION=%s\n", cfg.SSO.Region)
+		_, _ = infoColor.Println("For Command Prompt (cmd):")                     // #nosec G104
+		_, _ = commandColor.Printf("set AWS_PROFILE=%s\n", profileName)           // #nosec G104
+		_, _ = commandColor.Printf("set AWS_DEFAULT_REGION=%s\n", cfg.SSO.Region) // #nosec G104
 
 		fmt.Println()
-		infoColor.Println("For PowerShell:")
-		commandColor.Printf("$env:AWS_PROFILE=\"%s\"\n", profileName)
-		commandColor.Printf("$env:AWS_DEFAULT_REGION=\"%s\"\n", cfg.SSO.Region)
+		_, _ = infoColor.Println("For PowerShell:")                                    // #nosec G104
+		_, _ = commandColor.Printf("$env:AWS_PROFILE=\"%s\"\n", profileName)           // #nosec G104
+		_, _ = commandColor.Printf("$env:AWS_DEFAULT_REGION=\"%s\"\n", cfg.SSO.Region) // #nosec G104
 
 	default:
 		// Unix/Linux/macOS instructions
-		commandColor.Printf("export AWS_PROFILE=%s AWS_DEFAULT_REGION=%s\n", profileName, cfg.SSO.Region)
+		_, _ = commandColor.Printf("export AWS_PROFILE=%s AWS_DEFAULT_REGION=%s\n", profileName, cfg.SSO.Region) // #nosec G104
 	}
 
 	fmt.Println()
-	infoColor.Println("To view your credentials, run:")
-	commandColor.Printf("ztictl auth creds %s\n", profileName)
+	_, _ = infoColor.Println("To view your credentials, run:")        // #nosec G104
+	_, _ = commandColor.Printf("ztictl auth creds %s\n", profileName) // #nosec G104
 
 	fmt.Println()
-	infoColor.Println("To list EC2 instances, run:")
-	commandColor.Printf("ztictl ssm list\n")
+	_, _ = infoColor.Println("To list EC2 instances, run:") // #nosec G104
+	_, _ = commandColor.Printf("ztictl ssm list\n")         // #nosec G104
 }
 
 func (m *Manager) clearSSOCache() error {

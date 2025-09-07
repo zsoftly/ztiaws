@@ -189,7 +189,7 @@ func (m *S3LifecycleManager) EnsureS3Bucket(ctx context.Context, bucketName, reg
 			if bucketCreated {
 				// Clean up the bucket we just created since it's not properly configured
 				m.logger.Error("Failed to apply lifecycle configuration to newly created bucket")
-				m.s3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{
+				_, _ = m.s3Client.DeleteBucket(ctx, &s3.DeleteBucketInput{ // #nosec G104 - cleanup operation
 					Bucket: aws.String(bucketName),
 				})
 				return fmt.Errorf("failed to apply lifecycle configuration to newly created bucket: %w", err)

@@ -94,7 +94,7 @@ func TestSsmStartCmd(t *testing.T) {
 
 			// Set flags if provided
 			for key, value := range tt.flags {
-				cmd.Flags().Set(key, value)
+				_ = cmd.Flags().Set(key, value) // #nosec G104
 			}
 
 			// Execute command
@@ -183,7 +183,7 @@ func TestSsmStopCmd(t *testing.T) {
 			cmd.Flags().IntP("parallel", "p", runtime.NumCPU(), "Maximum number of concurrent operations")
 
 			for key, value := range tt.flags {
-				cmd.Flags().Set(key, value)
+				_ = cmd.Flags().Set(key, value) // #nosec G104
 			}
 
 			var buf bytes.Buffer
@@ -271,7 +271,7 @@ func TestSsmRebootCmd(t *testing.T) {
 			cmd.Flags().IntP("parallel", "p", runtime.NumCPU(), "Maximum number of concurrent operations")
 
 			for key, value := range tt.flags {
-				cmd.Flags().Set(key, value)
+				_ = cmd.Flags().Set(key, value) // #nosec G104
 			}
 
 			var buf bytes.Buffer
@@ -368,7 +368,7 @@ func TestSsmStartTaggedCmd(t *testing.T) {
 			cmd.Flags().IntP("parallel", "p", runtime.NumCPU(), "Maximum number of concurrent operations")
 
 			for key, value := range tt.flags {
-				cmd.Flags().Set(key, value)
+				_ = cmd.Flags().Set(key, value) // #nosec G104
 			}
 
 			var buf bytes.Buffer
@@ -456,7 +456,7 @@ func TestSsmStopTaggedCmd(t *testing.T) {
 			cmd.Flags().IntP("parallel", "p", runtime.NumCPU(), "Maximum number of concurrent operations")
 
 			for key, value := range tt.flags {
-				cmd.Flags().Set(key, value)
+				_ = cmd.Flags().Set(key, value) // #nosec G104
 			}
 
 			var buf bytes.Buffer
@@ -544,7 +544,7 @@ func TestSsmRebootTaggedCmd(t *testing.T) {
 			cmd.Flags().IntP("parallel", "p", runtime.NumCPU(), "Maximum number of concurrent operations")
 
 			for key, value := range tt.flags {
-				cmd.Flags().Set(key, value)
+				_ = cmd.Flags().Set(key, value) // #nosec G104
 			}
 
 			var buf bytes.Buffer
@@ -612,7 +612,7 @@ func TestParallelExecutionValidation(t *testing.T) {
 			cmd.Flags().IntP("parallel", "p", runtime.NumCPU(), "Maximum number of concurrent operations")
 
 			if tt.parallel != "" {
-				cmd.Flags().Set("parallel", tt.parallel)
+				_ = cmd.Flags().Set("parallel", tt.parallel) // #nosec G104
 			}
 
 			err := cmd.Execute()

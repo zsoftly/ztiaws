@@ -711,7 +711,7 @@ Use --tags flag to specify one or more tag filters in key=value format, separate
 
 			// Add flags
 			cmd.Flags().StringP("tags", "t", "", "Tag filters in key=value format, separated by commas (required)")
-			cmd.MarkFlagRequired("tags")
+			_ = cmd.MarkFlagRequired("tags") // #nosec G104
 
 			buf := new(bytes.Buffer)
 			cmd.SetOut(buf)
@@ -754,7 +754,7 @@ func TestSsmExecTaggedFlags(t *testing.T) {
 	}
 
 	// Test that we can get and set the flag value
-	cmd.Flags().Set("tags", "Environment=test")
+	_ = cmd.Flags().Set("tags", "Environment=test") // #nosec G104
 	value, err := cmd.Flags().GetString("tags")
 	if err != nil {
 		t.Errorf("Error getting tags flag value: %v", err)

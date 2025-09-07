@@ -19,13 +19,13 @@ func TestShowSplash(t *testing.T) {
 	if originalHome != "" {
 		defer func() {
 			if runtime := os.Getenv("HOME"); runtime == "" {
-				os.Setenv("USERPROFILE", originalHome)
+				_ = os.Setenv("USERPROFILE", originalHome) // #nosec G104
 			} else {
-				os.Setenv("HOME", originalHome)
+				_ = os.Setenv("HOME", originalHome) // #nosec G104
 			}
 		}()
-		os.Setenv("HOME", tempDir)
-		os.Setenv("USERPROFILE", tempDir)
+		_ = os.Setenv("HOME", tempDir)        // #nosec G104
+		_ = os.Setenv("USERPROFILE", tempDir) // #nosec G104
 	}
 
 	// Test first run - should return true (splash shown)

@@ -147,18 +147,18 @@ func listAuthProfiles() error {
 		} else {
 			status = colors.ColorError("❌ Not authenticated")
 		}
-		colors.Data.Printf("%-20s ", profile.Name)
+		_, _ = colors.Data.Printf("%-20s ", profile.Name) // #nosec G104
 		fmt.Printf("%s\n", status)
 		if profile.AccountID != "" {
 			fmt.Printf("  Account: ")
-			colors.Data.Printf("%s ", profile.AccountID)
+			_, _ = colors.Data.Printf("%s ", profile.AccountID) // #nosec G104
 			fmt.Printf("(")
-			colors.Data.Printf("%s", profile.AccountName)
+			_, _ = colors.Data.Printf("%s", profile.AccountName) // #nosec G104
 			fmt.Printf(")\n")
 		}
 		if profile.RoleName != "" {
 			fmt.Printf("  Role: ")
-			colors.Data.Printf("%s\n", profile.RoleName)
+			_, _ = colors.Data.Printf("%s\n", profile.RoleName) // #nosec G104
 		}
 		fmt.Println()
 	}

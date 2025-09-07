@@ -281,7 +281,7 @@ func TestPersistentPreRun(t *testing.T) {
 
 	// Mock home directory
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir) // #nosec G104
 	defer os.Setenv("HOME", origHome)
 
 	tests := []struct {
@@ -350,7 +350,7 @@ func TestFlagBinding(t *testing.T) {
 	defer viper.Reset()
 
 	// Simulate flag parsing
-	rootCmd.PersistentFlags().Set("debug", "true")
+	_ = rootCmd.PersistentFlags().Set("debug", "true") // #nosec G104
 
 	// The binding should work through viper.BindPFlag in init()
 	// This is a structural test to ensure the binding exists

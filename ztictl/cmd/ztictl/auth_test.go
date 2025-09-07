@@ -336,9 +336,9 @@ func TestAuthCredsCmd(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set environment variable for test
 			if tt.envProfile != "" {
-				os.Setenv("AWS_PROFILE", tt.envProfile)
+				_ = os.Setenv("AWS_PROFILE", tt.envProfile) // #nosec G104 - test setup
 			} else {
-				os.Unsetenv("AWS_PROFILE")
+				_ = os.Unsetenv("AWS_PROFILE") // #nosec G104 - test setup
 			}
 
 			cmd := &cobra.Command{

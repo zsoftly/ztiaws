@@ -24,23 +24,23 @@ var (
 
 // Convenience functions for common color operations
 func PrintHeader(format string, args ...interface{}) {
-	Header.Printf(format, args...)
+	_, _ = Header.Printf(format, args...) // #nosec G104
 }
 
 func PrintData(format string, args ...interface{}) {
-	Data.Printf(format, args...)
+	_, _ = Data.Printf(format, args...) // #nosec G104
 }
 
 func PrintSuccess(format string, args ...interface{}) {
-	Success.Printf(format, args...)
+	_, _ = Success.Printf(format, args...) // #nosec G104
 }
 
 func PrintError(format string, args ...interface{}) {
-	Error.Printf(format, args...)
+	_, _ = Error.Printf(format, args...) // #nosec G104
 }
 
 func PrintWarning(format string, args ...interface{}) {
-	Warning.Printf(format, args...)
+	_, _ = Warning.Printf(format, args...) // #nosec G104
 }
 
 // Color formatting functions that return colored strings
