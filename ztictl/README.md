@@ -102,9 +102,13 @@ ztictl ssm connect i-1234567890abcdef0 --region us-east-1
 # Execute commands remotely
 ztictl ssm command i-1234567890abcdef0 "systemctl status nginx"
 
-# Execute on multiple instances by tags (NEW: Multi-tag support)
+# Execute on multiple instances by tags (NEW: Parallel execution + Instance filtering)
 ztictl ssm exec-tagged cac1 --tags Environment=production "df -h"
 ztictl ssm exec-tagged use1 --tags Environment=dev,Component=fts,Team=backend "systemctl status nginx"
+# NEW: Direct instance targeting with parallel execution
+ztictl ssm exec-tagged cac1 --instances i-123,i-456,i-789 --parallel 5 "uptime" 
+# NEW: Custom parallelism for large-scale operations
+ztictl ssm exec-tagged use1 --tags Environment=production --parallel 15 "docker ps"
 
 # Port forwarding
 ztictl ssm forward i-1234567890abcdef0 8080:80

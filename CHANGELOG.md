@@ -1,5 +1,36 @@
 # Changelog
 
+## [v2.3.0] - 2025-09-06
+
+### Added
+- **Parallel execution for exec-tagged command** - All commands now run in parallel by default for massive performance improvements at scale
+- **Instance ID filtering** - New `--instances` flag to explicitly target specific instance IDs (comma-separated)
+- **Configurable parallelism** - New `--parallel <N>` flag to control maximum concurrent executions (default: CPU cores)
+- **Enhanced execution summaries** - Detailed per-instance timing, success/failure counts, and performance metrics
+- **Mutual exclusion validation** - Prevent conflicting usage of `--tags` and `--instances` flags
+
+### Changed
+- **Breaking: Sequential execution removed** - All exec-tagged operations now run in parallel for better performance
+- **Improved scalability** - Worker pool pattern handles large instance sets efficiently with configurable limits
+- **Enhanced error handling** - Better validation and user-friendly error messages for invalid parallel values
+
+### Performance
+- **Dramatic speed improvements** - Commands on 20+ instances complete in seconds instead of minutes
+- **Resource control** - Configurable parallelism prevents system overload while maximizing throughput
+- **Real-time feedback** - Individual execution timing and progress visibility
+
+### Examples
+```bash
+# Parallel execution with tags (default CPU cores)
+ztictl ssm exec-tagged cac1 --tags Environment=production "uptime"
+
+# Custom parallelism for large environments
+ztictl ssm exec-tagged use1 --tags Owner=Ditah --parallel 15 "df -h" 
+
+# Direct instance targeting
+ztictl ssm exec-tagged cac1 --instances i-123,i-456,i-789 --parallel 5 "systemctl status nginx"
+```
+
 ## [v2.2.0] - 2025-09-06
 
 ### Added
