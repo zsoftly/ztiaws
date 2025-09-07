@@ -264,6 +264,31 @@ func TestFileTransferOperationWithError(t *testing.T) {
 		ErrorMessage: "File not found",
 	}
 
+	// Test all assigned fields
+	if operation.InstanceID != "i-1234567890abcdef0" {
+		t.Error("InstanceID should be set correctly")
+	}
+
+	if operation.Region != "us-east-1" {
+		t.Error("Region should be set correctly")
+	}
+
+	if operation.LocalPath != "/path/to/local/file.txt" {
+		t.Error("LocalPath should be set correctly")
+	}
+
+	if operation.RemotePath != "/path/to/remote/file.txt" {
+		t.Error("RemotePath should be set correctly")
+	}
+
+	if operation.Size != 0 {
+		t.Error("Size should be 0")
+	}
+
+	if operation.Method != "direct" {
+		t.Error("Method should be 'direct'")
+	}
+
 	if operation.Status != "failed" {
 		t.Error("Status should be 'failed'")
 	}
@@ -609,6 +634,23 @@ func TestCommandResultWithNilValues(t *testing.T) {
 		ExecutionTime: nil, // Test nil execution time
 	}
 
+	// Test all assigned fields
+	if result.InstanceID != "i-1234567890abcdef0" {
+		t.Error("InstanceID should be set correctly")
+	}
+
+	if result.Command != "echo 'test'" {
+		t.Error("Command should be set correctly")
+	}
+
+	if result.Output != "test\n" {
+		t.Error("Output should be set correctly")
+	}
+
+	if result.ErrorOutput != "" {
+		t.Error("ErrorOutput should be empty")
+	}
+
 	if result.ExitCode != nil {
 		t.Error("ExitCode should be nil when not set")
 	}
@@ -629,6 +671,10 @@ func TestInstanceWithEmptyTags(t *testing.T) {
 		Tags:       map[string]string{}, // Empty tags map
 	}
 
+	if instance.InstanceID != "i-1234567890abcdef0" {
+		t.Error("InstanceID should be set correctly")
+	}
+
 	if instance.Tags == nil {
 		t.Error("Tags map should not be nil")
 	}
@@ -643,6 +689,10 @@ func TestInstanceWithEmptyTags(t *testing.T) {
 		Tags:       nil,
 	}
 
+	if instance2.InstanceID != "i-1234567890abcdef0" {
+		t.Error("InstanceID should be set correctly")
+	}
+
 	if instance2.Tags != nil {
 		t.Error("Tags should be nil when explicitly set to nil")
 	}
@@ -654,6 +704,10 @@ func TestListFiltersEdgeCases(t *testing.T) {
 		Tag:    "Name=test-server-*",
 		Status: "running",
 		Name:   "*web*",
+	}
+
+	if filters.Status != "running" {
+		t.Error("Status filter should be set correctly")
 	}
 
 	if !strings.Contains(filters.Tag, "*") {

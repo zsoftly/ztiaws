@@ -128,6 +128,19 @@ func TestSsmCleanupCmd(t *testing.T) {
 						config.Sessions = true
 					}
 
+					// Test all assigned fields
+					if config.Region != region {
+						t.Errorf("Region should be %s, got %s", region, config.Region)
+					}
+
+					if config.OlderThan != duration {
+						t.Errorf("OlderThan should be %v, got %v", duration, config.OlderThan)
+					}
+
+					if config.Force != force {
+						t.Errorf("Force should be %v, got %v", force, config.Force)
+					}
+
 					// Mock cleanup results
 					type CleanupResult struct {
 						ResourceType string

@@ -465,6 +465,10 @@ func TestSsmConnectSessionManagement(t *testing.T) {
 		t.Error("Session should have status")
 	}
 
+	if session.StartTime == "" {
+		t.Error("Session should have start time")
+	}
+
 	// Test valid statuses
 	validStatuses := []string{"Connected", "Connecting", "Terminated", "Terminating", "Failed"}
 	isValidStatus := false

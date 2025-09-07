@@ -385,6 +385,12 @@ func TestAuthCredsCmd(t *testing.T) {
 					if creds.SecretAccessKey == "" {
 						t.Error("SecretAccessKey should not be empty")
 					}
+					if creds.SessionToken == "" {
+						t.Error("SessionToken should not be empty")
+					}
+					if creds.Region == "" {
+						t.Error("Region should not be empty")
+					}
 
 					// Verify profile name handling
 					expectedProfile := "test-profile"
@@ -576,5 +582,11 @@ func TestMockAuthManagerBehavior(t *testing.T) {
 	}
 	if mockCreds.SecretAccessKey == "" {
 		t.Error("Mock credentials should have secret key")
+	}
+	if mockCreds.SessionToken == "" {
+		t.Error("Mock credentials should have session token")
+	}
+	if mockCreds.Region == "" {
+		t.Error("Mock credentials should have region")
 	}
 }

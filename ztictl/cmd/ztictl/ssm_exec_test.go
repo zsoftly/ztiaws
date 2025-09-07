@@ -119,6 +119,23 @@ func TestSsmExecCmd(t *testing.T) {
 						config.Parallel = 1 // default
 					}
 
+					// Test all assigned fields
+					if config.Command != command {
+						t.Errorf("Command should be %s, got %s", command, config.Command)
+					}
+
+					if config.Script != script {
+						t.Errorf("Script should be %s, got %s", script, config.Script)
+					}
+
+					if config.Region != region {
+						t.Errorf("Region should be %s, got %s", region, config.Region)
+					}
+
+					if config.DryRun != dryRun {
+						t.Errorf("DryRun should be %v, got %v", dryRun, config.DryRun)
+					}
+
 					// Test target validation
 					if len(config.Targets) == 0 && config.Tag == "" {
 						return fmt.Errorf("either targets or tag filter must be provided")

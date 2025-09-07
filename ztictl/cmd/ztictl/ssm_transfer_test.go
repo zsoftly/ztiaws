@@ -115,12 +115,32 @@ func TestSsmTransferCmd(t *testing.T) {
 						Direction:    "upload",
 						TransferSize: 1024 * 1024, // 1MB
 						S3Bucket:     s3Bucket,
-						UseS3:        s3Bucket != "" || 1024*1024 >= 1024*1024, // Use S3 for large files
 						Force:        force,
 					}
 
+					// Set UseS3 based on actual transfer size
+					operation.UseS3 = s3Bucket != "" || operation.TransferSize >= 1000*1000
+
 					if isDownload {
 						operation.Direction = "download"
+					}
+
+					// Test all assigned fields
+					if operation.InstanceID != instanceIdentifier {
+						t.Errorf("InstanceID should be %s, got %s", instanceIdentifier, operation.InstanceID)
+					}
+
+					if operation.SourcePath != sourcePath {
+						t.Errorf("SourcePath should be %s, got %s", sourcePath, operation.SourcePath)
+					}
+
+					expectedUseS3 := s3Bucket != "" || operation.TransferSize >= 1000*1000
+					if operation.UseS3 != expectedUseS3 {
+						t.Errorf("UseS3 should be %v, got %v", expectedUseS3, operation.UseS3)
+					}
+
+					if operation.Force != force {
+						t.Errorf("Force should be %v, got %v", force, operation.Force)
 					}
 
 					// Validate transfer operation

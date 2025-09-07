@@ -133,6 +133,12 @@ func TestSsmCommandCmd(t *testing.T) {
 					if result.ExitCode < 0 {
 						t.Errorf("Exit code should not be negative: %d", result.ExitCode)
 					}
+					if result.Error != "" {
+						t.Error("Successful command should have no error")
+					}
+					if result.Duration <= 0 {
+						t.Errorf("Duration should be positive: %d", result.Duration)
+					}
 
 					// Test specific commands
 					if command == "uptime" {
@@ -496,6 +502,14 @@ func TestCommandResultStructure(t *testing.T) {
 
 	if result.Command == "" {
 		t.Error("Command should not be empty")
+	}
+
+	if result.Output == "" {
+		t.Error("Output should not be empty for successful command")
+	}
+
+	if result.Error != "" {
+		t.Error("Error should be empty for successful command")
 	}
 
 	// Test valid statuses

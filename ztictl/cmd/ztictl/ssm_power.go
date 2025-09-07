@@ -66,7 +66,7 @@ Examples:
 
 			// Execute in parallel
 			startTime := time.Now()
-			results := executePowerOperationParallel(ctx, awsClient, instanceIDs, region, "start", parallelFlag)
+			results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "start", parallelFlag)
 			totalDuration := time.Since(startTime)
 			if err := displayPowerOperationResults(results, "start", totalDuration, parallelFlag); err != nil {
 				os.Exit(1)
@@ -77,7 +77,7 @@ Examples:
 			logging.LogInfo("Starting instance %s in region: %s", instanceIdentifier, region)
 
 			// Resolve instance ID if name was provided
-			instanceID, err := resolveInstanceID(ctx, awsClient, instanceIdentifier, region)
+			instanceID, err := resolveInstanceID(ctx, awsClient, instanceIdentifier)
 			if err != nil {
 				colors.PrintError("✗ Failed to resolve instance: %v\n", err)
 				logging.LogError("Failed to resolve instance: %v", err)
@@ -146,7 +146,7 @@ Examples:
 
 			// Execute in parallel
 			startTime := time.Now()
-			results := executePowerOperationParallel(ctx, awsClient, instanceIDs, region, "stop", parallelFlag)
+			results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "stop", parallelFlag)
 			totalDuration := time.Since(startTime)
 			if err := displayPowerOperationResults(results, "stop", totalDuration, parallelFlag); err != nil {
 				os.Exit(1)
@@ -157,7 +157,7 @@ Examples:
 			logging.LogInfo("Stopping instance %s in region: %s", instanceIdentifier, region)
 
 			// Resolve instance ID if name was provided
-			instanceID, err := resolveInstanceID(ctx, awsClient, instanceIdentifier, region)
+			instanceID, err := resolveInstanceID(ctx, awsClient, instanceIdentifier)
 			if err != nil {
 				colors.PrintError("✗ Failed to resolve instance: %v\n", err)
 				logging.LogError("Failed to resolve instance: %v", err)
@@ -226,7 +226,7 @@ Examples:
 
 			// Execute in parallel
 			startTime := time.Now()
-			results := executePowerOperationParallel(ctx, awsClient, instanceIDs, region, "reboot", parallelFlag)
+			results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "reboot", parallelFlag)
 			totalDuration := time.Since(startTime)
 			if err := displayPowerOperationResults(results, "reboot", totalDuration, parallelFlag); err != nil {
 				os.Exit(1)
@@ -237,7 +237,7 @@ Examples:
 			logging.LogInfo("Rebooting instance %s in region: %s", instanceIdentifier, region)
 
 			// Resolve instance ID if name was provided
-			instanceID, err := resolveInstanceID(ctx, awsClient, instanceIdentifier, region)
+			instanceID, err := resolveInstanceID(ctx, awsClient, instanceIdentifier)
 			if err != nil {
 				colors.PrintError("✗ Failed to resolve instance: %v\n", err)
 				logging.LogError("Failed to resolve instance: %v", err)
@@ -308,7 +308,7 @@ Examples:
 			logging.LogInfo("Starting %d explicit instance IDs in region: %s", len(instanceIDs), region)
 		} else {
 			// Use tag filtering to find instances
-			instanceIDs, err = getInstanceIDsByTags(ctx, awsClient, tagsFlag, region)
+			instanceIDs, err = getInstanceIDsByTags(ctx, awsClient, tagsFlag)
 			if err != nil {
 				colors.PrintError("✗ Failed to find instances by tags: %v\n", err)
 				logging.LogError("Failed to find instances by tags: %v", err)
@@ -328,7 +328,7 @@ Examples:
 
 		// Execute power operations in parallel
 		startTime := time.Now()
-		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, region, "start", parallelFlag)
+		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "start", parallelFlag)
 		totalDuration := time.Since(startTime)
 
 		// Process and display results
@@ -386,7 +386,7 @@ Examples:
 			logging.LogInfo("Stopping %d explicit instance IDs in region: %s", len(instanceIDs), region)
 		} else {
 			// Use tag filtering to find instances
-			instanceIDs, err = getInstanceIDsByTags(ctx, awsClient, tagsFlag, region)
+			instanceIDs, err = getInstanceIDsByTags(ctx, awsClient, tagsFlag)
 			if err != nil {
 				colors.PrintError("✗ Failed to find instances by tags: %v\n", err)
 				logging.LogError("Failed to find instances by tags: %v", err)
@@ -406,7 +406,7 @@ Examples:
 
 		// Execute power operations in parallel
 		startTime := time.Now()
-		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, region, "stop", parallelFlag)
+		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "stop", parallelFlag)
 		totalDuration := time.Since(startTime)
 
 		// Process and display results
@@ -464,7 +464,7 @@ Examples:
 			logging.LogInfo("Rebooting %d explicit instance IDs in region: %s", len(instanceIDs), region)
 		} else {
 			// Use tag filtering to find instances
-			instanceIDs, err = getInstanceIDsByTags(ctx, awsClient, tagsFlag, region)
+			instanceIDs, err = getInstanceIDsByTags(ctx, awsClient, tagsFlag)
 			if err != nil {
 				colors.PrintError("✗ Failed to find instances by tags: %v\n", err)
 				logging.LogError("Failed to find instances by tags: %v", err)
@@ -484,7 +484,7 @@ Examples:
 
 		// Execute power operations in parallel
 		startTime := time.Now()
-		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, region, "reboot", parallelFlag)
+		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "reboot", parallelFlag)
 		totalDuration := time.Since(startTime)
 
 		// Process and display results
@@ -548,7 +548,7 @@ func capitalize(s string) string {
 }
 
 // resolveInstanceID converts instance name to instance ID if needed
-func resolveInstanceID(ctx context.Context, awsClient *aws.Client, instanceIdentifier, region string) (string, error) {
+func resolveInstanceID(ctx context.Context, awsClient *aws.Client, instanceIdentifier string) (string, error) {
 	// If it's already an instance ID (starts with i-), return as is
 	if strings.HasPrefix(instanceIdentifier, "i-") {
 		return instanceIdentifier, nil
@@ -579,7 +579,7 @@ func resolveInstanceID(ctx context.Context, awsClient *aws.Client, instanceIdent
 }
 
 // getInstanceIDsByTags finds instance IDs by tag filters
-func getInstanceIDsByTags(ctx context.Context, awsClient *aws.Client, tagsFlag, region string) ([]string, error) {
+func getInstanceIDsByTags(ctx context.Context, awsClient *aws.Client, tagsFlag string) ([]string, error) {
 	// Parse tag filters
 	filters := make([]types.Filter, 0)
 	if tagsFlag != "" {
@@ -615,7 +615,7 @@ func getInstanceIDsByTags(ctx context.Context, awsClient *aws.Client, tagsFlag, 
 }
 
 // executePowerOperationParallel runs power operations in parallel across multiple instances
-func executePowerOperationParallel(ctx context.Context, awsClient *aws.Client, instanceIDs []string, region, operation string, maxParallel int) []PowerOperationResult {
+func executePowerOperationParallel(ctx context.Context, awsClient *aws.Client, instanceIDs []string, operation string, maxParallel int) []PowerOperationResult {
 	// Create channels for work distribution and result collection
 	instanceChan := make(chan string, len(instanceIDs))
 	resultChan := make(chan PowerOperationResult, len(instanceIDs))
