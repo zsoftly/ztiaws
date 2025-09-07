@@ -119,8 +119,8 @@ func TestGetFilePermissions(t *testing.T) {
 			t.Errorf("getFilePermissions() on Windows = %v, want 0666", result)
 		}
 	} else {
-		if result != 0644 {
-			t.Errorf("getFilePermissions() on Unix = %v, want 0644", result)
+		if result != 0600 {
+			t.Errorf("getFilePermissions() on Unix = %v, want 0600", result)
 		}
 	}
 }
@@ -266,7 +266,7 @@ func TestLogToFile(t *testing.T) {
 
 	// Read log file content
 	expectedLogFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
-	content, err := os.ReadFile(expectedLogFile)
+	content, err := os.ReadFile(expectedLogFile) // #nosec G304 - test file with controlled path
 	if err != nil {
 		t.Fatalf("Failed to read log file: %v", err)
 	}
@@ -325,7 +325,7 @@ func TestLogFunctions(t *testing.T) {
 
 			// Verify log file contains the message
 			logFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
-			content, err := os.ReadFile(logFile)
+			content, err := os.ReadFile(logFile) // #nosec G304 - test file with controlled path
 			if err != nil {
 				t.Fatalf("%s: Failed to read log file: %v", tt.name, err)
 			}
@@ -457,7 +457,7 @@ func TestLoggerMethods(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clear log file for this test
 			logFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
-			_ = os.WriteFile(logFile, []byte{}, 0644)
+			_ = os.WriteFile(logFile, []byte{}, 0600)
 
 			// Call the appropriate method
 			switch tt.method {
@@ -472,7 +472,7 @@ func TestLoggerMethods(t *testing.T) {
 			}
 
 			// Read log file content
-			content, _ := os.ReadFile(logFile)
+			content, _ := os.ReadFile(logFile) // #nosec G304 - test file with controlled path
 
 			if tt.expectOutput {
 				// Should have file output
@@ -545,7 +545,7 @@ func TestConcurrentLogging(t *testing.T) {
 
 	// Verify log file has correct number of entries
 	logFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
-	content, err := os.ReadFile(logFile)
+	content, err := os.ReadFile(logFile) // #nosec G304 - test file with controlled path
 	if err != nil {
 		t.Fatalf("Failed to read log file: %v", err)
 	}
@@ -618,7 +618,7 @@ func TestLoggerWithFormatting(t *testing.T) {
 
 	// Verify in log file
 	logFile := filepath.Join(tempDir, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
-	content, err := os.ReadFile(logFile)
+	content, err := os.ReadFile(logFile) // #nosec G304 - test file with controlled path
 	if err != nil {
 		t.Fatalf("Failed to read log file: %v", err)
 	}
@@ -740,7 +740,7 @@ func TestLogFileRotation(t *testing.T) {
 	_, _ = r.Read(buf[:])
 
 	// The file should still exist and contain both messages
-	content, err := os.ReadFile(expectedFile1)
+	content, err := os.ReadFile(expectedFile1) // #nosec G304 - test file with controlled path
 	if err != nil {
 		t.Fatalf("Failed to read log file: %v", err)
 	}

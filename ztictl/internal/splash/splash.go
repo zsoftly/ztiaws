@@ -8,20 +8,23 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"ztictl/pkg/security"
 )
 
 const (
-	// ASCII art banner for ztictl with butterfly theme
+	// Clean ASCII art banner
 	banner = `
-  ╭─────────────────────────────────────────────╮
-  │    🦋 ztictl - Transform Your AWS Workflow   │
-  │         ╭─╮   Small commands,              │
-  │      ╭─╯   ╰─╮ Big impact                  │
-  │   ╭─╯  ◦ ◦  ╰─╮                            │
-  │  ╰─╮    ◦    ╱─╯  🔐 SSO • 🖥️ SSM • ⚡ More │
-  │     ╰─╮     ╱                              │
-  │       ╰─────╯                              │
-  ╰─────────────────────────────────────────────╯
+               .    o8o                .   oooo  
+             .o8    ` + "`" + `"'              .o8   ` + "`" + `888  
+  oooooooo .o888oo oooo   .ooooo.  .o888oo  888  
+ d'""7d8P    888   ` + "`" + `888  d88' ` + "`" + `"Y8   888    888  
+   .d8P'     888    888  888         888    888  
+ .d8P'  .P   888 .  888  888   .o8   888 .  888  
+d8888888P    "888" o888o ` + "`" + `Y8bod8P'   "888" o888o 
+                                                 
+                          Z S o f t l y
+                 AWS SSO & Systems Manager CLI
+                  Small commands, powerful results
 `
 
 	// Version tracking file
@@ -47,6 +50,11 @@ func ShowSplash(version string) (bool, error) {
 
 	versionFile := filepath.Join(homeDir, versionTrackingFile)
 
+	// Validate file path to prevent directory traversal (G304 fix)
+	if err := security.ValidateFilePath(versionFile, homeDir); err != nil {
+		return false, fmt.Errorf("invalid version file path: %w", err)
+	}
+
 	// Check if this is first run or new version
 	isFirstRun := false
 	isNewVersion := false
@@ -54,8 +62,8 @@ func ShowSplash(version string) (bool, error) {
 	if _, err := os.Stat(versionFile); os.IsNotExist(err) {
 		isFirstRun = true
 	} else {
-		// Read the last version
-		lastVersionBytes, err := os.ReadFile(versionFile)
+		// Read the last version (path already validated above)
+		lastVersionBytes, err := os.ReadFile(versionFile) // #nosec G304
 		if err != nil {
 			return false, fmt.Errorf("failed to read version file: %w", err)
 		}
@@ -75,20 +83,21 @@ func ShowSplash(version string) (bool, error) {
 			IsFirstRun:   isFirstRun,
 			IsNewVersion: isNewVersion,
 			Features: []string{
+				"⚡ EC2 Power Management - Start/Stop/Reboot instances individually or in bulk",
+				"🏷️  Advanced Tag-Based Operations - Target multiple instances with flexible filtering",
+				"🚀 Parallel Execution Engine - Process multiple instances concurrently for speed",
+				"🔒 Enhanced Security - Command injection protection and input validation",
 				"🔐 AWS SSO Authentication with interactive selection",
-				"🖥️  SSM Session Manager connections",
-				"⚡ Remote command execution via SSM",
-				"📁 File transfer through SSM (with S3 for large files)",
-				"🌐 Port forwarding through SSM tunnels",
-				"🌍 Multi-region support",
-				"📊 Comprehensive logging and configuration",
+				"📁 File transfer through SSM with intelligent S3 routing for large files",
+				"🌐 Port forwarding and remote command execution via SSM",
+				"🌍 Multi-region support with comprehensive logging",
 			},
 		}
 
 		displaySplash(config)
 
 		// Update version tracking file
-		if err := os.WriteFile(versionFile, []byte(version), 0644); err != nil {
+		if err := os.WriteFile(versionFile, []byte(version), 0600); err != nil {
 			return false, fmt.Errorf("failed to write version file: %w", err)
 		}
 
@@ -113,77 +122,77 @@ func displaySplash(config SplashConfig) {
 	fmt.Print("\033[2J\033[H")
 
 	// Display banner with butterfly theme colors
-	butterflyColor.Print(banner)
+	_, _ = butterflyColor.Print(banner) // #nosec G104
 
 	// Version and title
 	fmt.Print("\n")
-	titleColor.Printf("  %s ", config.AppName)
-	versionColor.Printf("v%s\n", config.AppVersion)
-	descColor.Printf("  %s\n\n", config.Description)
+	_, _ = titleColor.Printf("  %s ", config.AppName)       // #nosec G104
+	_, _ = versionColor.Printf("v%s\n", config.AppVersion)  // #nosec G104
+	_, _ = descColor.Printf("  %s\n\n", config.Description) // #nosec G104
 
-	// Welcome message based on run type with butterfly theme
+	// Welcome message
 	if config.IsFirstRun {
-		headerColor.Println("  🦋 Welcome to ztictl! Ready to transform your AWS workflow?")
-		descColor.Println("  Like a butterfly effect, small commands create powerful changes.")
+		_, _ = headerColor.Println("  🎉 Welcome to ztictl!")                        // #nosec G104
+		_, _ = descColor.Println("  Small commands, powerful AWS transformations.") // #nosec G104
 		fmt.Println("  Let's get you set up with everything you need.")
 	} else if config.IsNewVersion {
-		headerColor.Printf("  🦋 Welcome back! Your workflow just got more powerful with v%s\n", config.AppVersion)
-		descColor.Println("  New features await - small updates, big improvements.")
+		_, _ = headerColor.Printf("  ✨ ztictl v%s is ready!\n", config.AppVersion) // #nosec G104
+		_, _ = descColor.Println("  Small updates, big improvements.")             // #nosec G104
 	}
 
 	// Feature showcase
 	fmt.Println()
-	headerColor.Println("  ✨ Features & Capabilities:")
-	headerColor.Println("  " + strings.Repeat("═", 40))
+	_, _ = headerColor.Println("  ✨ Features & Capabilities:") // #nosec G104
+	_, _ = headerColor.Println("  " + strings.Repeat("═", 40)) // #nosec G104
 
 	for _, feature := range config.Features {
-		featureColor.Printf("    %s\n", feature)
+		_, _ = featureColor.Printf("    %s\n", feature) // #nosec G104
 	}
 
 	// Quick start guide
 	fmt.Println()
-	headerColor.Println("  🚀 Quick Start Guide:")
-	headerColor.Println("  " + strings.Repeat("═", 25))
+	_, _ = headerColor.Println("  🚀 Quick Start Guide:")       // #nosec G104
+	_, _ = headerColor.Println("  " + strings.Repeat("═", 25)) // #nosec G104
 
 	if config.IsFirstRun {
-		accentColor.Println("    1. Configure your settings:")
+		_, _ = accentColor.Println("    1. Configure your settings:") // #nosec G104
 		fmt.Println("       ztictl config init")
 		fmt.Println()
-		accentColor.Println("    2. Check system requirements:")
+		_, _ = accentColor.Println("    2. Check system requirements:") // #nosec G104
 		fmt.Println("       ztictl config check")
 		fmt.Println()
-		accentColor.Println("    3. Authenticate with AWS SSO:")
+		_, _ = accentColor.Println("    3. Authenticate with AWS SSO:") // #nosec G104
 		fmt.Println("       ztictl auth login")
 		fmt.Println()
-		accentColor.Println("    4. List your EC2 instances:")
+		_, _ = accentColor.Println("    4. List your EC2 instances:") // #nosec G104
 		fmt.Println("       ztictl ssm list")
 	} else {
-		accentColor.Println("    • View help:           ztictl --help")
-		accentColor.Println("    • Check configuration: ztictl config show")
-		accentColor.Println("    • Login to AWS:        ztictl auth login")
-		accentColor.Println("    • List instances:      ztictl ssm list")
+		_, _ = accentColor.Println("    • View help:           ztictl --help")      // #nosec G104
+		_, _ = accentColor.Println("    • Check configuration: ztictl config show") // #nosec G104
+		_, _ = accentColor.Println("    • Login to AWS:        ztictl auth login")  // #nosec G104
+		_, _ = accentColor.Println("    • List instances:      ztictl ssm list")    // #nosec G104
 	}
 
 	// Footer
 	fmt.Println()
-	headerColor.Println("  📚 Documentation & Support:")
-	headerColor.Println("  " + strings.Repeat("═", 35))
-	featureColor.Println("    • GitHub: https://github.com/zsoftly/ztiaws")
-	featureColor.Println("    • Help:   ztictl --help")
-	featureColor.Println("    • Config: ztictl config --help")
+	_, _ = headerColor.Println("  📚 Documentation & Support:")                     // #nosec G104
+	_, _ = headerColor.Println("  " + strings.Repeat("═", 35))                     // #nosec G104
+	_, _ = featureColor.Println("    • GitHub: https://github.com/zsoftly/ztiaws") // #nosec G104
+	_, _ = featureColor.Println("    • Help:   ztictl --help")                     // #nosec G104
+	_, _ = featureColor.Println("    • Config: ztictl config --help")              // #nosec G104
 
-	// Animated separator with butterfly theme
+	// Animated separator
 	fmt.Println()
-	animateMessage("  🦋" + strings.Repeat("═", 56) + "🦋")
+	animateMessage("  🎯" + strings.Repeat("═", 56) + "🎯")
 	fmt.Println()
 
 	// Pause for user to read
 	if config.IsFirstRun {
-		butterflyColor.Print("  🦋 Press Enter to begin your transformation...")
-		fmt.Scanln()
+		_, _ = headerColor.Print("  🚀 Press Enter to continue...") // #nosec G104
+		_, _ = fmt.Scanln()                                        // Ignore error as user input is not critical
 	} else {
 		time.Sleep(3 * time.Second)
-		descColor.Println("  🦋 Spreading wings... Starting ztictl...")
+		_, _ = descColor.Println("  🚀 Starting ztictl...") // #nosec G104
 		time.Sleep(1 * time.Second)
 	}
 }
@@ -192,7 +201,7 @@ func displaySplash(config SplashConfig) {
 func animateMessage(message string) {
 	color := color.New(color.FgHiCyan)
 	for i, char := range message {
-		color.Printf("%c", char)
+		_, _ = color.Printf("%c", char) // #nosec G104
 		if i%10 == 0 {
 			time.Sleep(50 * time.Millisecond)
 		}
@@ -202,11 +211,11 @@ func animateMessage(message string) {
 
 // ShowBriefWelcome shows a minimal welcome for subsequent runs
 func ShowBriefWelcome(version string) {
-	butterflyColor := color.New(color.FgHiBlue, color.Bold)
+	accentColor := color.New(color.FgHiBlue, color.Bold)
 	titleColor := color.New(color.FgHiWhite, color.Bold)
 
-	butterflyColor.Print("🦋 ")
-	titleColor.Printf("ztictl v%s", version)
+	_, _ = accentColor.Print("🎯 ")                  // #nosec G104
+	_, _ = titleColor.Printf("ztictl v%s", version) // #nosec G104
 	fmt.Println(" - Transform your AWS workflow")
 	fmt.Println("Type 'ztictl --help' for usage information.")
 	fmt.Println()

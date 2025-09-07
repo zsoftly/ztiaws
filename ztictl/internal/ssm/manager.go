@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	appconfig "ztictl/internal/config"
 	"ztictl/pkg/errors"
 	"ztictl/pkg/logging"
+	"ztictl/pkg/security"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -27,6 +29,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+)
+
+// Compiled regex patterns for input validation (performance optimization)
+var (
+	// AWS instance IDs follow the pattern: i-[0-9a-f]{8,17}
+	instanceIDRegex = regexp.MustCompile(`^i-[0-9a-f]{8,17}$`)
+
+	// AWS regions follow patterns like: us-east-1, eu-west-2, ap-southeast-1, etc.
+	awsRegionRegex = regexp.MustCompile(`^[a-z]{2,3}-[a-z]+-[0-9]+$`)
 )
 
 // Manager handles AWS Systems Manager operations
@@ -135,9 +146,27 @@ func (m *Manager) StartSession(ctx context.Context, instanceIdentifier, region s
 
 	m.logger.Info("Starting SSM session for instance", "instanceID", instanceID, "region", region)
 
+	// Validate parameters to prevent command injection
+	if err := validateInstanceID(instanceID); err != nil {
+		return fmt.Errorf("invalid instance ID: %w", err)
+	}
+	if err := validateAWSRegion(region); err != nil {
+		return fmt.Errorf("invalid region: %w", err)
+	}
+
 	// Use AWS CLI for session manager (Go SDK doesn't support interactive sessions)
-	cmd := exec.CommandContext(ctx, getAWSCommand(), "ssm", "start-session",
-		"--region", region, "--target", instanceID)
+	// Build command with validated and sanitized parameters
+	awsCmd := getAWSCommand()
+
+	// Parameters are already validated above, but create explicit parameter strings for clarity
+	regionParam := region
+	targetParam := instanceID
+
+	// #nosec G204 - Parameters are validated above using strict regex patterns for AWS instance ID and region format
+	cmd := exec.CommandContext(ctx, awsCmd,
+		"ssm", "start-session",
+		"--region", regionParam,
+		"--target", targetParam)
 
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -289,6 +318,11 @@ func (m *Manager) UploadFile(ctx context.Context, instanceIdentifier, region, lo
 		return fmt.Errorf("failed to resolve instance: %w", err)
 	}
 
+	// Validate that the local path is within safe boundaries
+	if err := security.ValidateFilePathWithWorkingDir(localPath); err != nil {
+		return fmt.Errorf("unsafe file path: %w", err)
+	}
+
 	// Check if local file exists
 	fileInfo, err := os.Stat(localPath)
 	if err != nil {
@@ -313,6 +347,11 @@ func (m *Manager) DownloadFile(ctx context.Context, instanceIdentifier, region, 
 	instanceID, err := m.resolveInstanceIdentifier(ctx, instanceIdentifier, region)
 	if err != nil {
 		return fmt.Errorf("failed to resolve instance: %w", err)
+	}
+
+	// Validate that the local path is within safe boundaries
+	if err := security.ValidateFilePathWithWorkingDir(localPath); err != nil {
+		return fmt.Errorf("unsafe file path: %w", err)
 	}
 
 	m.logger.Info("Downloading file from instance", "instanceID", instanceID, "remotePath", remotePath, "localPath", localPath)
@@ -343,12 +382,36 @@ func (m *Manager) ForwardPort(ctx context.Context, instanceIdentifier, region st
 
 	m.logger.Info("Starting port forwarding for instance", "instanceID", instanceID, "localPort", localPort, "remotePort", remotePort)
 
+	// Validate parameters to prevent command injection
+	if err := validateInstanceID(instanceID); err != nil {
+		return fmt.Errorf("invalid instance ID: %w", err)
+	}
+	if err := validateAWSRegion(region); err != nil {
+		return fmt.Errorf("invalid region: %w", err)
+	}
+	if err := validatePortNumber(localPort); err != nil {
+		return fmt.Errorf("invalid local port: %w", err)
+	}
+	if err := validatePortNumber(remotePort); err != nil {
+		return fmt.Errorf("invalid remote port: %w", err)
+	}
+
 	// Use AWS CLI for port forwarding (Go SDK doesn't support this directly)
-	cmd := exec.CommandContext(ctx, getAWSCommand(), "ssm", "start-session",
-		"--region", region,
-		"--target", instanceID,
+	// Build command with validated and sanitized parameters
+	awsCmd := getAWSCommand()
+
+	// Parameters are already validated above, but create explicit parameter strings for clarity
+	regionParam := region
+	targetParam := instanceID
+	parametersJSON := fmt.Sprintf(`{"portNumber":["%d"],"localPortNumber":["%d"]}`, remotePort, localPort)
+
+	// #nosec G204 - Parameters are validated above using strict regex patterns for AWS instance ID, region format, and port ranges
+	cmd := exec.CommandContext(ctx, awsCmd,
+		"ssm", "start-session",
+		"--region", regionParam,
+		"--target", targetParam,
 		"--document-name", "AWS-StartPortForwardingSession",
-		"--parameters", fmt.Sprintf(`{"portNumber":["%d"],"localPortNumber":["%d"]}`, remotePort, localPort))
+		"--parameters", parametersJSON)
 
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -616,8 +679,16 @@ func (m *Manager) waitForCommandCompletion(ctx context.Context, ssmClient *ssm.C
 // File transfer helper methods
 
 func (m *Manager) uploadFileSmall(ctx context.Context, instanceID, region, localPath, remotePath string) error {
+	// Note: File path validation is performed in UploadFile() caller
+	// Clean the path for consistent handling
+	cleanPath, err := filepath.Abs(filepath.Clean(localPath))
+	if err != nil {
+		return fmt.Errorf("invalid local file path: %w", err)
+	}
+
 	// Read file content
-	content, err := os.ReadFile(localPath)
+	// #nosec G304 - cleanPath is derived from localPath which is validated in UploadFile() caller using security.ValidateFilePathWithWorkingDir()
+	content, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return fmt.Errorf("failed to read local file: %w", err)
 	}
@@ -642,6 +713,7 @@ func (m *Manager) uploadFileSmall(ctx context.Context, instanceID, region, local
 }
 
 func (m *Manager) downloadFileSmall(ctx context.Context, instanceID, region, remotePath, localPath string) error {
+	// Note: File path validation is performed in DownloadFile() caller
 	// Create download command
 	command := fmt.Sprintf(`if [ -f '%s' ]; then cat '%s' | base64; else echo "FILE_NOT_FOUND"; fi`, remotePath, remotePath)
 
@@ -666,7 +738,7 @@ func (m *Manager) downloadFileSmall(ctx context.Context, instanceID, region, rem
 	}
 
 	// Write to local file
-	if err := os.WriteFile(localPath, content, 0644); err != nil {
+	if err := os.WriteFile(localPath, content, 0600); err != nil {
 		return fmt.Errorf("failed to write local file: %w", err)
 	}
 
@@ -674,6 +746,7 @@ func (m *Manager) downloadFileSmall(ctx context.Context, instanceID, region, rem
 }
 
 func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, localPath, remotePath string) error {
+	// Note: File path validation is performed in UploadFile() caller
 	m.logger.Info("Starting large file upload via S3 for instance", "instanceID", instanceID, "localPath", localPath)
 
 	// Initialize managers if not already done
@@ -730,7 +803,9 @@ func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, local
 
 	// Defer cleanup of S3 object
 	defer func() {
-		m.s3LifecycleManager.CleanupS3Object(ctx, bucketName, s3Key, region)
+		if err := m.s3LifecycleManager.CleanupS3Object(ctx, bucketName, s3Key, region); err != nil {
+			m.logger.Warn("Failed to cleanup S3 object", "bucketName", bucketName, "s3Key", s3Key, "error", err)
+		}
 	}()
 
 	// Upload to S3
@@ -774,6 +849,7 @@ func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, local
 }
 
 func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, remotePath, localPath string) error {
+	// Note: File path validation is performed in DownloadFile() caller
 	m.logger.Info("Starting large file download via S3 for instance", "instanceID", instanceID, "remotePath", remotePath)
 
 	// Initialize managers if not already done
@@ -830,7 +906,9 @@ func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, rem
 
 	// Defer cleanup of S3 object
 	defer func() {
-		m.s3LifecycleManager.CleanupS3Object(ctx, bucketName, s3Key, region)
+		if err := m.s3LifecycleManager.CleanupS3Object(ctx, bucketName, s3Key, region); err != nil {
+			m.logger.Warn("Failed to cleanup S3 object", "bucketName", bucketName, "s3Key", s3Key, "error", err)
+		}
 	}()
 
 	m.logger.Info("Uploading file from instance to S3 bucket", "bucketName", bucketName, "s3Key", s3Key)
@@ -872,7 +950,7 @@ func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, rem
 
 	// Create local directory if needed
 	localDir := filepath.Dir(localPath)
-	if err := os.MkdirAll(localDir, 0755); err != nil {
+	if err := os.MkdirAll(localDir, 0750); err != nil {
 		return fmt.Errorf("failed to create local directory: %w", err)
 	}
 
@@ -1031,4 +1109,28 @@ func (m *Manager) getSSMStatusMap(ctx context.Context, ssmClient *ssm.Client) (m
 	}
 
 	return statusMap, nil
+}
+
+// validateInstanceID validates AWS EC2 instance ID format
+func validateInstanceID(instanceID string) error {
+	if !instanceIDRegex.MatchString(instanceID) {
+		return fmt.Errorf("instance ID must match pattern i-[0-9a-f]{8,17}, got: %s", instanceID)
+	}
+	return nil
+}
+
+// validateAWSRegion validates AWS region format
+func validateAWSRegion(region string) error {
+	if !awsRegionRegex.MatchString(region) {
+		return fmt.Errorf("region must match AWS format (e.g., us-east-1), got: %s", region)
+	}
+	return nil
+}
+
+// validatePortNumber validates port number range
+func validatePortNumber(port int) error {
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("port must be between 1 and 65535, got: %d", port)
+	}
+	return nil
 }

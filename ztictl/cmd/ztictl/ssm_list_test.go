@@ -132,6 +132,14 @@ func TestSsmListCmd(t *testing.T) {
 						if filters.Name != "" && !strings.Contains(instance.Name, filters.Name) {
 							include = false
 						}
+						if filters.Tag != "" {
+							// For test purposes, simulate tag filtering based on instance name
+							// In real implementation, this would check actual tags
+							tagParts := strings.Split(filters.Tag, "=")
+							if len(tagParts) >= 2 && !strings.Contains(instance.Name, tagParts[1]) {
+								include = false
+							}
+						}
 
 						if include {
 							filteredInstances = append(filteredInstances, instance)
@@ -144,6 +152,19 @@ func TestSsmListCmd(t *testing.T) {
 						for _, inst := range filteredInstances {
 							if inst.State != "running" {
 								t.Errorf("Status filter failed: found %s instance", inst.State)
+							}
+						}
+					}
+
+					// Verify tag filter
+					if filters.Tag != "" {
+						tagParts := strings.Split(filters.Tag, "=")
+						if len(tagParts) >= 2 {
+							expectedTag := tagParts[1]
+							for _, inst := range filteredInstances {
+								if !strings.Contains(inst.Name, expectedTag) {
+									t.Errorf("Tag filter failed: instance %s doesn't contain expected tag value %s", inst.Name, expectedTag)
+								}
 							}
 						}
 					}

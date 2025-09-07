@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"ztictl/pkg/colors"
+	"ztictl/pkg/security"
 )
 
 var (
@@ -51,7 +52,7 @@ func getFilePermissions() os.FileMode {
 		// Windows doesn't use Unix-style permissions
 		return 0666
 	}
-	return 0644
+	return 0600
 }
 
 // getDirPermissions returns platform-appropriate directory permissions
@@ -78,12 +79,19 @@ func setupFileLogger() {
 		logDirPath = getDefaultLogDir(homeDir)
 	}
 
+	// Validate log directory path to prevent directory traversal attacks
+	if security.ContainsUnsafePath(logDirPath) {
+		fmt.Fprintf(os.Stderr, "Warning: Invalid log directory path %s, using default location\n", logDirPath)
+		logDirPath = getDefaultLogDir(homeDir)
+	}
+
 	if err := os.MkdirAll(logDirPath, getDirPermissions()); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Could not create log directory %s, file logging disabled: %v\n", logDirPath, err)
 		return
 	}
 
 	logFilePath := filepath.Join(logDirPath, fmt.Sprintf("ztictl-%s.log", time.Now().Format("2006-01-02")))
+	// #nosec G304 - logDirPath is validated above and log filename is controlled by application
 	file, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, getFilePermissions())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Could not create/open log file %s, file logging disabled: %v\n", logFilePath, err)

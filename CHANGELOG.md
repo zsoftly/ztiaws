@@ -1,5 +1,88 @@
 # Changelog
 
+## [v2.5.2] - 2025-09-07
+
+### Security
+- **Critical Directory Traversal Fix**: Enhanced cross-platform path validation security
+  - **Directory Traversal Prevention**: Fixed Windows-style directory traversal vulnerability (`..\\` patterns)
+  - **Cross-Platform Security**: Added comprehensive Windows (`\`) and Unix (`/`) path separator validation
+  - **Enhanced Path Validation**: Now blocks all directory traversal patterns: `../`, `..\\`, `/../`, `\\..\\`, `/..`, `\\..`
+  - **Comprehensive Testing**: Added 87+ platform-specific security test cases covering Windows UNC paths, drive letters, and Unix system paths
+  - **Runtime Adaptation**: Tests automatically adapt to current OS for platform-specific attack vector validation
+
+### Technical
+- **Code Quality**: Improved boolean condition readability in security validation logic
+- **Cross-Platform Compatibility**: Replaced string concatenation with `filepath.Join()` for proper path handling
+- **Test Coverage**: Enhanced security package with Windows and Unix specific validation scenarios
+
+## [v2.5.0] - 2025-09-07
+
+### Added
+- **Enhanced User Interface**: Complete ASCII-only splash screen redesign
+  - Beautiful ASCII art banner for universal terminal compatibility
+  - Updated feature showcase highlighting latest capabilities
+  - Clean, professional appearance without Unicode dependencies
+
+### Security
+- **Comprehensive Security Hardening**: Multiple vulnerability fixes and enhancements
+  - **G204 (Command Injection)**: Added input validation for all `exec.CommandContext()` calls with regex-based parameter validation
+  - **G304 (Directory Traversal)**: Implemented path validation to prevent file inclusion attacks across all file operations
+  - **G301 (File Permissions)**: Hardened directory permissions from 0755 to 0750
+  - **G104 (Error Handling)**: Added proper error handling for cleanup operations
+  - **G401 (Weak Cryptography)**: Migrated from SHA-1 to SHA-256 for all hash operations
+  - **G306 (File Permissions)**: Secured configuration files with 0600 permissions
+- **Input Validation Framework**: 
+  - Instance ID validation (`i-[0-9a-f]{8,17}`)
+  - AWS region format validation (`us-east-1`, `eu-west-2`, etc.)
+  - Port number range validation (1-65535)
+  - Path traversal protection for all file operations
+- **Test Coverage**: Added 45+ security-focused test cases covering all validation scenarios
+
+### Enhanced
+- **Code Quality Improvements**: String concatenation optimization and code cleanup
+- **Error Handling**: Comprehensive error handling improvements across the codebase
+- **Documentation**: Updated feature descriptions to highlight security and performance improvements
+
+### Technical
+- **Platform Compatibility**: Enhanced cross-platform support with ASCII-only interface elements
+- **Performance**: Optimized string operations and reduced complexity in hot paths
+- **Maintainability**: Improved code structure with centralized validation functions
+
+## [v2.4.0] - 2025-09-07
+
+### Added
+- **EC2 Power Management Commands**: Complete suite of instance power control operations
+  - `ztictl ssm start [instance-id]` - Start stopped EC2 instances
+  - `ztictl ssm stop [instance-id]` - Stop running EC2 instances  
+  - `ztictl ssm reboot [instance-id]` - Reboot running EC2 instances
+  - `ztictl ssm start-tagged --tags <tags>` - Start multiple instances by tag
+  - `ztictl ssm stop-tagged --tags <tags>` - Stop multiple instances by tag
+  - `ztictl ssm reboot-tagged --tags <tags>` - Reboot multiple instances by tag
+- **Multi-Instance Support**: All power commands support `--instances` flag for comma-separated instance IDs
+- **Parallel Execution**: Configurable parallel processing with `--parallel` flag (defaults to CPU count)
+- **Instance Name Resolution**: Support for both instance IDs (`i-1234...`) and instance names
+- **Comprehensive Validation**: Mutual exclusion validation prevents conflicting flag combinations
+- **Extensive Test Coverage**: 35+ test scenarios covering all power management functionality
+
+### Enhanced
+- **README Documentation**: Updated with power management examples and feature descriptions
+- **Help System**: All new commands integrated into ztictl help system
+- **Error Handling**: Clear, user-friendly error messages for all validation scenarios
+
+### Examples
+```bash
+# Start/stop single instances
+ztictl ssm start i-1234567890abcdef0 --region cac1
+ztictl ssm stop web-server-1 --region use1
+
+# Bulk operations using tags
+ztictl ssm start-tagged --tags Environment=Production --region cac1
+ztictl ssm stop-tagged --tags ManagedBy=ec2-manager --parallel 5 --region use1
+
+# Multiple specific instances
+ztictl ssm reboot --instances i-123,i-456,i-789 --parallel 3 --region cac1
+```
+
 ## [v2.3.0] - 2025-09-06
 
 ### Added

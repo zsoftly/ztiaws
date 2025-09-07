@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"ztictl/internal/ssm"
@@ -20,20 +21,29 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		regionCode, _ := cmd.Flags().GetString("region")
-		region := resolveRegion(regionCode)
-
 		instanceIdentifier := args[0]
 
-		logging.LogInfo("Connecting to instance %s in region: %s", instanceIdentifier, region)
-
-		ssmManager := ssm.NewManager(logger)
-		ctx := context.Background()
-
-		if err := ssmManager.StartSession(ctx, instanceIdentifier, region); err != nil {
-			logging.LogError("Failed to start session: %v", err)
+		if err := performConnection(regionCode, instanceIdentifier); err != nil {
+			logging.LogError("Connection failed: %v", err)
 			os.Exit(1)
 		}
 	},
+}
+
+// performConnection handles SSM connection logic and returns errors instead of calling os.Exit
+func performConnection(regionCode, instanceIdentifier string) error {
+	region := resolveRegion(regionCode)
+
+	logging.LogInfo("Connecting to instance %s in region: %s", instanceIdentifier, region)
+
+	ssmManager := ssm.NewManager(logger)
+	ctx := context.Background()
+
+	if err := ssmManager.StartSession(ctx, instanceIdentifier, region); err != nil {
+		return fmt.Errorf("failed to start session: %w", err)
+	}
+
+	return nil
 }
 
 func init() {

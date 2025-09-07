@@ -197,7 +197,7 @@ func (m *IAMManager) AttachS3Permissions(ctx context.Context, instanceID, region
 		PolicyArn: aws.String(policyARN),
 	}); err != nil {
 		// Clean up policy if attachment fails
-		m.iamClient.DeletePolicy(ctx, &iam.DeletePolicyInput{PolicyArn: aws.String(policyARN)})
+		_, _ = m.iamClient.DeletePolicy(ctx, &iam.DeletePolicyInput{PolicyArn: aws.String(policyARN)}) // #nosec G104 - cleanup operation
 		return nil, fmt.Errorf("failed to attach policy to role: %w", err)
 	}
 

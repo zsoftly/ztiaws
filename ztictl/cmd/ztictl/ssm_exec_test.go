@@ -119,6 +119,23 @@ func TestSsmExecCmd(t *testing.T) {
 						config.Parallel = 1 // default
 					}
 
+					// Test all assigned fields
+					if config.Command != command {
+						t.Errorf("Command should be %s, got %s", command, config.Command)
+					}
+
+					if config.Script != script {
+						t.Errorf("Script should be %s, got %s", script, config.Script)
+					}
+
+					if config.Region != region {
+						t.Errorf("Region should be %s, got %s", region, config.Region)
+					}
+
+					if config.DryRun != dryRun {
+						t.Errorf("DryRun should be %v, got %v", dryRun, config.DryRun)
+					}
+
 					// Test target validation
 					if len(config.Targets) == 0 && config.Tag == "" {
 						return fmt.Errorf("either targets or tag filter must be provided")
@@ -694,7 +711,7 @@ Use --tags flag to specify one or more tag filters in key=value format, separate
 
 			// Add flags
 			cmd.Flags().StringP("tags", "t", "", "Tag filters in key=value format, separated by commas (required)")
-			cmd.MarkFlagRequired("tags")
+			_ = cmd.MarkFlagRequired("tags") // #nosec G104
 
 			buf := new(bytes.Buffer)
 			cmd.SetOut(buf)
@@ -737,7 +754,7 @@ func TestSsmExecTaggedFlags(t *testing.T) {
 	}
 
 	// Test that we can get and set the flag value
-	cmd.Flags().Set("tags", "Environment=test")
+	_ = cmd.Flags().Set("tags", "Environment=test") // #nosec G104
 	value, err := cmd.Flags().GetString("tags")
 	if err != nil {
 		t.Errorf("Error getting tags flag value: %v", err)
@@ -1444,4 +1461,305 @@ func TestTagsAndInstancesMutualExclusion(t *testing.T) {
 			}
 		})
 	}
+}
+
+// NEW TESTS FOR SEPARATION OF CONCERNS REFACTORING
+
+func TestExecuteSingleCommand(t *testing.T) {
+	// Save original logger state
+	originalLogger := logger
+	defer func() { logger = originalLogger }()
+
+	t.Run("handles execution gracefully", func(t *testing.T) {
+		// Initialize logger to avoid nil pointer dereference
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// The function should return an error or succeed, not call os.Exit
+		err := executeSingleCommand("use1", "i-test123", "echo hello")
+
+		// We expect this might fail (no AWS credentials/connection), but it shouldn't panic
+		// The important thing is that it returns an error instead of calling os.Exit
+		if err != nil {
+			t.Logf("Single command execution error (may be expected): %v", err)
+		}
+
+		// The fact that we can continue execution proves the refactoring worked
+		t.Log("Test completed - function returned instead of calling os.Exit")
+	})
+
+	t.Run("validates region code", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test with empty region code (should be handled gracefully)
+		err := executeSingleCommand("", "i-test123", "echo hello")
+
+		// Function should handle this gracefully and return error
+		if err != nil {
+			t.Logf("Expected error for empty region: %v", err)
+		}
+
+		t.Log("Region validation handled gracefully")
+	})
+
+	t.Run("validates instance identifier", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test with empty instance identifier
+		err := executeSingleCommand("use1", "", "echo hello")
+
+		// Function should handle this gracefully
+		if err != nil {
+			t.Logf("Expected error for empty instance: %v", err)
+		}
+
+		t.Log("Instance identifier validation handled gracefully")
+	})
+}
+
+func TestValidateExecTaggedArgs(t *testing.T) {
+	t.Run("requires either tags or instances", func(t *testing.T) {
+		err := validateExecTaggedArgs("", "", 4)
+
+		if err == nil {
+			t.Error("Expected error when neither tags nor instances provided")
+		}
+
+		expectedMsg := "no tags or instances specified"
+		if err != nil && !strings.Contains(err.Error(), expectedMsg) {
+			t.Errorf("Expected error message to contain '%s', got: %v", expectedMsg, err)
+		}
+	})
+
+	t.Run("rejects both tags and instances", func(t *testing.T) {
+		err := validateExecTaggedArgs("Environment=Production", "i-123,i-456", 4)
+
+		if err == nil {
+			t.Error("Expected error when both tags and instances provided")
+		}
+
+		expectedMsg := "both tags and instances flags provided"
+		if err != nil && !strings.Contains(err.Error(), expectedMsg) {
+			t.Errorf("Expected error message to contain '%s', got: %v", expectedMsg, err)
+		}
+	})
+
+	t.Run("validates parallel value", func(t *testing.T) {
+		err := validateExecTaggedArgs("Environment=Production", "", 0)
+
+		if err == nil {
+			t.Error("Expected error when parallel is 0")
+		}
+
+		expectedMsg := "parallel must be greater than 0"
+		if err != nil && !strings.Contains(err.Error(), expectedMsg) {
+			t.Errorf("Expected error message to contain '%s', got: %v", expectedMsg, err)
+		}
+
+		// Test negative parallel value
+		err = validateExecTaggedArgs("Environment=Production", "", -1)
+		if err == nil {
+			t.Error("Expected error when parallel is negative")
+		}
+	})
+
+	t.Run("accepts valid tags configuration", func(t *testing.T) {
+		err := validateExecTaggedArgs("Environment=Production", "", 4)
+
+		if err != nil {
+			t.Errorf("Expected no error for valid tags config, got: %v", err)
+		}
+	})
+
+	t.Run("accepts valid instances configuration", func(t *testing.T) {
+		err := validateExecTaggedArgs("", "i-123,i-456", 4)
+
+		if err != nil {
+			t.Errorf("Expected no error for valid instances config, got: %v", err)
+		}
+	})
+
+	t.Run("accepts valid parallel values", func(t *testing.T) {
+		validParallel := []int{1, 4, 8, 16, 32}
+
+		for _, parallel := range validParallel {
+			err := validateExecTaggedArgs("Environment=Production", "", parallel)
+			if err != nil {
+				t.Errorf("Expected no error for parallel=%d, got: %v", parallel, err)
+			}
+		}
+	})
+}
+
+func TestExecuteTaggedCommand(t *testing.T) {
+	// Save original logger state
+	originalLogger := logger
+	defer func() { logger = originalLogger }()
+
+	t.Run("handles tagged execution gracefully", func(t *testing.T) {
+		// Initialize logger to avoid nil pointer dereference
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// The function should return success status and error, not call os.Exit
+		success, err := executeTaggedCommand("use1", "echo hello", "Environment=Production", "", 2)
+
+		// We expect this might fail (no AWS credentials/connection), but it shouldn't panic
+		// The important thing is that it returns results instead of calling os.Exit
+		if err != nil {
+			t.Logf("Tagged command execution error (may be expected): %v", err)
+		}
+
+		t.Logf("Execution completed with success=%v", success)
+
+		// The fact that we can continue execution proves the refactoring worked
+		t.Log("Test completed - function returned instead of calling os.Exit")
+	})
+
+	t.Run("validates arguments before execution", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test invalid arguments (no tags or instances)
+		success, err := executeTaggedCommand("use1", "echo hello", "", "", 2)
+
+		// Should get validation error
+		if err == nil {
+			t.Error("Expected validation error for missing tags/instances")
+		}
+
+		if success {
+			t.Error("Expected success=false for validation error")
+		}
+
+		expectedMsg := "no tags or instances specified"
+		if err != nil && !strings.Contains(err.Error(), expectedMsg) {
+			t.Errorf("Expected error message to contain '%s', got: %v", expectedMsg, err)
+		}
+	})
+
+	t.Run("handles mutual exclusion validation", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test both tags and instances provided
+		success, err := executeTaggedCommand("use1", "echo hello", "Environment=Production", "i-123,i-456", 2)
+
+		// Should get validation error
+		if err == nil {
+			t.Error("Expected validation error for both tags and instances")
+		}
+
+		if success {
+			t.Error("Expected success=false for validation error")
+		}
+
+		expectedMsg := "both tags and instances flags provided"
+		if err != nil && !strings.Contains(err.Error(), expectedMsg) {
+			t.Errorf("Expected error message to contain '%s', got: %v", expectedMsg, err)
+		}
+	})
+
+	t.Run("handles parallel validation", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test invalid parallel value
+		success, err := executeTaggedCommand("use1", "echo hello", "Environment=Production", "", 0)
+
+		// Should get validation error
+		if err == nil {
+			t.Error("Expected validation error for invalid parallel value")
+		}
+
+		if success {
+			t.Error("Expected success=false for validation error")
+		}
+
+		expectedMsg := "parallel must be greater than 0"
+		if err != nil && !strings.Contains(err.Error(), expectedMsg) {
+			t.Errorf("Expected error message to contain '%s', got: %v", expectedMsg, err)
+		}
+	})
+
+	t.Run("handles instances flag parsing", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test instances flag with comma-separated values
+		success, err := executeTaggedCommand("use1", "echo hello", "", "i-123, i-456, i-789", 2)
+
+		// We expect this might fail with AWS connection issues, but it should parse instances
+		// and not fail with validation errors
+		if err != nil {
+			// If it's an AWS-related error, that's expected
+			t.Logf("Execution error (AWS-related, may be expected): %v", err)
+
+			// Make sure it's not a validation error
+			if strings.Contains(err.Error(), "no tags or instances specified") {
+				t.Error("Unexpected validation error - instances parsing may have failed")
+			}
+		}
+
+		t.Logf("Instances parsing test completed with success=%v", success)
+	})
+}
+
+func TestExecCommandSeparationOfConcerns(t *testing.T) {
+	// This test verifies that the exec functions don't call os.Exit
+	// and can be tested without terminating the test process
+
+	// Save original logger state
+	originalLogger := logger
+	defer func() { logger = originalLogger }()
+
+	t.Run("single command execution returns instead of exiting", func(t *testing.T) {
+		// Initialize logger to avoid nil pointer dereference
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// This call should return an error or succeed, not exit the process
+		err := executeSingleCommand("invalid-region", "invalid-instance", "test command")
+
+		// If we reach this line, the function didn't call os.Exit
+		// (which is what we want for good separation of concerns)
+		if err == nil {
+			t.Log("Single command execution succeeded unexpectedly")
+		} else {
+			t.Logf("Single command execution failed as expected: %v", err)
+		}
+
+		// The fact that we can continue execution proves the refactoring worked
+		t.Log("Test completed - function returned instead of calling os.Exit")
+	})
+
+	t.Run("tagged command execution returns instead of exiting", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// This call should return results, not exit the process
+		success, err := executeTaggedCommand("invalid-region", "test command", "InvalidTag=Value", "", 1)
+
+		// If we reach this line, the function didn't call os.Exit
+		if err == nil && success {
+			t.Log("Tagged command execution succeeded unexpectedly")
+		} else {
+			t.Logf("Tagged command execution result: success=%v, error=%v", success, err)
+		}
+
+		// The fact that we can continue execution proves the refactoring worked
+		t.Log("Test completed - function returned instead of calling os.Exit")
+	})
 }

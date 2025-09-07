@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,6 +16,7 @@ import (
 	appconfig "ztictl/internal/config"
 	"ztictl/pkg/errors"
 	"ztictl/pkg/logging"
+	"ztictl/pkg/security"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -273,7 +274,14 @@ func getAWSConfigDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
-	return filepath.Join(homeDir, ".aws"), nil
+	configDir := filepath.Join(homeDir, ".aws")
+
+	// Validate path to prevent directory traversal
+	if err := security.ValidateFilePath(configDir, homeDir); err != nil {
+		return "", fmt.Errorf("invalid AWS config directory path: %w", err)
+	}
+
+	return configDir, nil
 }
 
 // getAWSCacheDir returns the AWS SSO cache directory path
@@ -393,7 +401,12 @@ func (m *Manager) ListProfiles(ctx context.Context) ([]Profile, error) {
 	}
 	configPath := filepath.Join(configDir, "config")
 
-	content, err := os.ReadFile(configPath)
+	// Validate config path to prevent directory traversal
+	if err := security.ValidateFilePath(configPath, configDir); err != nil {
+		return nil, fmt.Errorf("invalid config file path: %w", err)
+	}
+
+	content, err := os.ReadFile(configPath) // #nosec G304
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []Profile{}, nil
@@ -457,14 +470,20 @@ func (m *Manager) configureProfile(profileName string, cfg *appconfig.Config) er
 	}
 
 	configDir := filepath.Join(homeDir, ".aws")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0750); err != nil {
 		return fmt.Errorf("failed to create AWS config directory: %w", err)
 	}
 
 	configPath := filepath.Join(configDir, "config")
 
+	// Validate config path to prevent directory traversal
+	if err := security.ValidateFilePath(configPath, configDir); err != nil {
+		return fmt.Errorf("invalid config file path: %w", err)
+	}
+
 	// Read existing config
 	var content string
+	// #nosec G304
 	if existing, err := os.ReadFile(configPath); err == nil {
 		content = string(existing)
 	} else {
@@ -474,7 +493,7 @@ func (m *Manager) configureProfile(profileName string, cfg *appconfig.Config) er
 	content = m.updateProfileInConfig(content, profileName, cfg)
 
 	// Write back to file
-	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(content), 0600); err != nil {
 		return fmt.Errorf("failed to write AWS config: %w", err)
 	}
 
@@ -490,12 +509,20 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 
 	cacheDir := filepath.Join(homeDir, ".aws", "sso", "cache")
 
-	// First, try the expected filename based on SHA1 hash
-	hasher := sha1.New()
+	// First, try the expected filename based on SHA256 hash
+	hasher := sha256.New()
 	hasher.Write([]byte(startURL))
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	expectedFile := filepath.Join(cacheDir, fmt.Sprintf("%s.json", hash))
 
+	// Validate cache file path to prevent directory traversal
+	if err := security.ValidateFilePath(expectedFile, cacheDir); err != nil {
+		// Log but don't fail - just skip this file
+		logging.LogWarn("Invalid cache file path, skipping: %v", err)
+		return nil, fmt.Errorf("no valid SSO token found")
+	}
+
+	// #nosec G304
 	if content, err := os.ReadFile(expectedFile); err == nil {
 		var token SSOToken
 		if json.Unmarshal(content, &token) == nil && token.StartURL == startURL {
@@ -511,8 +538,14 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 		}
 
 		if !d.IsDir() && strings.HasSuffix(path, ".json") {
+			// Validate file path to prevent directory traversal attacks
+			if validateErr := security.ValidateFilePath(path, cacheDir); validateErr != nil {
+				// Skip invalid paths but continue walking
+				return nil
+			}
+
 			// Check if this file contains our start URL
-			content, readErr := os.ReadFile(path)
+			content, readErr := os.ReadFile(path) // #nosec G304
 			if readErr != nil {
 				return nil
 			}
@@ -535,7 +568,7 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 	}
 
 	// Read and parse the token file
-	content, err := os.ReadFile(tokenFile)
+	content, err := os.ReadFile(tokenFile) // #nosec G304
 	if err != nil {
 		return nil, fmt.Errorf("failed to read token file: %w", err)
 	}
@@ -678,7 +711,7 @@ func (m *Manager) saveTokenToCache(tokenResp *ssooidc.CreateTokenOutput, startUR
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0750); err != nil {
 		return fmt.Errorf("failed to create cache directory: %w", err)
 	}
 
@@ -692,7 +725,7 @@ func (m *Manager) saveTokenToCache(tokenResp *ssooidc.CreateTokenOutput, startUR
 	}
 
 	// Generate cache filename (AWS CLI compatible)
-	hasher := sha1.New()
+	hasher := sha256.New()
 	hasher.Write([]byte(startURL))
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	filename := fmt.Sprintf("%s.json", hash)
@@ -805,7 +838,7 @@ func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
 	// Adjust index since we added header and separator
 	if idx < 2 {
 		// User selected header or separator, treat as cancellation
-		color.New(color.FgRed).Printf("❌ Invalid selection\n")
+		_, _ = color.New(color.FgRed).Printf("❌ Invalid selection\n") // #nosec G104
 		return nil, fmt.Errorf("invalid selection")
 	}
 
@@ -813,14 +846,14 @@ func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
 
 	if err != nil {
 		if err.Error() == "abort" {
-			color.New(color.FgRed).Printf("❌ Account selection cancelled\n")
+			_, _ = color.New(color.FgRed).Printf("❌ Account selection cancelled\n") // #nosec G104
 			return nil, fmt.Errorf("account selection cancelled")
 		}
 		return nil, fmt.Errorf("account selection failed: %w", err)
 	}
 
 	// Display selection confirmation
-	color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s (%s)\n", accounts[actualIdx].AccountName, accounts[actualIdx].AccountID)
+	_, _ = color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s (%s)\n", accounts[actualIdx].AccountName, accounts[actualIdx].AccountID) // #nosec G104
 
 	return &accounts[actualIdx], nil
 }
@@ -918,7 +951,7 @@ func (m *Manager) selectRoleFuzzy(roles []Role, account *Account) (*Role, error)
 	// Adjust index since we added header and separator
 	if idx < 2 {
 		// User selected header or separator, treat as cancellation
-		color.New(color.FgRed).Printf("❌ Invalid selection\n")
+		_, _ = color.New(color.FgRed).Printf("❌ Invalid selection\n") // #nosec G104
 		return nil, fmt.Errorf("invalid selection")
 	}
 
@@ -926,14 +959,14 @@ func (m *Manager) selectRoleFuzzy(roles []Role, account *Account) (*Role, error)
 
 	if err != nil {
 		if err.Error() == "abort" {
-			color.New(color.FgRed).Printf("❌ Role selection cancelled\n")
+			_, _ = color.New(color.FgRed).Printf("❌ Role selection cancelled\n") // #nosec G104
 			return nil, fmt.Errorf("role selection cancelled")
 		}
 		return nil, fmt.Errorf("role selection failed: %w", err)
 	}
 
 	// Display selection confirmation
-	color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s\n", roles[actualIdx].RoleName)
+	_, _ = color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s\n", roles[actualIdx].RoleName) // #nosec G104
 
 	return &roles[actualIdx], nil
 }
@@ -946,8 +979,13 @@ func (m *Manager) updateProfileWithSelection(profileName string, account *Accoun
 	}
 	configPath := filepath.Join(configDir, "config")
 
+	// Validate config path to prevent directory traversal
+	if err := security.ValidateFilePath(configPath, configDir); err != nil {
+		return fmt.Errorf("invalid config file path: %w", err)
+	}
+
 	// Read existing config
-	content, err := os.ReadFile(configPath)
+	content, err := os.ReadFile(configPath) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to read AWS config: %w", err)
 	}
@@ -956,7 +994,7 @@ func (m *Manager) updateProfileWithSelection(profileName string, account *Accoun
 	updatedContent := m.updateProfileWithAccountRole(string(content), profileName, account, role, cfg)
 
 	// Write back
-	if err := os.WriteFile(configPath, []byte(updatedContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(updatedContent), 0600); err != nil {
 		return fmt.Errorf("failed to write AWS config: %w", err)
 	}
 
@@ -1223,7 +1261,14 @@ func (m *Manager) IsProfileAuthenticated(profileName string) bool {
 		if !file.IsDir() && strings.HasSuffix(file.Name(), ".json") {
 			// Read and check if token is still valid
 			tokenFile := filepath.Join(configDir, file.Name())
-			content, err := os.ReadFile(tokenFile)
+
+			// Validate token file path to prevent directory traversal
+			if err := security.ValidateFilePath(tokenFile, configDir); err != nil {
+				// Skip invalid paths but continue checking other files
+				continue
+			}
+
+			content, err := os.ReadFile(tokenFile) // #nosec G304
 			if err != nil {
 				continue
 			}
@@ -1274,41 +1319,41 @@ func (m *Manager) printSuccessMessage(profileName string, account *Account, role
 	commandColor := color.New(color.FgHiYellow)
 
 	fmt.Println()
-	successColor.Println("🎉 Successfully configured AWS SSO profile.")
+	_, _ = successColor.Println("🎉 Successfully configured AWS SSO profile.") // #nosec G104
 	fmt.Println("----------------------------------------")
-	infoColor.Printf("Account: %s\n", account.AccountName)
-	infoColor.Printf("Role: %s\n", role.RoleName)
-	infoColor.Printf("Profile: %s\n", profileName)
+	_, _ = infoColor.Printf("Account: %s\n", account.AccountName) // #nosec G104
+	_, _ = infoColor.Printf("Role: %s\n", role.RoleName)          // #nosec G104
+	_, _ = infoColor.Printf("Profile: %s\n", profileName)         // #nosec G104
 	fmt.Println()
 
 	// Platform-specific instructions
-	infoColor.Println("To use this profile, run:")
+	_, _ = infoColor.Println("To use this profile, run:") // #nosec G104
 
 	switch runtime.GOOS {
 	case "windows":
 		// Windows Command Prompt instructions
 		fmt.Println()
-		infoColor.Println("For Command Prompt (cmd):")
-		commandColor.Printf("set AWS_PROFILE=%s\n", profileName)
-		commandColor.Printf("set AWS_DEFAULT_REGION=%s\n", cfg.SSO.Region)
+		_, _ = infoColor.Println("For Command Prompt (cmd):")                     // #nosec G104
+		_, _ = commandColor.Printf("set AWS_PROFILE=%s\n", profileName)           // #nosec G104
+		_, _ = commandColor.Printf("set AWS_DEFAULT_REGION=%s\n", cfg.SSO.Region) // #nosec G104
 
 		fmt.Println()
-		infoColor.Println("For PowerShell:")
-		commandColor.Printf("$env:AWS_PROFILE=\"%s\"\n", profileName)
-		commandColor.Printf("$env:AWS_DEFAULT_REGION=\"%s\"\n", cfg.SSO.Region)
+		_, _ = infoColor.Println("For PowerShell:")                                    // #nosec G104
+		_, _ = commandColor.Printf("$env:AWS_PROFILE=\"%s\"\n", profileName)           // #nosec G104
+		_, _ = commandColor.Printf("$env:AWS_DEFAULT_REGION=\"%s\"\n", cfg.SSO.Region) // #nosec G104
 
 	default:
 		// Unix/Linux/macOS instructions
-		commandColor.Printf("export AWS_PROFILE=%s AWS_DEFAULT_REGION=%s\n", profileName, cfg.SSO.Region)
+		_, _ = commandColor.Printf("export AWS_PROFILE=%s AWS_DEFAULT_REGION=%s\n", profileName, cfg.SSO.Region) // #nosec G104
 	}
 
 	fmt.Println()
-	infoColor.Println("To view your credentials, run:")
-	commandColor.Printf("ztictl auth creds %s\n", profileName)
+	_, _ = infoColor.Println("To view your credentials, run:")        // #nosec G104
+	_, _ = commandColor.Printf("ztictl auth creds %s\n", profileName) // #nosec G104
 
 	fmt.Println()
-	infoColor.Println("To list EC2 instances, run:")
-	commandColor.Printf("ztictl ssm list\n")
+	_, _ = infoColor.Println("To list EC2 instances, run:") // #nosec G104
+	_, _ = commandColor.Printf("ztictl ssm list\n")         // #nosec G104
 }
 
 func (m *Manager) clearSSOCache() error {

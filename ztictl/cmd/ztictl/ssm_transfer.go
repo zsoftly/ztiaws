@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"ztictl/internal/ssm"
@@ -30,27 +31,14 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 	Args: cobra.ExactArgs(3),
 	Run: func(cmd *cobra.Command, args []string) {
 		regionCode, _ := cmd.Flags().GetString("region")
-		region := resolveRegion(regionCode)
-
 		instanceIdentifier := args[0]
 		localFile := args[1]
 		remotePath := args[2]
 
-		logging.LogInfo("Uploading file %s to instance %s at path: %s", localFile, instanceIdentifier, remotePath)
-
-		ssmManager := ssm.NewManager(logger)
-		ctx := context.Background()
-
-		if err := ssmManager.UploadFile(ctx, instanceIdentifier, region, localFile, remotePath); err != nil {
-			colors.PrintError("✗ File upload failed: %s -> %s\n", localFile, remotePath)
+		if err := performFileUpload(regionCode, instanceIdentifier, localFile, remotePath); err != nil {
 			logging.LogError("File upload failed: %v", err)
 			os.Exit(1)
 		}
-
-		logging.LogSuccess("File upload completed successfully")
-
-		// Show colored success message
-		colors.PrintSuccess("✓ File upload completed successfully: %s -> %s\n", localFile, remotePath)
 	},
 }
 
@@ -64,28 +52,57 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 	Args: cobra.ExactArgs(3),
 	Run: func(cmd *cobra.Command, args []string) {
 		regionCode, _ := cmd.Flags().GetString("region")
-		region := resolveRegion(regionCode)
-
 		instanceIdentifier := args[0]
 		remoteFile := args[1]
 		localPath := args[2]
 
-		logging.LogInfo("Downloading file %s from instance %s to local path: %s", remoteFile, instanceIdentifier, localPath)
-
-		ssmManager := ssm.NewManager(logger)
-		ctx := context.Background()
-
-		if err := ssmManager.DownloadFile(ctx, instanceIdentifier, region, remoteFile, localPath); err != nil {
-			colors.PrintError("✗ File download failed: %s -> %s\n", remoteFile, localPath)
+		if err := performFileDownload(regionCode, instanceIdentifier, remoteFile, localPath); err != nil {
 			logging.LogError("File download failed: %v", err)
 			os.Exit(1)
 		}
-
-		logging.LogSuccess("File download completed successfully")
-
-		// Show colored success message
-		colors.PrintSuccess("✓ File download completed successfully: %s -> %s\n", remoteFile, localPath)
 	},
+}
+
+// performFileUpload handles file upload logic and returns errors instead of calling os.Exit
+func performFileUpload(regionCode, instanceIdentifier, localFile, remotePath string) error {
+	region := resolveRegion(regionCode)
+
+	logging.LogInfo("Uploading file %s to instance %s at path: %s", localFile, instanceIdentifier, remotePath)
+
+	ssmManager := ssm.NewManager(logger)
+	ctx := context.Background()
+
+	if err := ssmManager.UploadFile(ctx, instanceIdentifier, region, localFile, remotePath); err != nil {
+		colors.PrintError("✗ File upload failed: %s -> %s\n", localFile, remotePath)
+		return fmt.Errorf("file upload failed: %w", err)
+	}
+
+	logging.LogSuccess("File upload completed successfully")
+
+	// Show colored success message
+	colors.PrintSuccess("✓ File upload completed successfully: %s -> %s\n", localFile, remotePath)
+	return nil
+}
+
+// performFileDownload handles file download logic and returns errors instead of calling os.Exit
+func performFileDownload(regionCode, instanceIdentifier, remoteFile, localPath string) error {
+	region := resolveRegion(regionCode)
+
+	logging.LogInfo("Downloading file %s from instance %s to local path: %s", remoteFile, instanceIdentifier, localPath)
+
+	ssmManager := ssm.NewManager(logger)
+	ctx := context.Background()
+
+	if err := ssmManager.DownloadFile(ctx, instanceIdentifier, region, remoteFile, localPath); err != nil {
+		colors.PrintError("✗ File download failed: %s -> %s\n", remoteFile, localPath)
+		return fmt.Errorf("file download failed: %w", err)
+	}
+
+	logging.LogSuccess("File download completed successfully")
+
+	// Show colored success message
+	colors.PrintSuccess("✓ File download completed successfully: %s -> %s\n", remoteFile, localPath)
+	return nil
 }
 
 func init() {

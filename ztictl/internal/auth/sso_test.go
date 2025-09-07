@@ -10,6 +10,7 @@ import (
 
 	"ztictl/internal/config"
 	"ztictl/pkg/logging"
+	"ztictl/pkg/security"
 )
 
 func TestNewManager(t *testing.T) {
@@ -1259,5 +1260,99 @@ func TestIsTokenValidEdgeCases(t *testing.T) {
 	token1SecFuture := &SSOToken{ExpiresAt: now.Add(time.Second)}
 	if !manager.isTokenValid(token1SecFuture) {
 		t.Error("Token that expires in 1 second should be valid")
+	}
+}
+
+// Test path validation function to prevent directory traversal (G304 fix)
+func TestValidateFilePath(t *testing.T) {
+	tests := []struct {
+		name        string
+		targetPath  string
+		baseDir     string
+		expectError bool
+	}{
+		{
+			name:        "valid path within base",
+			targetPath:  "/home/user/.aws/config",
+			baseDir:     "/home/user/.aws",
+			expectError: false,
+		},
+		{
+			name:        "valid nested path",
+			targetPath:  "/home/user/.aws/sso/cache/file.json",
+			baseDir:     "/home/user/.aws",
+			expectError: false,
+		},
+		{
+			name:        "directory traversal attack",
+			targetPath:  "/home/user/.aws/../../../etc/passwd",
+			baseDir:     "/home/user/.aws",
+			expectError: true,
+		},
+		{
+			name:        "simple parent directory escape",
+			targetPath:  "/home/user/.aws/../config",
+			baseDir:     "/home/user/.aws",
+			expectError: true,
+		},
+		{
+			name:        "relative path escape",
+			targetPath:  "../../etc/passwd",
+			baseDir:     "/home/user/.aws",
+			expectError: true,
+		},
+		{
+			name:        "same directory",
+			targetPath:  "/home/user/.aws",
+			baseDir:     "/home/user/.aws",
+			expectError: false,
+		},
+		{
+			name:        "path with dots but safe",
+			targetPath:  "/home/user/.aws/config.backup",
+			baseDir:     "/home/user/.aws",
+			expectError: false,
+		},
+		{
+			name:        "Windows-style path escape",
+			targetPath:  "/home/user/.aws\\..\\..\\etc\\passwd",
+			baseDir:     "/home/user/.aws",
+			expectError: true,
+		},
+		{
+			name:        "exact parent directory",
+			targetPath:  "/home/user/..",
+			baseDir:     "/home/user/.aws",
+			expectError: true,
+		},
+		{
+			name:        "double dot only",
+			targetPath:  "..",
+			baseDir:     "/home/user/.aws",
+			expectError: true,
+		},
+		{
+			name:        "multiple traversals",
+			targetPath:  "/home/user/.aws/../../../../../../../etc/passwd",
+			baseDir:     "/home/user/.aws",
+			expectError: true,
+		},
+		{
+			name:        "traversal in middle of path",
+			targetPath:  "/home/user/.aws/subdir/../../../etc/passwd",
+			baseDir:     "/home/user/.aws",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := security.ValidateFilePath(tt.targetPath, tt.baseDir)
+			if tt.expectError && err == nil {
+				t.Errorf("Expected error for path %q within base %q but got none", tt.targetPath, tt.baseDir)
+			} else if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error for path %q within base %q: %v", tt.targetPath, tt.baseDir, err)
+			}
+		})
 	}
 }

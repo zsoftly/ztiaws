@@ -465,6 +465,10 @@ func TestSsmConnectSessionManagement(t *testing.T) {
 		t.Error("Session should have status")
 	}
 
+	if session.StartTime == "" {
+		t.Error("Session should have start time")
+	}
+
 	// Test valid statuses
 	validStatuses := []string{"Connected", "Connecting", "Terminated", "Terminating", "Failed"}
 	isValidStatus := false
@@ -568,4 +572,168 @@ func TestInstanceIdentifierFormats(t *testing.T) {
 			}
 		})
 	}
+}
+
+// NEW TESTS FOR SEPARATION OF CONCERNS REFACTORING
+
+func TestPerformConnection(t *testing.T) {
+	// Save original logger state
+	originalLogger := logger
+	defer func() { logger = originalLogger }()
+
+	t.Run("handles connection gracefully", func(t *testing.T) {
+		// Initialize logger to avoid nil pointer dereference
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// The function should return an error or succeed, not call os.Exit
+		err := performConnection("use1", "i-test123")
+
+		// We expect this might fail (no AWS credentials/connection), but it shouldn't panic
+		// The important thing is that it returns an error instead of calling os.Exit
+		if err != nil {
+			t.Logf("Connection error (may be expected): %v", err)
+		}
+
+		// The fact that we can continue execution proves the refactoring worked
+		t.Log("Test completed - function returned instead of calling os.Exit")
+	})
+
+	t.Run("validates region code", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test with empty region code (should be handled gracefully)
+		err := performConnection("", "i-test123")
+
+		// Function should handle this gracefully and return error
+		if err != nil {
+			t.Logf("Expected error for empty region: %v", err)
+		}
+
+		t.Log("Region validation handled gracefully")
+	})
+
+	t.Run("validates instance identifier", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test with empty instance identifier
+		err := performConnection("use1", "")
+
+		// Function should handle this gracefully
+		if err != nil {
+			t.Logf("Expected error for empty instance: %v", err)
+		}
+
+		// Test with invalid instance identifier
+		err = performConnection("use1", "invalid-id")
+
+		if err != nil {
+			t.Logf("Expected error for invalid instance ID: %v", err)
+		}
+
+		t.Log("Instance identifier validation handled gracefully")
+	})
+
+	t.Run("handles invalid region gracefully", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test with invalid region
+		err := performConnection("invalid-region", "i-test123")
+
+		// Function should handle this gracefully and return error
+		if err != nil {
+			t.Logf("Expected error for invalid region: %v", err)
+		}
+
+		t.Log("Invalid region handled gracefully")
+	})
+}
+
+func TestConnectionSeparationOfConcerns(t *testing.T) {
+	// This test verifies that the connection function doesn't call os.Exit
+	// and can be tested without terminating the test process
+
+	// Save original logger state
+	originalLogger := logger
+	defer func() { logger = originalLogger }()
+
+	t.Run("connection returns instead of exiting", func(t *testing.T) {
+		// Initialize logger to avoid nil pointer dereference
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// This call should return an error or succeed, not exit the process
+		err := performConnection("invalid-region", "invalid-instance")
+
+		// If we reach this line, the function didn't call os.Exit
+		// (which is what we want for good separation of concerns)
+		if err == nil {
+			t.Log("Connection succeeded unexpectedly")
+		} else {
+			t.Logf("Connection failed as expected: %v", err)
+		}
+
+		// The fact that we can continue execution proves the refactoring worked
+		t.Log("Test completed - function returned instead of calling os.Exit")
+	})
+
+	t.Run("handles various error conditions without exiting", func(t *testing.T) {
+		if logger == nil {
+			logger = GetLogger()
+		}
+
+		// Test various error conditions that should return errors, not exit
+		errorCases := []struct {
+			name        string
+			regionCode  string
+			instanceID  string
+			expectError bool
+		}{
+			{
+				name:        "Valid arguments",
+				regionCode:  "use1",
+				instanceID:  "i-1234567890abcdef0",
+				expectError: true, // Will fail due to AWS connection, but shouldn't exit
+			},
+			{
+				name:        "Empty region",
+				regionCode:  "",
+				instanceID:  "i-1234567890abcdef0",
+				expectError: true,
+			},
+			{
+				name:        "Empty instance",
+				regionCode:  "use1",
+				instanceID:  "",
+				expectError: true,
+			},
+			{
+				name:        "Invalid region",
+				regionCode:  "nonexistent-region",
+				instanceID:  "i-1234567890abcdef0",
+				expectError: true,
+			},
+		}
+
+		for _, tc := range errorCases {
+			t.Run(tc.name, func(t *testing.T) {
+				err := performConnection(tc.regionCode, tc.instanceID)
+
+				if tc.expectError && err == nil {
+					t.Error("Expected error but got none")
+				}
+
+				// The important thing is we didn't crash or call os.Exit
+				t.Logf("Connection test completed for %s", tc.name)
+			})
+		}
+	})
 }

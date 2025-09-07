@@ -18,8 +18,8 @@ import (
 var (
 	// Version represents the current version of ztictl
 	// This can be set at build time using -ldflags "-X main.version=X.Y.Z"
-	// Default version is "2.3.0"; override at build time with -ldflags "-X main.Version=X.Y.Z"
-	Version    = "2.3.0"
+	// Default version is "2.5.0"; override at build time with -ldflags "-X main.Version=X.Y.Z"
+	Version    = "2.5.2"
 	configFile string
 	debug      bool
 	showSplash bool
@@ -61,7 +61,7 @@ Features:
 
 			// Backup existing version file if it exists
 			if _, err := os.Stat(versionFile); err == nil {
-				os.Rename(versionFile, tempFile)
+				_ = os.Rename(versionFile, tempFile) // Ignore error as backup is optional
 			}
 
 			// Show splash as first run
@@ -69,7 +69,7 @@ Features:
 
 			// Restore version file
 			if _, err := os.Stat(tempFile); err == nil {
-				os.Rename(tempFile, versionFile)
+				_ = os.Rename(tempFile, versionFile) // Ignore error as restore is optional
 			}
 		} else {
 			// Normal splash behavior
@@ -109,7 +109,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&showSplash, "show-splash", false, "force display of welcome splash screen")
 
 	// Bind flags to viper
-	viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug"))
+	_ = viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug")) // #nosec G104
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -117,6 +117,16 @@ func initConfig() {
 	// Initialize logger with our adapter
 	logger = logging.NewLogger(debug)
 
+	// Perform configuration setup and handle any errors
+	if err := setupConfiguration(); err != nil {
+		logger.Error("Configuration setup failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+// setupConfiguration handles the actual configuration logic and returns errors
+// instead of calling os.Exit directly, improving testability and separation of concerns
+func setupConfiguration() error {
 	if configFile != "" {
 		// Use config file from the flag.
 		viper.SetConfigFile(configFile)
@@ -124,8 +134,7 @@ func initConfig() {
 		// Find home directory.
 		home, err := os.UserHomeDir()
 		if err != nil {
-			logger.Error("Unable to find home directory", "error", err)
-			os.Exit(1)
+			return fmt.Errorf("unable to find home directory: %w", err)
 		}
 
 		// Search config in home directory with name ".ztictl" (without extension).
@@ -146,9 +155,10 @@ func initConfig() {
 
 	// Load configuration
 	if err := config.Load(); err != nil {
-		logger.Error("Failed to load configuration", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
+
+	return nil
 }
 
 // GetLogger returns a compatibility logger instance
@@ -254,7 +264,7 @@ region_shortcuts:
 `, startURL, ssoRegion, profileName, defaultRegion, logDir, tempDir)
 
 	// Write configuration file
-	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
 		return fmt.Errorf("failed to write configuration file: %w", err)
 	}
 

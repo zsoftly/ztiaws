@@ -336,9 +336,9 @@ func TestAuthCredsCmd(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Set environment variable for test
 			if tt.envProfile != "" {
-				os.Setenv("AWS_PROFILE", tt.envProfile)
+				_ = os.Setenv("AWS_PROFILE", tt.envProfile) // #nosec G104 - test setup
 			} else {
-				os.Unsetenv("AWS_PROFILE")
+				_ = os.Unsetenv("AWS_PROFILE") // #nosec G104 - test setup
 			}
 
 			cmd := &cobra.Command{
@@ -384,6 +384,12 @@ func TestAuthCredsCmd(t *testing.T) {
 					}
 					if creds.SecretAccessKey == "" {
 						t.Error("SecretAccessKey should not be empty")
+					}
+					if creds.SessionToken == "" {
+						t.Error("SessionToken should not be empty")
+					}
+					if creds.Region == "" {
+						t.Error("Region should not be empty")
 					}
 
 					// Verify profile name handling
@@ -576,5 +582,11 @@ func TestMockAuthManagerBehavior(t *testing.T) {
 	}
 	if mockCreds.SecretAccessKey == "" {
 		t.Error("Mock credentials should have secret key")
+	}
+	if mockCreds.SessionToken == "" {
+		t.Error("Mock credentials should have session token")
+	}
+	if mockCreds.Region == "" {
+		t.Error("Mock credentials should have region")
 	}
 }

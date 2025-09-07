@@ -561,7 +561,7 @@ func TestLifecycleConfigurationEdgeCases(t *testing.T) {
 	}
 
 	// After unmarshaling, nil slice becomes empty slice in JSON
-	if deserializedNilConfig.Rules != nil && len(deserializedNilConfig.Rules) > 0 {
+	if len(deserializedNilConfig.Rules) > 0 {
 		t.Error("Unmarshaled nil rules should be empty or nil")
 	}
 }

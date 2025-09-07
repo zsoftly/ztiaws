@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -149,7 +148,7 @@ func TestInitConfig(t *testing.T) {
 	}()
 
 	// Create a temporary directory for testing
-	tempDir, err := ioutil.TempDir("", "ztictl_test")
+	tempDir, err := os.MkdirTemp("", "ztictl_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
@@ -159,7 +158,7 @@ func TestInitConfig(t *testing.T) {
 	configContent := `debug: true
 default_region: "us-west-2"`
 	configPath := filepath.Join(tempDir, ".ztictl.yaml")
-	err = ioutil.WriteFile(configPath, []byte(configContent), 0644)
+	err = os.WriteFile(configPath, []byte(configContent), 0600)
 	if err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
@@ -229,7 +228,7 @@ func TestGetLogger(t *testing.T) {
 
 func TestRunInteractiveConfig(t *testing.T) {
 	// Create a temporary directory for testing
-	tempDir, err := ioutil.TempDir("", "ztictl_test")
+	tempDir, err := os.MkdirTemp("", "ztictl_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
@@ -274,7 +273,7 @@ func TestVersionVariable(t *testing.T) {
 
 func TestPersistentPreRun(t *testing.T) {
 	// Create a temporary directory for testing
-	tempDir, err := ioutil.TempDir("", "ztictl_test")
+	tempDir, err := os.MkdirTemp("", "ztictl_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
@@ -282,7 +281,7 @@ func TestPersistentPreRun(t *testing.T) {
 
 	// Mock home directory
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir) // #nosec G104
 	defer os.Setenv("HOME", origHome)
 
 	tests := []struct {
@@ -351,13 +350,14 @@ func TestFlagBinding(t *testing.T) {
 	defer viper.Reset()
 
 	// Simulate flag parsing
-	rootCmd.PersistentFlags().Set("debug", "true")
+	_ = rootCmd.PersistentFlags().Set("debug", "true") // #nosec G104
 
 	// The binding should work through viper.BindPFlag in init()
 	// This is a structural test to ensure the binding exists
 	flag := rootCmd.PersistentFlags().Lookup("debug")
 	if flag == nil {
 		t.Error("Debug flag should exist")
+		return
 	}
 
 	if flag.DefValue != "false" {

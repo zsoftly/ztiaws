@@ -124,7 +124,7 @@ func TestCreateSampleConfig(t *testing.T) {
 	}
 
 	// Check that file has some content
-	content, err := os.ReadFile(configPath)
+	content, err := os.ReadFile(configPath) // #nosec G304 - test file with controlled path
 	if err != nil {
 		t.Fatalf("failed to read config file: %v", err)
 	}
@@ -237,11 +237,11 @@ func TestLoad(t *testing.T) {
 
 				// Mock home directory
 				origHome := os.Getenv("HOME")
-				os.Setenv("HOME", tempDir)
+				_ = os.Setenv("HOME", tempDir) // #nosec G104 - test setup
 
 				cleanup = func() {
-					os.Setenv("HOME", origHome)
-					os.RemoveAll(tempDir)
+					_ = os.Setenv("HOME", origHome) // #nosec G104 - test cleanup
+					_ = os.RemoveAll(tempDir)       // #nosec G104 - test cleanup
 				}
 
 				return cleanup, nil
@@ -263,19 +263,19 @@ DEFAULT_PROFILE="test-profile"
 LOG_DIR="/tmp/logs"
 `
 				envPath := filepath.Join("..", ".env")
-				os.MkdirAll(filepath.Dir(envPath), 0755)
-				err = ioutil.WriteFile(envPath, []byte(envContent), 0644)
+				_ = os.MkdirAll(filepath.Dir(envPath), 0750) // #nosec G104 - test setup
+				err = ioutil.WriteFile(envPath, []byte(envContent), 0600)
 				if err != nil {
 					return nil, err
 				}
 
 				origHome := os.Getenv("HOME")
-				os.Setenv("HOME", tempDir)
+				_ = os.Setenv("HOME", tempDir) // #nosec G104 - test setup
 
 				cleanup = func() {
-					os.Setenv("HOME", origHome)
-					os.Remove(envPath)
-					os.RemoveAll(tempDir)
+					_ = os.Setenv("HOME", origHome) // #nosec G104 - test cleanup
+					_ = os.Remove(envPath)          // #nosec G104 - test cleanup
+					_ = os.RemoveAll(tempDir)       // #nosec G104 - test cleanup
 				}
 
 				return cleanup, nil
@@ -465,12 +465,12 @@ SSO_REGION=us-west-2
 				}
 
 				envPath = filepath.Join(tempDir, ".env")
-				err = ioutil.WriteFile(envPath, []byte(tt.envContent), 0644)
+				err = ioutil.WriteFile(envPath, []byte(tt.envContent), 0600)
 				if err != nil {
 					t.Fatalf("Failed to write env file: %v", err)
 				}
 
-				cleanup = func() { os.RemoveAll(tempDir) }
+				cleanup = func() { _ = os.RemoveAll(tempDir) } // #nosec G104 - test cleanup
 			} else {
 				envPath = "/nonexistent/.env"
 				cleanup = func() {}
@@ -511,22 +511,22 @@ func TestExists(t *testing.T) {
 				var origHome, origUserProfile string
 				if runtime.GOOS == "windows" {
 					origUserProfile = os.Getenv("USERPROFILE")
-					os.Setenv("USERPROFILE", tempDir)
+					_ = os.Setenv("USERPROFILE", tempDir) // #nosec G104 - test setup
 				} else {
 					origHome = os.Getenv("HOME")
-					os.Setenv("HOME", tempDir)
+					_ = os.Setenv("HOME", tempDir) // #nosec G104 - test setup
 				}
 
 				configPath := filepath.Join(tempDir, ".ztictl.yaml")
-				ioutil.WriteFile(configPath, []byte("test: config"), 0644)
+				_ = ioutil.WriteFile(configPath, []byte("test: config"), 0600) // #nosec G104 - test setup
 
 				return func() {
 					if runtime.GOOS == "windows" {
-						os.Setenv("USERPROFILE", origUserProfile)
+						_ = os.Setenv("USERPROFILE", origUserProfile) // #nosec G104 - test cleanup
 					} else {
-						os.Setenv("HOME", origHome)
+						_ = os.Setenv("HOME", origHome) // #nosec G104 - test cleanup
 					}
-					os.RemoveAll(tempDir)
+					_ = os.RemoveAll(tempDir) // #nosec G104 - test cleanup
 				}
 			},
 			expected: true,
@@ -543,19 +543,19 @@ func TestExists(t *testing.T) {
 				var origHome, origUserProfile string
 				if runtime.GOOS == "windows" {
 					origUserProfile = os.Getenv("USERPROFILE")
-					os.Setenv("USERPROFILE", tempDir)
+					_ = os.Setenv("USERPROFILE", tempDir) // #nosec G104 - test setup
 				} else {
 					origHome = os.Getenv("HOME")
-					os.Setenv("HOME", tempDir)
+					_ = os.Setenv("HOME", tempDir) // #nosec G104 - test setup
 				}
 
 				return func() {
 					if runtime.GOOS == "windows" {
-						os.Setenv("USERPROFILE", origUserProfile)
+						_ = os.Setenv("USERPROFILE", origUserProfile) // #nosec G104 - test cleanup
 					} else {
-						os.Setenv("HOME", origHome)
+						_ = os.Setenv("HOME", origHome) // #nosec G104 - test cleanup
 					}
-					os.RemoveAll(tempDir)
+					_ = os.RemoveAll(tempDir) // #nosec G104 - test cleanup
 				}
 			},
 			expected: false,
@@ -591,9 +591,9 @@ func TestGetConfigPath(t *testing.T) {
 	testHome := "/tmp/test_home"
 	if runtime.GOOS == "windows" {
 		testHome = "C:\\tmp\\test_home"
-		os.Setenv("USERPROFILE", testHome)
+		_ = os.Setenv("USERPROFILE", testHome) // #nosec G104 - test setup
 	} else {
-		os.Setenv("HOME", testHome)
+		_ = os.Setenv("HOME", testHome) // #nosec G104 - test setup
 	}
 
 	result := getConfigPath()
@@ -613,7 +613,7 @@ func TestWriteInteractiveConfig(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir) // #nosec G104 - test setup
 	defer os.Setenv("HOME", origHome)
 
 	config := &Config{
@@ -647,7 +647,7 @@ func TestWriteInteractiveConfig(t *testing.T) {
 	}
 
 	// Read and verify content
-	content, err := ioutil.ReadFile(configPath)
+	content, err := ioutil.ReadFile(configPath) // #nosec G304 - test file with controlled path
 	if err != nil {
 		t.Fatalf("Failed to read config file: %v", err)
 	}
@@ -685,7 +685,7 @@ func TestInteractiveInit(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	origHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
+	_ = os.Setenv("HOME", tempDir) // #nosec G104 - test setup
 	defer os.Setenv("HOME", origHome)
 
 	// Mock stdin with minimal input
@@ -696,12 +696,12 @@ func TestInteractiveInit(t *testing.T) {
 
 	go func() {
 		defer w.Close()
-		w.Write([]byte(input))
+		_, _ = w.Write([]byte(input)) // #nosec G104 - test setup
 	}()
 
 	defer func() {
 		os.Stdin = oldStdin
-		r.Close()
+		_ = r.Close() // #nosec G104 - test cleanup
 	}()
 
 	// Test that InteractiveInit can run without panicking
@@ -983,14 +983,14 @@ func TestLoadLegacyEnvFileErrorHandling(t *testing.T) {
 
 	// Create env file then make it unreadable
 	envPath := filepath.Join(tempDir, ".env")
-	err = ioutil.WriteFile(envPath, []byte("TEST=value"), 0644)
+	err = ioutil.WriteFile(envPath, []byte("TEST=value"), 0600)
 	if err != nil {
 		t.Fatalf("Failed to create env file: %v", err)
 	}
 
 	// Change permissions to make it unreadable (if supported)
-	os.Chmod(envPath, 0000)
-	defer os.Chmod(envPath, 0644) // Restore for cleanup
+	_ = os.Chmod(envPath, 0000)   // #nosec G104 - test setup
+	defer os.Chmod(envPath, 0600) // Restore for cleanup
 
 	viper.Reset()
 	err = LoadLegacyEnvFile(envPath)
@@ -1022,11 +1022,11 @@ func mockStdin(input string) func() {
 
 	go func() {
 		defer w.Close()
-		w.Write([]byte(input))
+		_, _ = w.Write([]byte(input)) // #nosec G104 - test setup
 	}()
 
 	return func() {
 		os.Stdin = oldStdin
-		r.Close()
+		_ = r.Close() // #nosec G104 - test cleanup
 	}
 }

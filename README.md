@@ -20,12 +20,13 @@
 - **🌍 Cross-platform**: Native binaries for Linux, macOS, and Windows
 - **⚡ Smart file transfers**: Automatic S3 routing for large files with lifecycle management  
 - **🔒 Advanced IAM management**: Temporary policies with automatic cleanup
+- **🔋 Power management**: Start, stop, and reboot EC2 instances individually or in bulk via tags
 - **🛠️ Modern CLI**: Flag-based interface with comprehensive help and validation
 - **📊 Professional logging**: Thread-safe, timestamped logs with debug capabilities
-- **🔄 Intelligent operations**: Concurrent-safe with filesystem locking
+- **🔄 Intelligent operations**: Concurrent-safe with filesystem locking and parallel execution
 
 **Legacy bash tools (deprecated):**
-- **ssm**: Connect to EC2 instances, execute commands, tag-based operations
+- **ssm**: Connect to EC2 instances, execute commands, power management, tag-based operations
 - **authaws**: AWS SSO authentication with interactive account/role selection
 - Color-coded output and region shortcodes for faster workflows
 
@@ -130,6 +131,18 @@ ztictl ssm connect i-1234567890abcdef0 --region ca-central-1
 
 # Execute commands remotely
 ztictl ssm exec i-1234567890abcdef0 "systemctl status nginx" --region ca-central-1
+
+# Power management operations
+ztictl ssm start i-1234567890abcdef0 --region ca-central-1
+ztictl ssm stop i-1234567890abcdef0 --region ca-central-1
+ztictl ssm reboot i-1234567890abcdef0 --region ca-central-1
+
+# Bulk power operations using tags
+ztictl ssm start-tagged --tags Environment=Production --region ca-central-1
+ztictl ssm stop-tagged --tags ManagedBy=ec2-manager --region ca-central-1
+
+# Power operations on multiple specific instances
+ztictl ssm start --instances i-123,i-456,i-789 --region ca-central-1 --parallel 3
 
 # Advanced file transfers (with automatic S3 routing for large files)
 ztictl ssm transfer upload i-1234567890abcdef0 large-file.zip /opt/data.zip --region ca-central-1
@@ -368,10 +381,18 @@ For maintainers who want to create a new release, please see [CONTRIBUTING.md](C
 
 ## 🔐 Security
 
+### Built-in Security Features
+- **Directory Traversal Protection**: Cross-platform path validation prevents unauthorized file access
+- **Input Validation**: Comprehensive validation for AWS resource identifiers and parameters
+- **IAM Lifecycle Management**: Automatic cleanup of temporary policies and permissions
+- **Secure File Handling**: Protected file operations with permission validation
+
+### Best Practices
 These tools require AWS credentials and access to your AWS resources. Always:
 - Keep your AWS credentials secure
-- Use appropriate IAM permissions
+- Use appropriate IAM permissions with least privilege
 - Review security best practices in the [AWS Security Documentation](https://docs.aws.amazon.com/security/)
+- Ensure your AWS CLI and Session Manager Plugin are up to date
 
 ## ✨ About ZSoftly
 
