@@ -61,7 +61,7 @@ Features:
 
 			// Backup existing version file if it exists
 			if _, err := os.Stat(versionFile); err == nil {
-				os.Rename(versionFile, tempFile)
+				_ = os.Rename(versionFile, tempFile) // Ignore error as backup is optional
 			}
 
 			// Show splash as first run
@@ -69,7 +69,7 @@ Features:
 
 			// Restore version file
 			if _, err := os.Stat(tempFile); err == nil {
-				os.Rename(tempFile, versionFile)
+				_ = os.Rename(tempFile, versionFile) // Ignore error as restore is optional
 			}
 		} else {
 			// Normal splash behavior

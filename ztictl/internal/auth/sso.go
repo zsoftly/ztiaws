@@ -470,7 +470,7 @@ func (m *Manager) configureProfile(profileName string, cfg *appconfig.Config) er
 	}
 
 	configDir := filepath.Join(homeDir, ".aws")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0750); err != nil {
 		return fmt.Errorf("failed to create AWS config directory: %w", err)
 	}
 
@@ -709,7 +709,7 @@ func (m *Manager) saveTokenToCache(tokenResp *ssooidc.CreateTokenOutput, startUR
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0750); err != nil {
 		return fmt.Errorf("failed to create cache directory: %w", err)
 	}
 

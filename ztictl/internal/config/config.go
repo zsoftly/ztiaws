@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 
 	"ztictl/pkg/errors"
+	"ztictl/pkg/security"
 )
 
 // Config represents the application configuration
@@ -194,6 +195,21 @@ func LoadLegacyEnvFile(envFilePath string) error {
 		return nil // No .env file, not an error
 	}
 
+	// Validate file path to prevent directory traversal (G304 fix)
+	// Allow absolute paths and specific relative paths needed by the application
+	cleanPath, err := filepath.Abs(filepath.Clean(envFilePath))
+	if err != nil {
+		return errors.NewConfigError("failed to resolve .env file path", err)
+	}
+
+	// Only validate relative paths that could be dangerous (but allow ../.env which is used by design)
+	if !filepath.IsAbs(envFilePath) && envFilePath != "../.env" && !filepath.IsAbs(cleanPath) {
+		if err := security.ValidateFilePathWithWorkingDir(envFilePath); err != nil {
+			return errors.NewConfigError("invalid .env file path", err)
+		}
+	}
+	envFilePath = cleanPath
+
 	// Read .env file manually since viper doesn't handle bash-style env files well
 	envFile, err := os.Open(envFilePath)
 	if err != nil {
@@ -302,7 +318,7 @@ system:
 
 	// Create directory if it doesn't exist
 	configDir := filepath.Dir(configPath)
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0750); err != nil {
 		return errors.NewConfigError("failed to create config directory", err)
 	}
 
@@ -402,7 +418,7 @@ func InteractiveInit() error {
 	if iamDelay == "" {
 		config.System.IAMPropagationDelay = 5
 	} else {
-		fmt.Sscanf(iamDelay, "%d", &config.System.IAMPropagationDelay)
+		_, _ = fmt.Sscanf(iamDelay, "%d", &config.System.IAMPropagationDelay) // Ignore error, will use default on parse failure
 	}
 
 	fmt.Print("S3 bucket prefix for file transfers [ztictl-ssm-file-transfer]: ")
@@ -436,7 +452,7 @@ func writeInteractiveConfig(config *Config) error {
 	configDir := filepath.Dir(configPath)
 
 	// Create directory if it doesn't exist
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0750); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 

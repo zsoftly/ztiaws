@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"ztictl/pkg/security"
 )
 
 const (
@@ -48,6 +49,11 @@ func ShowSplash(version string) (bool, error) {
 	}
 
 	versionFile := filepath.Join(homeDir, versionTrackingFile)
+
+	// Validate file path to prevent directory traversal (G304 fix)
+	if err := security.ValidateFilePath(versionFile, homeDir); err != nil {
+		return false, fmt.Errorf("invalid version file path: %w", err)
+	}
 
 	// Check if this is first run or new version
 	isFirstRun := false
@@ -183,7 +189,7 @@ func displaySplash(config SplashConfig) {
 	// Pause for user to read
 	if config.IsFirstRun {
 		headerColor.Print("  🚀 Press Enter to continue...")
-		fmt.Scanln()
+		_, _ = fmt.Scanln() // Ignore error as user input is not critical
 	} else {
 		time.Sleep(3 * time.Second)
 		descColor.Println("  🚀 Starting ztictl...")

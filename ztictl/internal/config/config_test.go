@@ -263,7 +263,7 @@ DEFAULT_PROFILE="test-profile"
 LOG_DIR="/tmp/logs"
 `
 				envPath := filepath.Join("..", ".env")
-				os.MkdirAll(filepath.Dir(envPath), 0755)
+				os.MkdirAll(filepath.Dir(envPath), 0750)
 				err = ioutil.WriteFile(envPath, []byte(envContent), 0600)
 				if err != nil {
 					return nil, err
