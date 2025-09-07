@@ -14,6 +14,7 @@ import (
 	"ztictl/pkg/colors"
 	"ztictl/pkg/logging"
 
+	awssdk "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/spf13/cobra"
@@ -567,7 +568,7 @@ func resolveInstanceID(ctx context.Context, awsClient *aws.Client, instanceIdent
 	result, err := awsClient.EC2.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
 		Filters: []types.Filter{
 			{
-				Name:   &[]string{"tag:Name"}[0],
+				Name:   awssdk.String("tag:Name"),
 				Values: []string{instanceIdentifier},
 			},
 		},
@@ -599,7 +600,7 @@ func getInstanceIDsByTags(ctx context.Context, awsClient *aws.Client, tagsFlag, 
 				key := strings.TrimSpace(parts[0])
 				value := strings.TrimSpace(parts[1])
 				filters = append(filters, types.Filter{
-					Name:   &[]string{fmt.Sprintf("tag:%s", key)}[0],
+					Name:   awssdk.String("tag:" + key),
 					Values: []string{value},
 				})
 			}
