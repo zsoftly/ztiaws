@@ -13,21 +13,9 @@ DEBUG_MODE=false
 
 usage() {
     cat << EOF
-Usage: $0     # Create release notes header
-    cat > RELEASE_NOTES.txt << EOF
-# ztictl $VERSION Release Notes
+Usage: $0 [OPTIONS]
 
-**Installation:** [Installation Guide](https://github.com/${github_repo:-your-org/your-repo}/blob/release/$VERSION/INSTALLATION.md)
-
-**Release Date:** $(date '+%B %d, %Y')
-
-## Overview
-
-ztictl is a unified AWS SSM management tool that provides both Go binary and bash script implementations. The Go version (\`ztictl\`) is the primary implementation with enhanced features, while the bash scripts (\`authaws\`, \`ssm\`) are maintained for backward compatibility only.
-
-**Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
-
-EOFrate CHANGELOG.md and RELEASE_NOTES.txt for a release version.
+Generate CHANGELOG.md and RELEASE_NOTES.txt for a release version.
 
 OPTIONS:
     -v, --version VERSION    Release version (required, format: v1.2.3 or 1.2.3)
@@ -279,23 +267,32 @@ generate_release_notes() {
     
     if [[ "$repo_url" =~ github\.com[:/]([^/]+/[^/]+)(\.git)?$ ]]; then
         github_repo="${BASH_REMATCH[1]%.git}"
+    elif [[ "$repo_url" =~ ([^/]+/[^/]+)\.git$ ]]; then
+        # Fallback for other Git URL formats
+        github_repo="${BASH_REMATCH[1]}"
+    fi
+    
+    # If we still couldn't extract it, try a simpler approach
+    if [[ -z "$github_repo" && "$repo_url" =~ github\.com ]]; then
+        # Extract zsoftly/ztiaws from git@github.com:zsoftly/ztiaws.git
+        github_repo=$(echo "$repo_url" | sed -n 's/.*github\.com[:/]\([^/]*\/[^/]*\)\.git.*/\1/p')
     fi
     
     # Create release notes header
-    cat > RELEASE_NOTES.txt << EOF
-# ztictl $VERSION Release Notes
-
-**Installation:** [Installation Guide](https://github.com/${github_repo:-your-org/your-repo}/blob/main/INSTALLATION.md)
-
-**Release Date:** $(date '+%B %d, %Y')
-
-## Overview
-
-ztictl is a unified AWS SSM management tool that provides both Go binary and bash script implementations. The Go version (`ztictl`) is the primary implementation with enhanced features, while the bash scripts (`authaws`, `ssm`) are maintained for backward compatibility only.
-
-**Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
-
-EOF
+    {
+        echo "# ztictl $VERSION Release Notes"
+        echo ""
+        echo "**Installation:** [Installation Guide](https://github.com/${github_repo:-your-org/your-repo}/blob/release/$VERSION/INSTALLATION.md)"
+        echo ""
+        echo "**Release Date:** $(date '+%B %d, %Y')"
+        echo ""
+        echo "## Overview"
+        echo ""
+        echo "ztictl is a unified AWS SSM management tool that provides both Go binary and bash script implementations. The Go version (\`ztictl\`) is the primary implementation with enhanced features, while the bash scripts (\`authaws\`, \`ssm\`) are maintained for backward compatibility only."
+        echo ""
+        echo "**Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation."
+        echo ""
+    } > RELEASE_NOTES.txt
     
     # Add features section
     echo "## New Features" >> RELEASE_NOTES.txt
