@@ -19,7 +19,7 @@ var (
 	// Version represents the current version of ztictl
 	// This can be set at build time using -ldflags "-X main.version=X.Y.Z"
 	// Default version is "2.5.0"; override at build time with -ldflags "-X main.Version=X.Y.Z"
-	Version    = "2.5.0"
+	Version    = "2.5.1"
 	configFile string
 	debug      bool
 	showSplash bool

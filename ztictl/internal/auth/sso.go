@@ -16,6 +16,7 @@ import (
 	appconfig "ztictl/internal/config"
 	"ztictl/pkg/errors"
 	"ztictl/pkg/logging"
+	"ztictl/pkg/security"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -276,7 +277,7 @@ func getAWSConfigDir() (string, error) {
 	configDir := filepath.Join(homeDir, ".aws")
 
 	// Validate path to prevent directory traversal
-	if err := validateFilePath(configDir, homeDir); err != nil {
+	if err := security.ValidateFilePath(configDir, homeDir); err != nil {
 		return "", fmt.Errorf("invalid AWS config directory path: %w", err)
 	}
 
@@ -401,7 +402,7 @@ func (m *Manager) ListProfiles(ctx context.Context) ([]Profile, error) {
 	configPath := filepath.Join(configDir, "config")
 
 	// Validate config path to prevent directory traversal
-	if err := validateFilePath(configPath, configDir); err != nil {
+	if err := security.ValidateFilePath(configPath, configDir); err != nil {
 		return nil, fmt.Errorf("invalid config file path: %w", err)
 	}
 
@@ -476,7 +477,7 @@ func (m *Manager) configureProfile(profileName string, cfg *appconfig.Config) er
 	configPath := filepath.Join(configDir, "config")
 
 	// Validate config path to prevent directory traversal
-	if err := validateFilePath(configPath, configDir); err != nil {
+	if err := security.ValidateFilePath(configPath, configDir); err != nil {
 		return fmt.Errorf("invalid config file path: %w", err)
 	}
 
@@ -514,7 +515,7 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 	expectedFile := filepath.Join(cacheDir, fmt.Sprintf("%s.json", hash))
 
 	// Validate cache file path to prevent directory traversal
-	if err := validateFilePath(expectedFile, cacheDir); err != nil {
+	if err := security.ValidateFilePath(expectedFile, cacheDir); err != nil {
 		// Log but don't fail - just skip this file
 		logging.LogWarn("Invalid cache file path, skipping: %v", err)
 		return nil, fmt.Errorf("no valid SSO token found")
@@ -536,7 +537,7 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 
 		if !d.IsDir() && strings.HasSuffix(path, ".json") {
 			// Validate file path to prevent directory traversal attacks
-			if validateErr := validateFilePath(path, cacheDir); validateErr != nil {
+			if validateErr := security.ValidateFilePath(path, cacheDir); validateErr != nil {
 				// Skip invalid paths but continue walking
 				return nil
 			}
@@ -977,7 +978,7 @@ func (m *Manager) updateProfileWithSelection(profileName string, account *Accoun
 	configPath := filepath.Join(configDir, "config")
 
 	// Validate config path to prevent directory traversal
-	if err := validateFilePath(configPath, configDir); err != nil {
+	if err := security.ValidateFilePath(configPath, configDir); err != nil {
 		return fmt.Errorf("invalid config file path: %w", err)
 	}
 
@@ -1260,7 +1261,7 @@ func (m *Manager) IsProfileAuthenticated(profileName string) bool {
 			tokenFile := filepath.Join(configDir, file.Name())
 
 			// Validate token file path to prevent directory traversal
-			if err := validateFilePath(tokenFile, configDir); err != nil {
+			if err := security.ValidateFilePath(tokenFile, configDir); err != nil {
 				// Skip invalid paths but continue checking other files
 				continue
 			}
@@ -1357,34 +1358,5 @@ func (m *Manager) clearSSOCache() error {
 	// For Windows compatibility, we'll disable automatic cache clearing
 	// Users can manually clear cache using AWS CLI: aws sso logout
 	logging.LogInfo("Cache clearing disabled for security compatibility")
-	return nil
-}
-
-// validateFilePath ensures the path is within the allowed base directory
-// This prevents directory traversal attacks (CWE-22)
-func validateFilePath(targetPath, baseDir string) error {
-	// Clean and resolve paths
-	cleanTarget, err := filepath.Abs(filepath.Clean(targetPath))
-	if err != nil {
-		return fmt.Errorf("failed to resolve target path: %w", err)
-	}
-
-	cleanBase, err := filepath.Abs(filepath.Clean(baseDir))
-	if err != nil {
-		return fmt.Errorf("failed to resolve base path: %w", err)
-	}
-
-	// Check if target is within base directory
-	relPath, err := filepath.Rel(cleanBase, cleanTarget)
-	if err != nil {
-		return fmt.Errorf("failed to compute relative path: %w", err)
-	}
-
-	// Ensure the relative path doesn't escape the base directory
-	// Check for absolute paths or any presence of ".." which indicates directory traversal
-	if filepath.IsAbs(relPath) || strings.Contains(relPath, "..") {
-		return fmt.Errorf("path escapes base directory: %s", targetPath)
-	}
-
 	return nil
 }

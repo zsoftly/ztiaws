@@ -10,6 +10,7 @@ import (
 
 	"ztictl/internal/config"
 	"ztictl/pkg/logging"
+	"ztictl/pkg/security"
 )
 
 func TestNewManager(t *testing.T) {
@@ -1346,7 +1347,7 @@ func TestValidateFilePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateFilePath(tt.targetPath, tt.baseDir)
+			err := security.ValidateFilePath(tt.targetPath, tt.baseDir)
 			if tt.expectError && err == nil {
 				t.Errorf("Expected error for path %q within base %q but got none", tt.targetPath, tt.baseDir)
 			} else if !tt.expectError && err != nil {

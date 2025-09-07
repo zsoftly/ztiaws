@@ -1,5 +1,20 @@
 # Changelog
 
+## [v2.5.1] - 2025-09-07
+
+### Security
+- **Critical Directory Traversal Fix**: Enhanced cross-platform path validation security
+  - **Directory Traversal Prevention**: Fixed Windows-style directory traversal vulnerability (`..\\` patterns)
+  - **Cross-Platform Security**: Added comprehensive Windows (`\`) and Unix (`/`) path separator validation
+  - **Enhanced Path Validation**: Now blocks all directory traversal patterns: `../`, `..\\`, `/../`, `\\..\\`, `/..`, `\\..`
+  - **Comprehensive Testing**: Added 87+ platform-specific security test cases covering Windows UNC paths, drive letters, and Unix system paths
+  - **Runtime Adaptation**: Tests automatically adapt to current OS for platform-specific attack vector validation
+
+### Technical
+- **Code Quality**: Improved boolean condition readability in security validation logic
+- **Cross-Platform Compatibility**: Replaced string concatenation with `filepath.Join()` for proper path handling
+- **Test Coverage**: Enhanced security package with Windows and Unix specific validation scenarios
+
 ## [v2.5.0] - 2025-09-07
 
 ### Added

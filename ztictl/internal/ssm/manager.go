@@ -18,6 +18,7 @@ import (
 	appconfig "ztictl/internal/config"
 	"ztictl/pkg/errors"
 	"ztictl/pkg/logging"
+	"ztictl/pkg/security"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -307,6 +308,11 @@ func (m *Manager) UploadFile(ctx context.Context, instanceIdentifier, region, lo
 		return fmt.Errorf("failed to resolve instance: %w", err)
 	}
 
+	// Validate that the local path is within safe boundaries
+	if err := security.ValidateFilePathWithWorkingDir(localPath); err != nil {
+		return fmt.Errorf("unsafe file path: %w", err)
+	}
+
 	// Check if local file exists
 	fileInfo, err := os.Stat(localPath)
 	if err != nil {
@@ -331,6 +337,11 @@ func (m *Manager) DownloadFile(ctx context.Context, instanceIdentifier, region, 
 	instanceID, err := m.resolveInstanceIdentifier(ctx, instanceIdentifier, region)
 	if err != nil {
 		return fmt.Errorf("failed to resolve instance: %w", err)
+	}
+
+	// Validate that the local path is within safe boundaries
+	if err := security.ValidateFilePathWithWorkingDir(localPath); err != nil {
+		return fmt.Errorf("unsafe file path: %w", err)
 	}
 
 	m.logger.Info("Downloading file from instance", "instanceID", instanceID, "remotePath", remotePath, "localPath", localPath)
@@ -648,7 +659,8 @@ func (m *Manager) waitForCommandCompletion(ctx context.Context, ssmClient *ssm.C
 // File transfer helper methods
 
 func (m *Manager) uploadFileSmall(ctx context.Context, instanceID, region, localPath, remotePath string) error {
-	// Validate the local file path is absolute and clean
+	// Note: File path validation is performed in UploadFile() caller
+	// Clean the path for consistent handling
 	cleanPath, err := filepath.Abs(filepath.Clean(localPath))
 	if err != nil {
 		return fmt.Errorf("invalid local file path: %w", err)
@@ -680,6 +692,7 @@ func (m *Manager) uploadFileSmall(ctx context.Context, instanceID, region, local
 }
 
 func (m *Manager) downloadFileSmall(ctx context.Context, instanceID, region, remotePath, localPath string) error {
+	// Note: File path validation is performed in DownloadFile() caller
 	// Create download command
 	command := fmt.Sprintf(`if [ -f '%s' ]; then cat '%s' | base64; else echo "FILE_NOT_FOUND"; fi`, remotePath, remotePath)
 
@@ -712,6 +725,7 @@ func (m *Manager) downloadFileSmall(ctx context.Context, instanceID, region, rem
 }
 
 func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, localPath, remotePath string) error {
+	// Note: File path validation is performed in UploadFile() caller
 	m.logger.Info("Starting large file upload via S3 for instance", "instanceID", instanceID, "localPath", localPath)
 
 	// Initialize managers if not already done
@@ -814,6 +828,7 @@ func (m *Manager) uploadFileLarge(ctx context.Context, instanceID, region, local
 }
 
 func (m *Manager) downloadFileLarge(ctx context.Context, instanceID, region, remotePath, localPath string) error {
+	// Note: File path validation is performed in DownloadFile() caller
 	m.logger.Info("Starting large file download via S3 for instance", "instanceID", instanceID, "remotePath", remotePath)
 
 	// Initialize managers if not already done

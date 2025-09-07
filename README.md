@@ -381,10 +381,18 @@ For maintainers who want to create a new release, please see [CONTRIBUTING.md](C
 
 ## 🔐 Security
 
+### Built-in Security Features
+- **Directory Traversal Protection**: Cross-platform path validation prevents unauthorized file access
+- **Input Validation**: Comprehensive validation for AWS resource identifiers and parameters
+- **IAM Lifecycle Management**: Automatic cleanup of temporary policies and permissions
+- **Secure File Handling**: Protected file operations with permission validation
+
+### Best Practices
 These tools require AWS credentials and access to your AWS resources. Always:
 - Keep your AWS credentials secure
-- Use appropriate IAM permissions
+- Use appropriate IAM permissions with least privilege
 - Review security best practices in the [AWS Security Documentation](https://docs.aws.amazon.com/security/)
+- Ensure your AWS CLI and Session Manager Plugin are up to date
 
 ## ✨ About ZSoftly
 
