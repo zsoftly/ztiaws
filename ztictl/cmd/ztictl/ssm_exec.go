@@ -95,6 +95,13 @@ Examples:
 			os.Exit(1)
 		}
 
+		// Validate mutual exclusion - cannot specify both tags and instances
+		if tagsFlag != "" && instancesFlag != "" {
+			colors.PrintError("✗ Cannot specify both --tags and --instances flags\n")
+			logging.LogError("Both tags and instances flags provided - only one is allowed")
+			os.Exit(1)
+		}
+
 		// Validate parallel value
 		if parallelFlag <= 0 {
 			colors.PrintError("✗ --parallel must be greater than 0\n")
