@@ -254,12 +254,12 @@ jobs:
         
         # Run golangci-lint with security linters enabled
         echo "Running golangci-lint with security checks..."
-        $(go env GOPATH)/bin/golangci-lint run --enable gosec --out-format json > golangci-security-report.json || true
+        $(go env GOPATH)/bin/golangci-lint run --enable gosec --out-format=json > golangci-security-report.json || true
         $(go env GOPATH)/bin/golangci-lint run --enable gosec || true
         
         # Try to install and run standalone gosec as backup
         echo "Installing standalone GoSec..."
-        curl -sfL https://raw.githubusercontent.com/securecodewarrior/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest || true
+        curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest || true
         
         if [ -f "$(go env GOPATH)/bin/gosec" ]; then
           echo "Running standalone GoSec analysis..."
