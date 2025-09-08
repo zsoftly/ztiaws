@@ -95,6 +95,7 @@ ztictl is a unified AWS SSM management tool that provides both Go binary and bas
 * fix: Resolve shellcheck warnings and bash compatibility issues
 
 ## Other Changes
+* chore: remove deprecated v2.6.0 section from CHANGELOG.md
 * chore: update version to 2.5.2 in changelog and source files
 * test: enhance validation in various test cases for improved coverage and reliability
 * Refactor SSM management commands to improve error handling and separation of concerns

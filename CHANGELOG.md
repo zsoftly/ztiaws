@@ -87,6 +87,130 @@
 - fix: Resolve shellcheck warnings and bash compatibility issues
 
 ### Changed
+- chore: remove deprecated v2.6.0 section from CHANGELOG.md
+- chore: update version to 2.5.2 in changelog and source files
+- test: enhance validation in various test cases for improved coverage and reliability
+- Refactor SSM management commands to improve error handling and separation of concerns
+- refactor: Consolidate CI/CD workflows and enhance shell script testing in build pipeline
+- refactor: Remove legacy CI/CD workflows and update documentation for optimized pipeline structure
+- Revert "removed version line from 07 module file"
+- Revert "updated release date"
+- Revert "updated release date"
+- Revert "chore: Prepare for v2.2.0 release"
+- chore: Prepare for v2.2.0 release
+- updated release date
+- updated release date
+- removed version line from 07 module file
+- Remove the XDG directory setup from install.sh since we simplified the config approach
+- refactor: Simplify to address core feedback without overengineering
+- docs: Update versioning documentation for v1.6.0 release
+- chore: Bump version to 1.6.0 for flag-based parameter feature
+- docs: Achieve complete CLI documentation consistency
+- make copilot changes
+- all logging goes to stderr
+- cleaned the code and applied best practices to sergical precision.
+- modified condition for pr-notification
+- refactor: Improve ANSI code handling and enhance logging error messages
+- refactor: Implement dynamic table formatting for EC2 instance display
+- refactor: Enhance logging messages for clarity and consistency across IAM and S3 lifecycle management
+- refactor: Update test version in ShowSplash test case to 2.2.0-test
+- refactor: Update version to 2.1.0 in documentation, build scripts, and tests
+- refactor: Update version to 2.1.0 in documentation, build scripts, and tests
+- refactor: Simplify NewManager function and enhance logging messages across various components
+- refactor: Update logging in Windows build script and enhance EC2 test manager for cross-platform compatibility
+- refactor: Improve SSO login command and enhance account/role selection with fuzzy finder
+- gofmt -s -w .
+- refactor: Migrate logging to centralized package and remove legacy logger
+- docs: Enhance authaws section with flag-based parameter support and usage examples
+
+
+## [v2.6.1] - 2025-09-08
+
+### Added
+- feat: update Go version to 1.25 and enhance golangci-lint configuration for improved code quality
+- feat: add golangci-lint configuration and update SHA1 usage comments for AWS CLI compatibility
+- feat: switch from SHA256 to SHA1 for cache filename generation to ensure AWS CLI compatibility
+- feat: improve release process documentation with clearer steps and enhanced checklist
+- feat: update release notes generation script to use dynamic installation guide link and improve formatting
+- feat: update usage instructions and enhance release notes format in documentation generator
+- feat: update installation guide link and enhance release notes with overview and deprecation notice
+- feat: enhance security by refactoring path validation and adding comprehensive tests for directory traversal detection
+- feat: add #nosec annotations to suppress security warnings for various print and environment setup operations
+- feat: enhance security by adding #nosec annotations for file read operations
+- feat: add #nosec annotations for path validation in file read operations
+- feat: enhance security by updating directory permissions to 0750 and adding path validation to prevent directory traversal
+- feat: update file permissions to 0600 for enhanced security across configuration and logging files
+- feat: enhance security with directory traversal prevention and comprehensive path validation; update changelog and README
+- feat: release version 2.5.0 with enhanced security, input validation, and UI improvements; update changelog and README
+- feat: update changelog and README for EC2 power management commands; bump version to 2.4.0
+- feat: implement the EC2 instance power management commands for the ztictl tool
+- feat: Add validation for mutual exclusion of --tags and --instances flags in exec-tagged command
+- feat: Update version to 2.3.0 and enhance changelog with new features, changes, and examples for exec-tagged command
+- feat: Enhance exec-tagged command with parallel execution and new flags for instance targeting
+- feat: Update changelog, README, and version to support multi-tag filtering in exec-tagged command
+- feat: Enhance exec-tagged command to support multiple tags and add validation tests
+- feat: Update notification messages in CI/CD pipeline to include emojis for better visibility
+- feat: Implement embedded notifications for test failures and successes in CI/CD pipeline
+- feat: Implement unified PR notification for test results and status summary
+- feat: Add embedded notifications for test failures and successes in CI/CD pipeline
+- feat: add tests
+- feat: Add professional installation system with Makefile
+- feat: Add flag-based parameters support to SSM tool
+- feat(notifications): implement shell scripts with Google Chat App Cards
+- feat(ci): add automated Google Chat notifications for PRs and releases
+- Add automated release notifications for Google Chat
+- feat: Revise installation instructions and update ztictl usage examples for clarity and consistency
+- feat: Implement release documentation generator for automated CHANGELOG.md and RELEASE_NOTES.txt creation
+- feat: Implement release documentation generator for automated CHANGELOG.md and RELEASE_NOTES.txt creation
+- feat: Implement release documentation generator for automated CHANGELOG.md and RELEASE_NOTES.txt creation
+- feat: Refactor CHANGELOG.md generation to improve structure and clarity
+- feat: Enhance changelog and release notes generation with commit categorization
+- feat: Implement auto-generation of release documentation and changelog
+- feat: Add automated release preparation workflow
+- Enhance logging and color output across SSM commands
+- feat: Enhance SSM list command to display all EC2 instances with their SSM status
+- feat: Introduce version management module and update version references in authaws and ssm scripts
+- feat: Add flag-based parameter support to authaws
+- Enhance branch protection: allow pull requests to main from 'release/*' branches
+- Enhance CI/CD workflow: include 'release/*' branches in push and pull request triggers
+
+### Fixed
+- fix: update golangci-lint and gosec installation scripts for accuracy and consistency
+- fix: update instance tag filtering to use awssdk.String for better clarity and consistency
+- fix: Enhance environment variable handling for cross-platform compatibility in tests
+- fix: Skip LoggerMethods test on Windows CI due to output formatting differences
+- fix: Enhance PR notification with detailed status reporting and improve logging tests for Windows CI
+- fix: Enhance PR notification with status and message, and skip logging test on Windows in CI
+- fix: Update shellcheck directives for clarity and safety in scripts
+- fix: Enhance logging tests by preserving logger state during failure scenarios
+- fix: Improve string quoting for better readability in uninstall script
+- fix: Update CI/CD workflows to enhance testing and path filters
+- fix: Restore logger state after TestLogFileCreationFailure
+- fix: Update icon in Google Chat App Card payload for deployment status
+- fix: Tests check platform-appropriate instructions
+- fix: Tests check platform-appropriate instructions
+- fix: Tests check platform-appropriate instructions
+- fix: Tests check platform-appropriate instructions
+- fix: Tests check platform-appropriate instructions
+- fix: Tests check platform-appropriate instructions
+- fix: Tests check platform-appropriate instructions
+- fix: Tests check platform-appropriate instructions
+- fix: Add validation for unrecognized positional arguments
+- fix: Address all Ditah and Copilot feedback
+- fix: Implement Copilot review suggestions for SSM tool
+- fix: Improve Makefile duplicate PATH prevention
+- fix: Resolve region validation inconsistency for exec commands
+- fix: Make authaws help text consistent with SSM dynamic command display
+- fix: Resolve shellcheck linting issues
+- fixed regex errors for google chat webhook
+- fix(scripts): handle both plain text and base64 encoded webhook URLs
+- fix(ci): update workflow path filters to include notification-related files
+- fix: Update GitHub Release step to use RELEASE_NOTES.txt for release notes
+- fix: Update help message and improve default behavior for no arguments in authaws
+- fix: Address PR review feedback and improve validation
+- fix: Resolve shellcheck warnings and bash compatibility issues
+
+### Changed
 - chore: update version to 2.5.2 in changelog and source files
 - test: enhance validation in various test cases for improved coverage and reliability
 - Refactor SSM management commands to improve error handling and separation of concerns
