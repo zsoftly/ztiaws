@@ -116,7 +116,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.24'
+        go-version: '1.25'
         
     - name: Get dependencies
       working-directory: ./ztictl
@@ -219,7 +219,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.24'
+        go-version: '1.25'
         
     - name: Download dependencies
       working-directory: ./ztictl
@@ -230,8 +230,9 @@ jobs:
         # Install govulncheck for official Go vulnerability checking
         go install golang.org/x/vuln/cmd/govulncheck@latest
         
-        # Install golangci-lint for comprehensive linting and security checks
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
+        # Install golangci-lint v2.4.0 for comprehensive linting and security checks
+        # Using specific version to match local development environment
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.4.0
         
         # Verify installations
         govulncheck -version || echo "govulncheck installation failed"
@@ -253,12 +254,12 @@ jobs:
         
         # Run golangci-lint with security linters enabled
         echo "Running golangci-lint with security checks..."
-        $(go env GOPATH)/bin/golangci-lint run --enable gosec --out-format json > golangci-security-report.json || true
+        $(go env GOPATH)/bin/golangci-lint run --enable gosec --out-format=json > golangci-security-report.json || true
         $(go env GOPATH)/bin/golangci-lint run --enable gosec || true
         
         # Try to install and run standalone gosec as backup
         echo "Installing standalone GoSec..."
-        curl -sfL https://raw.githubusercontent.com/securecodewarrior/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest || true
+        curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest || true
         
         if [ -f "$(go env GOPATH)/bin/gosec" ]; then
           echo "Running standalone GoSec analysis..."
@@ -408,7 +409,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.24'
+        go-version: '1.25'
         
     - name: Get dependencies
       working-directory: ./ztictl

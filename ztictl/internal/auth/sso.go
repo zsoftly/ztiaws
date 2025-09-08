@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	"crypto/sha256"
+	"crypto/sha1" // #nosec G505 -- SHA1 required for AWS CLI compatibility, not used for security
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -509,8 +509,12 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 
 	cacheDir := filepath.Join(homeDir, ".aws", "sso", "cache")
 
-	// First, try the expected filename based on SHA256 hash
-	hasher := sha256.New()
+	// First, try the expected filename based on SHA1 hash (AWS CLI compatible)
+	// SECURITY NOTE: SHA1 is cryptographically weak but required for AWS CLI compatibility.
+	// The hash is only used for cache filename generation, not for security purposes.
+	// AWS CLI expects SHA1-based filenames in ~/.aws/sso/cache/
+	// TODO: Monitor AWS CLI for migration to SHA256 or other secure alternatives
+	hasher := sha1.New() // #nosec G401 -- SHA1 required for AWS CLI compatibility
 	hasher.Write([]byte(startURL))
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	expectedFile := filepath.Join(cacheDir, fmt.Sprintf("%s.json", hash))
@@ -724,8 +728,12 @@ func (m *Manager) saveTokenToCache(tokenResp *ssooidc.CreateTokenOutput, startUR
 		ExpiresAt:   expiresAt,
 	}
 
-	// Generate cache filename (AWS CLI compatible)
-	hasher := sha256.New()
+	// Generate cache filename (AWS CLI compatible using SHA1)
+	// SECURITY NOTE: SHA1 is cryptographically weak but required for AWS CLI compatibility.
+	// The hash is only used for cache filename generation, not for security purposes.
+	// AWS CLI expects SHA1-based filenames in ~/.aws/sso/cache/
+	// TODO: Monitor AWS CLI for migration to SHA256 or other secure alternatives
+	hasher := sha1.New() // #nosec G401 -- SHA1 required for AWS CLI compatibility
 	hasher.Write([]byte(startURL))
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	filename := fmt.Sprintf("%s.json", hash)

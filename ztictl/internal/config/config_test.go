@@ -1,7 +1,6 @@
 package config
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -230,7 +229,7 @@ func TestLoad(t *testing.T) {
 			name: "first run without env file",
 			setup: func() (cleanup func(), error error) {
 				// Create temp directory for config
-				tempDir, err := ioutil.TempDir("", "config_test")
+				tempDir, err := os.MkdirTemp("", "config_test")
 				if err != nil {
 					return nil, err
 				}
@@ -251,7 +250,7 @@ func TestLoad(t *testing.T) {
 		{
 			name: "first run with valid env file",
 			setup: func() (cleanup func(), error error) {
-				tempDir, err := ioutil.TempDir("", "config_test")
+				tempDir, err := os.MkdirTemp("", "config_test")
 				if err != nil {
 					return nil, err
 				}
@@ -264,7 +263,7 @@ LOG_DIR="/tmp/logs"
 `
 				envPath := filepath.Join("..", ".env")
 				_ = os.MkdirAll(filepath.Dir(envPath), 0750) // #nosec G104 - test setup
-				err = ioutil.WriteFile(envPath, []byte(envContent), 0600)
+				err = os.WriteFile(envPath, []byte(envContent), 0600)
 				if err != nil {
 					return nil, err
 				}
@@ -459,13 +458,13 @@ SSO_REGION=us-west-2
 
 			if tt.envContent != "" {
 				// Create temporary env file
-				tempDir, err := ioutil.TempDir("", "env_test")
+				tempDir, err := os.MkdirTemp("", "env_test")
 				if err != nil {
 					t.Fatalf("Failed to create temp directory: %v", err)
 				}
 
 				envPath = filepath.Join(tempDir, ".env")
-				err = ioutil.WriteFile(envPath, []byte(tt.envContent), 0600)
+				err = os.WriteFile(envPath, []byte(tt.envContent), 0600)
 				if err != nil {
 					t.Fatalf("Failed to write env file: %v", err)
 				}
@@ -502,7 +501,7 @@ func TestExists(t *testing.T) {
 		{
 			name: "config file exists",
 			setup: func() (cleanup func()) {
-				tempDir, err := ioutil.TempDir("", "config_exists_test")
+				tempDir, err := os.MkdirTemp("", "config_exists_test")
 				if err != nil {
 					t.Fatalf("Failed to create temp directory: %v", err)
 				}
@@ -518,7 +517,7 @@ func TestExists(t *testing.T) {
 				}
 
 				configPath := filepath.Join(tempDir, ".ztictl.yaml")
-				_ = ioutil.WriteFile(configPath, []byte("test: config"), 0600) // #nosec G104 - test setup
+				_ = os.WriteFile(configPath, []byte("test: config"), 0600) // #nosec G104 - test setup
 
 				return func() {
 					if runtime.GOOS == "windows" {
@@ -534,7 +533,7 @@ func TestExists(t *testing.T) {
 		{
 			name: "config file does not exist",
 			setup: func() (cleanup func()) {
-				tempDir, err := ioutil.TempDir("", "config_not_exists_test")
+				tempDir, err := os.MkdirTemp("", "config_not_exists_test")
 				if err != nil {
 					t.Fatalf("Failed to create temp directory: %v", err)
 				}
@@ -606,7 +605,7 @@ func TestGetConfigPath(t *testing.T) {
 
 func TestWriteInteractiveConfig(t *testing.T) {
 	// Create temporary home directory
-	tempDir, err := ioutil.TempDir("", "interactive_config_test")
+	tempDir, err := os.MkdirTemp("", "interactive_config_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
@@ -647,7 +646,7 @@ func TestWriteInteractiveConfig(t *testing.T) {
 	}
 
 	// Read and verify content
-	content, err := ioutil.ReadFile(configPath) // #nosec G304 - test file with controlled path
+	content, err := os.ReadFile(configPath) // #nosec G304 - test file with controlled path
 	if err != nil {
 		t.Fatalf("Failed to read config file: %v", err)
 	}
@@ -678,7 +677,7 @@ func TestInteractiveInit(t *testing.T) {
 	// We can't easily test the interactive input part without complex mocking
 
 	// Test that InteractiveInit exists and can handle setup errors
-	tempDir, err := ioutil.TempDir("", "interactive_init_test")
+	tempDir, err := os.MkdirTemp("", "interactive_init_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
@@ -975,7 +974,7 @@ func TestSetDefaultsWithViper(t *testing.T) {
 
 func TestLoadLegacyEnvFileErrorHandling(t *testing.T) {
 	// Test file permission error
-	tempDir, err := ioutil.TempDir("", "env_error_test")
+	tempDir, err := os.MkdirTemp("", "env_error_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
@@ -983,7 +982,7 @@ func TestLoadLegacyEnvFileErrorHandling(t *testing.T) {
 
 	// Create env file then make it unreadable
 	envPath := filepath.Join(tempDir, ".env")
-	err = ioutil.WriteFile(envPath, []byte("TEST=value"), 0600)
+	err = os.WriteFile(envPath, []byte("TEST=value"), 0600)
 	if err != nil {
 		t.Fatalf("Failed to create env file: %v", err)
 	}
