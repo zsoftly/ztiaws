@@ -7,7 +7,6 @@ import (
 	"runtime"
 
 	"ztictl/internal/auth"
-	"ztictl/internal/config"
 	"ztictl/pkg/colors"
 	"ztictl/pkg/logging"
 
@@ -21,7 +20,7 @@ var authCmd = &cobra.Command{
 	Long: `Manage AWS SSO authentication including login, logout, profile management, and credential display.
 
 Examples:
-  ztictl auth login [profile]           # SSO login (profile required)
+  ztictl auth login <profile>           # SSO login (profile required)
   ztictl auth logout [profile]          # SSO logout  
   ztictl auth profiles                  # List/manage profiles
   ztictl auth creds [profile]           # Show credentials`,
@@ -167,19 +166,14 @@ func listAuthProfiles() error {
 
 // showCredentials handles the credential display logic and returns errors instead of calling os.Exit
 func showCredentials(args []string) error {
-	cfg := config.Get()
-
 	var profileName string
 	if len(args) > 0 {
 		profileName = args[0]
 	} else {
-		// Try AWS_PROFILE environment variable first
+		// Try AWS_PROFILE environment variable
 		profileName = os.Getenv("AWS_PROFILE")
 		if profileName == "" {
-			profileName = cfg.SSO.DefaultProfile
-		}
-		if profileName == "" {
-			return fmt.Errorf("no profile specified and no default profile found. Usage: ztictl auth creds [profile-name]")
+			return fmt.Errorf("no profile specified. Usage: ztictl auth creds [profile-name]")
 		}
 	}
 

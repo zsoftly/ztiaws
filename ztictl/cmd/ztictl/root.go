@@ -137,6 +137,9 @@ func setupConfiguration() error {
 			return fmt.Errorf("unable to find home directory: %w", err)
 		}
 
+		logger.Debug("Home directory", "path", home)
+		logger.Debug("Looking for config file", "name", ".ztictl.yaml", "paths", []string{home, "."})
+
 		// Search config in home directory with name ".ztictl" (without extension).
 		viper.AddConfigPath(home)
 		viper.AddConfigPath(".")
@@ -147,10 +150,17 @@ func setupConfiguration() error {
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		if debug {
-			logger.Debug("Using config file", "file", viper.ConfigFileUsed())
+	if err := viper.ReadInConfig(); err != nil {
+		// Log the error but don't fail - config.Load() will handle missing config
+		logger.Debug("Could not read config file", "error", err)
+		// Try to be more specific about what went wrong
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			logger.Debug("Config file not found in expected locations")
+		} else {
+			logger.Error("Error reading config file", "error", err)
 		}
+	} else {
+		logger.Info("Using config file", "file", viper.ConfigFileUsed())
 	}
 
 	// Load configuration
@@ -177,38 +187,65 @@ func runInteractiveConfig(configPath string) error {
 	fmt.Println("==================================")
 	fmt.Println("Let's configure ztictl with your AWS SSO settings.")
 
-	// Get SSO Start URL
-	fmt.Print("Enter your AWS SSO start URL (e.g., https://yourcompany.awsapps.com/start): ")
-	startURL, _ := reader.ReadString('\n')
-	startURL = strings.TrimSpace(startURL)
+	// Get SSO Start URL with validation
+	var startURL string
+	for {
+		fmt.Print("Enter your AWS SSO start URL (e.g., https://yourcompany.awsapps.com/start): ")
+		input, _ := reader.ReadString('\n')
+		startURL = strings.TrimSpace(input)
 
-	if startURL == "" {
-		return fmt.Errorf("SSO start URL cannot be empty")
+		if startURL == "" {
+			fmt.Println("❌ SSO start URL cannot be empty")
+			continue
+		}
+
+		if !strings.HasPrefix(startURL, "http://") && !strings.HasPrefix(startURL, "https://") {
+			fmt.Println("❌ Invalid URL format. Must start with http:// or https://")
+			continue
+		}
+
+		break
 	}
 
-	// Get SSO Region
-	fmt.Print("Enter your AWS SSO region (e.g., us-east-1) [us-east-1]: ")
-	ssoRegion, _ := reader.ReadString('\n')
-	ssoRegion = strings.TrimSpace(ssoRegion)
-	if ssoRegion == "" {
-		ssoRegion = "us-east-1"
+	// Get SSO Region with validation
+	var ssoRegion string
+	for {
+		fmt.Print("Enter your AWS SSO region (e.g., us-east-1) [us-east-1]: ")
+		input, _ := reader.ReadString('\n')
+		ssoRegion = strings.TrimSpace(input)
+		if ssoRegion == "" {
+			ssoRegion = "us-east-1"
+		}
+
+		// Validate region format (xx-xxxx-n)
+		if !isValidAWSRegion(ssoRegion) {
+			fmt.Printf("❌ Invalid AWS region format: %s\n", ssoRegion)
+			fmt.Println("Region format should be like: us-east-1, eu-west-2, ap-southeast-1")
+			continue
+		}
+		break
 	}
 
-	// Get Default Region
-	fmt.Print("Enter your default AWS region (e.g., us-east-1) [us-east-1]: ")
-	defaultRegion, _ := reader.ReadString('\n')
-	defaultRegion = strings.TrimSpace(defaultRegion)
-	if defaultRegion == "" {
-		defaultRegion = "us-east-1"
+	// Get Default Region with validation
+	var defaultRegion string
+	for {
+		fmt.Print("Enter your default AWS region (e.g., us-east-1) [us-east-1]: ")
+		input, _ := reader.ReadString('\n')
+		defaultRegion = strings.TrimSpace(input)
+		if defaultRegion == "" {
+			defaultRegion = "us-east-1"
+		}
+
+		// Validate region format (xx-xxxx-n)
+		if !isValidAWSRegion(defaultRegion) {
+			fmt.Printf("❌ Invalid AWS region format: %s\n", defaultRegion)
+			fmt.Println("Region format should be like: us-east-1, eu-west-2, ap-southeast-1")
+			continue
+		}
+		break
 	}
 
-	// Get Profile Name
-	fmt.Print("Enter a profile name [default-sso-profile]: ")
-	profileName, _ := reader.ReadString('\n')
-	profileName = strings.TrimSpace(profileName)
-	if profileName == "" {
-		profileName = "default-sso-profile"
-	}
+	// Note: Profile name removed - it will be specified during auth login
 
 	// Get home directory for Windows-compatible paths
 	home, err := os.UserHomeDir()
@@ -216,11 +253,13 @@ func runInteractiveConfig(configPath string) error {
 		return fmt.Errorf("unable to get home directory: %w", err)
 	}
 
-	// Use platform-appropriate log directory
+	// Use platform-appropriate log directory with forward slashes for YAML compatibility
 	logDir := filepath.Join(home, "logs")
+	logDir = filepath.ToSlash(logDir) // Convert to forward slashes for YAML
 
-	// Use platform-appropriate temp directory
+	// Use platform-appropriate temp directory with forward slashes for YAML compatibility
 	tempDir := os.TempDir()
+	tempDir = filepath.ToSlash(tempDir) // Convert to forward slashes for YAML
 
 	// Create configuration
 	configContent := fmt.Sprintf(`# ztictl Configuration File
@@ -230,7 +269,6 @@ func runInteractiveConfig(configPath string) error {
 sso:
   start_url: "%s"
   region: "%s"
-  default_profile: "%s"
 
 # Default AWS region for operations
 default_region: "%s"
@@ -261,7 +299,7 @@ region_shortcuts:
   apse1: "ap-southeast-1"
   apse2: "ap-southeast-2"
   aps1: "ap-south-1"
-`, startURL, ssoRegion, profileName, defaultRegion, logDir, tempDir)
+`, startURL, ssoRegion, defaultRegion, logDir, tempDir)
 
 	// Write configuration file
 	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
@@ -271,8 +309,73 @@ region_shortcuts:
 	fmt.Printf("\n✅ Configuration saved to: %s\n", configPath)
 	fmt.Println("\nNext steps:")
 	fmt.Println("1. Run 'ztictl config check' to verify system requirements")
-	fmt.Println("2. Run 'ztictl auth login' to authenticate with AWS SSO")
+	fmt.Println("2. Run 'ztictl auth login <profile-name>' to authenticate with AWS SSO")
 	fmt.Println("3. Run 'ztictl ssm list' to see your EC2 instances")
 
 	return nil
+}
+
+// isValidAWSRegion checks if a region string follows AWS region format
+func isValidAWSRegion(region string) bool {
+	// AWS region format: {area}-{subarea}-{number}
+	// Examples: us-east-1, eu-west-2, ap-southeast-1, ca-central-1
+	if region == "" {
+		return false
+	}
+
+	// Must contain at least two hyphens
+	parts := strings.Split(region, "-")
+
+	// Handle special case for us-gov regions (4 parts)
+	if len(parts) == 4 && parts[0] == "us" && parts[1] == "gov" {
+		// us-gov-east-1, us-gov-west-1
+		parts = []string{"us-gov", parts[2], parts[3]}
+	}
+
+	// Now must have exactly 3 parts
+	if len(parts) != 3 {
+		return false
+	}
+
+	// First part: valid region codes only
+	validPrefixes := map[string]bool{
+		"us": true, "eu": true, "ap": true, "ca": true,
+		"sa": true, "me": true, "af": true, "cn": true,
+		"us-gov": true, // Special case for GovCloud
+	}
+
+	if !validPrefixes[parts[0]] {
+		return false
+	}
+
+	// Second part: valid direction/area names
+	// Special case for GovCloud - only east and west are valid
+	if parts[0] == "us-gov" {
+		if parts[1] != "east" && parts[1] != "west" {
+			return false
+		}
+	} else {
+		validDirections := map[string]bool{
+			"east": true, "west": true, "north": true, "south": true,
+			"central": true, "northeast": true, "southeast": true, "northwest": true, "southwest": true,
+		}
+
+		if !validDirections[parts[1]] {
+			return false
+		}
+	}
+
+	// Third part: must be a number (1-99)
+	if len(parts[2]) < 1 || len(parts[2]) > 2 {
+		return false
+	}
+
+	// Check if third part is a number
+	for _, char := range parts[2] {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+
+	return true
 }

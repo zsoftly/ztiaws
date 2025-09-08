@@ -84,9 +84,8 @@ func TestConfigValidation(t *testing.T) {
 			name: "complete SSO config should pass",
 			config: &Config{
 				SSO: SSOConfig{
-					StartURL:       "https://example.com",
-					Region:         "us-east-1",
-					DefaultProfile: "test-profile",
+					StartURL: "https://example.com",
+					Region:   "us-east-1",
 				},
 			},
 			shouldErr: false,
@@ -398,9 +397,6 @@ LOG_DIR=/tmp/logs
 				if viper.GetString("sso.region") != "us-east-1" {
 					t.Errorf("SSO region not set correctly: %s", viper.GetString("sso.region"))
 				}
-				if viper.GetString("sso.default_profile") != "test-profile" {
-					t.Errorf("Default profile not set correctly: %s", viper.GetString("sso.default_profile"))
-				}
 				if viper.GetString("logging.directory") != "/tmp/logs" {
 					t.Errorf("Log directory not set correctly: %s", viper.GetString("logging.directory"))
 				}
@@ -415,9 +411,6 @@ DEFAULT_PROFILE="double-quote-profile"
 			validate: func(t *testing.T) {
 				if viper.GetString("sso.start_url") != "https://single-quote.com/start" {
 					t.Errorf("Single quoted value not parsed correctly: %s", viper.GetString("sso.start_url"))
-				}
-				if viper.GetString("sso.default_profile") != "double-quote-profile" {
-					t.Errorf("Double quoted value not parsed correctly: %s", viper.GetString("sso.default_profile"))
 				}
 			},
 		},
@@ -617,9 +610,8 @@ func TestWriteInteractiveConfig(t *testing.T) {
 
 	config := &Config{
 		SSO: SSOConfig{
-			StartURL:       "https://test.awsapps.com/start",
-			Region:         "us-east-1",
-			DefaultProfile: "test-profile",
+			StartURL: "https://test.awsapps.com/start",
+			Region:   "us-east-1",
 		},
 		DefaultRegion: "ca-central-1",
 		Logging: LoggingConfig{
@@ -655,7 +647,6 @@ func TestWriteInteractiveConfig(t *testing.T) {
 	expectedStrings := []string{
 		"https://test.awsapps.com/start",
 		"us-east-1",
-		"test-profile",
 		"ca-central-1",
 		"~/logs",
 		"true",
@@ -877,9 +868,8 @@ func TestConfigStructValidation(t *testing.T) {
 	// Test config struct field validation
 	config := &Config{
 		SSO: SSOConfig{
-			StartURL:       "https://example.awsapps.com/start",
-			Region:         "us-east-1",
-			DefaultProfile: "test-profile",
+			StartURL: "https://example.awsapps.com/start",
+			Region:   "us-east-1",
 		},
 		DefaultRegion: "ca-central-1",
 		Logging: LoggingConfig{
@@ -901,9 +891,6 @@ func TestConfigStructValidation(t *testing.T) {
 	}
 	if config.SSO.Region == "" {
 		t.Error("SSO Region should be set")
-	}
-	if config.SSO.DefaultProfile == "" {
-		t.Error("SSO DefaultProfile should be set")
 	}
 	if config.DefaultRegion == "" {
 		t.Error("DefaultRegion should be set")
@@ -942,7 +929,6 @@ func TestSetDefaultsWithViper(t *testing.T) {
 	}{
 		{"default_region", "ca-central-1"},
 		{"sso.region", "us-east-1"},
-		{"sso.default_profile", "default-sso-profile"},
 		{"logging.file_logging", true},
 		{"logging.level", "info"},
 		{"system.iam_propagation_delay", 5},
