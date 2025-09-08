@@ -1,8 +1,8 @@
-# ztictl v2.6.0 Release Notes
+# ztictl v2.6.1 Release Notes
 
-**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.6.0/INSTALLATION.md)
+**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.6.1/INSTALLATION.md)
 
-**Release Date:** September 07, 2025
+**Release Date:** September 08, 2025
 
 ## Overview
 
@@ -11,6 +11,11 @@ ztictl is a unified AWS SSM management tool that provides both Go binary and bas
 **Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
 
 ## New Features
+* feat: update Go version to 1.25 and enhance golangci-lint configuration for improved code quality
+* feat: add golangci-lint configuration and update SHA1 usage comments for AWS CLI compatibility
+* feat: switch from SHA256 to SHA1 for cache filename generation to ensure AWS CLI compatibility
+* feat: improve release process documentation with clearer steps and enhanced checklist
+* feat: update release notes generation script to use dynamic installation guide link and improve formatting
 * feat: update usage instructions and enhance release notes format in documentation generator
 * feat: update installation guide link and enhance release notes with overview and deprecation notice
 * feat: enhance security by refactoring path validation and adding comprehensive tests for directory traversal detection
@@ -54,6 +59,7 @@ ztictl is a unified AWS SSM management tool that provides both Go binary and bas
 * Enhance CI/CD workflow: include 'release/*' branches in push and pull request triggers
 
 ## Bug Fixes
+* fix: update golangci-lint and gosec installation scripts for accuracy and consistency
 * fix: update instance tag filtering to use awssdk.String for better clarity and consistency
 * fix: Enhance environment variable handling for cross-platform compatibility in tests
 * fix: Skip LoggerMethods test on Windows CI due to output formatting differences
