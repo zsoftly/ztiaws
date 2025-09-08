@@ -1,59 +1,107 @@
-linters:
-  enable:
-    - errcheck
-    - gosec
-    - ineffassign
-    - staticcheck
-    - unused
-    - govet
-    - gofmt
-    - goimports
-    - misspell
-    - revive
+# golangci-lint configuration for ztictl
+# Compatible with golangci-lint v2.4.0 - modernized configuration
 
-linters-settings:
-  gosec:
-    excludes:
-      - G401 # Use of weak cryptographic primitive - SHA1 required for AWS CLI compatibility
-      - G505 # Import of weak cryptographic primitive - SHA1 required for AWS CLI compatibility
-    config:
-      G401:
-        # Allow SHA1 only for AWS SSO token cache filename generation
-        # This is required for AWS CLI compatibility
-        exclude-dirs:
-          - internal/auth
-      G505:
-        # Allow SHA1 import only for AWS SSO token cache
-        exclude-dirs:
-          - internal/auth
-
-issues:
-  exclude-rules:
-    # Exclude SHA1 usage in auth package - required for AWS CLI compatibility
-    - path: internal/auth/sso\.go
-      linters:
-        - gosec
-      text: "(G401|G505)"
-    
-    # Allow unchecked errors in test files for cleanup operations
-    - path: _test\.go
-      linters:
-        - errcheck
-      text: "Error return value of .*(Close|Setenv|RemoveAll|Chmod).* is not checked"
-
-    # Allow unchecked errors for deferred cleanup operations
-    - path: \.go
-      linters:
-        - errcheck
-      source: "defer.*\\.Close\\(\\)"
+version: "2"
 
 run:
-  timeout: 5m
-  tests: true
   build-tags:
     - integration
+  tests: true
 
-output:
-  format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
+linters:
+  enable:
+    # Core linters
+    - errcheck      # checks for unchecked errors
+    - gosec         # inspects source code for security problems  
+    - ineffassign   # detects when assignments to existing variables are not used
+    - staticcheck   # advanced static analyzer
+    - unused        # checks for unused constants, variables, functions and types
+    - govet         # reports suspicious constructs
+    # Additional modern linters for better code quality
+    - bodyclose      # checks whether HTTP response body is closed
+    - contextcheck   # checks for common mistakes in using contexts
+    - errorlint      # finds code that will cause problems with Go 1.13 error wrapping
+    - gocritic       # provides diagnostics that check for bugs, performance and style issues
+    - misspell       # finds commonly misspelled English words in comments
+    - nilerr         # finds the code that returns nil even if it checks that the error is not nil
+    - nolintlint     # reports ill-formed or insufficient nolint directives
+    - prealloc       # finds slice declarations that could potentially be pre-allocated
+    - revive         # fast, configurable, extensible, flexible, and beautiful linter for Go
+    - rowserrcheck   # checks whether Err of rows is checked successfully
+    - unconvert      # removes unnecessary type conversions
+    - wastedassign   # finds wasted assignment statements
+
+  settings:
+    gocritic:
+      # Enable stable checks only for consistent code quality
+      enabled-checks:
+        - appendAssign
+        - argOrder
+        - assignOp
+        - badCall
+        - badCond
+        - caseOrder
+        - defaultCaseOrder
+        - dupArg
+        - dupBranchBody
+        - dupCase
+        - flagDeref
+        - ifElseChain
+    
+    gosec:
+      # To select a subset of rules to exclude
+      excludes:
+        - G401 # Use of weak cryptographic primitive - SHA1 required for AWS CLI compatibility
+        - G505 # Import blocklist: crypto/sha1 - SHA1 required for AWS CLI compatibility
+    
+    revive:
+      # Set minimum confidence for revive to reduce false positives
+      confidence: 0.8
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Exclude SHA1 usage in auth package - required for AWS CLI compatibility
+      - linters:
+          - gosec
+        path: internal/auth/sso\.go
+        text: (G401|G505)
+      
+      # Allow unchecked errors in test files for cleanup operations
+      - linters:
+          - errcheck
+        path: _test\.go
+        text: Error return value of .*(Close|Setenv|RemoveAll|Chmod).* is not checked
+
+      # Allow unchecked errors for deferred cleanup operations
+      - linters:
+          - errcheck
+        path: \.go
+        source: defer.*\.Close\(\)
+      
+      # Allow longer lines in generated files
+      - linters:
+          - lll
+        path: .*\.pb\.go$
+    
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+
+formatters:
+  enable:
+    - gofmt        # formats Go programs
+    - goimports    # updates Go import lines
+  
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
