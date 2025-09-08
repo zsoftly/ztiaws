@@ -193,11 +193,12 @@ func TestExpandPathTildeExpansion(t *testing.T) {
 			// For valid tilde paths, result should be different from input (unless error occurred)
 			if tt.input != "" && strings.HasPrefix(tt.input, "~") {
 				if home, err := os.UserHomeDir(); err == nil {
-					if tt.input == "~" {
+					switch tt.input {
+					case "~":
 						if result != home {
 							t.Errorf("expandPath(%q) = %q, want %q", tt.input, result, home)
 						}
-					} else if tt.input == "~/test/path" {
+					case "~/test/path":
 						expected := filepath.Join(home, "test/path")
 						if result != expected {
 							t.Errorf("expandPath(%q) = %q, want %q", tt.input, result, expected)
@@ -996,22 +997,5 @@ func TestCreateSampleConfigErrorHandling(t *testing.T) {
 		t.Log("Permission error test skipped (may not be supported on this platform)")
 	} else if !strings.Contains(err.Error(), "failed to") {
 		t.Errorf("Error should indicate what failed, got: %v", err)
-	}
-}
-
-// Mock stdin for testing interactive functions
-func mockStdin(input string) func() {
-	oldStdin := os.Stdin
-	r, w, _ := os.Pipe()
-	os.Stdin = r
-
-	go func() {
-		defer w.Close()
-		_, _ = w.Write([]byte(input)) // #nosec G104 - test setup
-	}()
-
-	return func() {
-		os.Stdin = oldStdin
-		_ = r.Close() // #nosec G104 - test cleanup
 	}
 }
