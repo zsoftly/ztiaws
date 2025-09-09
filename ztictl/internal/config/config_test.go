@@ -84,9 +84,8 @@ func TestConfigValidation(t *testing.T) {
 			name: "complete SSO config should pass",
 			config: &Config{
 				SSO: SSOConfig{
-					StartURL:       "https://example.com",
-					Region:         "us-east-1",
-					DefaultProfile: "test-profile",
+					StartURL: "https://example.com",
+					Region:   "us-east-1",
 				},
 			},
 			shouldErr: false,
@@ -194,11 +193,12 @@ func TestExpandPathTildeExpansion(t *testing.T) {
 			// For valid tilde paths, result should be different from input (unless error occurred)
 			if tt.input != "" && strings.HasPrefix(tt.input, "~") {
 				if home, err := os.UserHomeDir(); err == nil {
-					if tt.input == "~" {
+					switch tt.input {
+					case "~":
 						if result != home {
 							t.Errorf("expandPath(%q) = %q, want %q", tt.input, result, home)
 						}
-					} else if tt.input == "~/test/path" {
+					case "~/test/path":
 						expected := filepath.Join(home, "test/path")
 						if result != expected {
 							t.Errorf("expandPath(%q) = %q, want %q", tt.input, result, expected)
@@ -398,9 +398,6 @@ LOG_DIR=/tmp/logs
 				if viper.GetString("sso.region") != "us-east-1" {
 					t.Errorf("SSO region not set correctly: %s", viper.GetString("sso.region"))
 				}
-				if viper.GetString("sso.default_profile") != "test-profile" {
-					t.Errorf("Default profile not set correctly: %s", viper.GetString("sso.default_profile"))
-				}
 				if viper.GetString("logging.directory") != "/tmp/logs" {
 					t.Errorf("Log directory not set correctly: %s", viper.GetString("logging.directory"))
 				}
@@ -415,9 +412,6 @@ DEFAULT_PROFILE="double-quote-profile"
 			validate: func(t *testing.T) {
 				if viper.GetString("sso.start_url") != "https://single-quote.com/start" {
 					t.Errorf("Single quoted value not parsed correctly: %s", viper.GetString("sso.start_url"))
-				}
-				if viper.GetString("sso.default_profile") != "double-quote-profile" {
-					t.Errorf("Double quoted value not parsed correctly: %s", viper.GetString("sso.default_profile"))
 				}
 			},
 		},
@@ -617,9 +611,8 @@ func TestWriteInteractiveConfig(t *testing.T) {
 
 	config := &Config{
 		SSO: SSOConfig{
-			StartURL:       "https://test.awsapps.com/start",
-			Region:         "us-east-1",
-			DefaultProfile: "test-profile",
+			StartURL: "https://test.awsapps.com/start",
+			Region:   "us-east-1",
 		},
 		DefaultRegion: "ca-central-1",
 		Logging: LoggingConfig{
@@ -655,7 +648,6 @@ func TestWriteInteractiveConfig(t *testing.T) {
 	expectedStrings := []string{
 		"https://test.awsapps.com/start",
 		"us-east-1",
-		"test-profile",
 		"ca-central-1",
 		"~/logs",
 		"true",
@@ -877,9 +869,8 @@ func TestConfigStructValidation(t *testing.T) {
 	// Test config struct field validation
 	config := &Config{
 		SSO: SSOConfig{
-			StartURL:       "https://example.awsapps.com/start",
-			Region:         "us-east-1",
-			DefaultProfile: "test-profile",
+			StartURL: "https://example.awsapps.com/start",
+			Region:   "us-east-1",
 		},
 		DefaultRegion: "ca-central-1",
 		Logging: LoggingConfig{
@@ -901,9 +892,6 @@ func TestConfigStructValidation(t *testing.T) {
 	}
 	if config.SSO.Region == "" {
 		t.Error("SSO Region should be set")
-	}
-	if config.SSO.DefaultProfile == "" {
-		t.Error("SSO DefaultProfile should be set")
 	}
 	if config.DefaultRegion == "" {
 		t.Error("DefaultRegion should be set")
@@ -942,7 +930,6 @@ func TestSetDefaultsWithViper(t *testing.T) {
 	}{
 		{"default_region", "ca-central-1"},
 		{"sso.region", "us-east-1"},
-		{"sso.default_profile", "default-sso-profile"},
 		{"logging.file_logging", true},
 		{"logging.level", "info"},
 		{"system.iam_propagation_delay", 5},
@@ -1010,22 +997,5 @@ func TestCreateSampleConfigErrorHandling(t *testing.T) {
 		t.Log("Permission error test skipped (may not be supported on this platform)")
 	} else if !strings.Contains(err.Error(), "failed to") {
 		t.Errorf("Error should indicate what failed, got: %v", err)
-	}
-}
-
-// Mock stdin for testing interactive functions
-func mockStdin(input string) func() {
-	oldStdin := os.Stdin
-	r, w, _ := os.Pipe()
-	os.Stdin = r
-
-	go func() {
-		defer w.Close()
-		_, _ = w.Write([]byte(input)) // #nosec G104 - test setup
-	}()
-
-	return func() {
-		os.Stdin = oldStdin
-		_ = r.Close() // #nosec G104 - test cleanup
 	}
 }

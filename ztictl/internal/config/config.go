@@ -35,9 +35,6 @@ type SSOConfig struct {
 
 	// SSO region
 	Region string `mapstructure:"region"`
-
-	// Default profile name
-	DefaultProfile string `mapstructure:"default_profile"`
 }
 
 // LoggingConfig represents logging configuration
@@ -82,6 +79,14 @@ func Load() error {
 	// Check if this is a first run (no config file exists)
 	isFirstRun := !Exists()
 
+	// Debug: check what viper has loaded
+	if viper.GetBool("debug") {
+		fmt.Printf("[DEBUG] Config file exists: %v\n", Exists())
+		fmt.Printf("[DEBUG] Config file path: %s\n", getConfigPath())
+		fmt.Printf("[DEBUG] Viper config file used: %s\n", viper.ConfigFileUsed())
+		fmt.Printf("[DEBUG] Viper has SSO start_url: %q\n", viper.GetString("sso.start_url"))
+	}
+
 	// Try to load from legacy .env file first (from the parent directory where authaws is)
 	envFilePath := filepath.Join("..", ".env")
 	envFileExists := false
@@ -92,15 +97,35 @@ func Load() error {
 		}
 	}
 
+	// If config file exists but viper didn't load it, try to read it manually
+	if !isFirstRun && viper.ConfigFileUsed() == "" {
+		configPath := getConfigPath()
+		if viper.GetBool("debug") {
+			fmt.Printf("[DEBUG] Viper didn't load config, trying manual read from: %s\n", configPath)
+		}
+
+		// Set the config file explicitly
+		viper.SetConfigFile(configPath)
+		if err := viper.ReadInConfig(); err != nil {
+			if viper.GetBool("debug") {
+				fmt.Printf("[DEBUG] Manual config read failed: %v\n", err)
+			}
+			// Continue anyway, will use defaults
+		} else {
+			if viper.GetBool("debug") {
+				fmt.Printf("[DEBUG] Manual config read successful\n")
+			}
+		}
+	}
+
 	// If this is first run and no .env file exists, we need user configuration
 	if isFirstRun && !envFileExists {
 		// For first run without existing .env, create a minimal valid config with defaults
 		// The user can run 'ztictl config init' later to configure properly
 		cfg = &Config{
 			SSO: SSOConfig{
-				StartURL:       "", // Will be empty, user needs to configure
-				Region:         viper.GetString("sso.region"),
-				DefaultProfile: viper.GetString("sso.default_profile"),
+				StartURL: "", // Will be empty, user needs to configure
+				Region:   viper.GetString("sso.region"),
 			},
 			DefaultRegion: viper.GetString("default_region"),
 			Logging: LoggingConfig{
@@ -121,8 +146,19 @@ func Load() error {
 			return errors.NewConfigError("failed to unmarshal configuration", err)
 		}
 
+		// Log raw values for debugging
+		if viper.GetBool("debug") {
+			fmt.Printf("[DEBUG] Raw SSO Start URL from viper: %q\n", viper.GetString("sso.start_url"))
+			fmt.Printf("[DEBUG] Raw SSO Region from viper: %q\n", viper.GetString("sso.region"))
+		}
+
 		// Expand paths with tilde support
 		cfg.Logging.Directory = expandPath(cfg.Logging.Directory)
+
+		// Validate loaded values
+		if err := validateLoadedConfig(cfg); err != nil {
+			return fmt.Errorf("invalid configuration: %w", err)
+		}
 	}
 
 	// Validate configuration (but allow empty SSO config for first run)
@@ -153,7 +189,6 @@ func setDefaults() {
 
 	// SSO defaults - these should be overridden by user config or .env file
 	viper.SetDefault("sso.region", "us-east-1")
-	viper.SetDefault("sso.default_profile", "default-sso-profile")
 
 	// Logging defaults
 	home, _ := os.UserHomeDir()
@@ -180,9 +215,6 @@ func validate(cfg *Config) error {
 	if cfg.SSO.StartURL != "" {
 		if cfg.SSO.Region == "" {
 			return errors.NewValidationError("SSO region must be specified when SSO start URL is provided")
-		}
-		if cfg.SSO.DefaultProfile == "" {
-			return errors.NewValidationError("SSO default profile must be specified when SSO start URL is provided")
 		}
 	}
 
@@ -244,8 +276,6 @@ func LoadLegacyEnvFile(envFilePath string) error {
 				viper.Set("sso.start_url", value)
 			case "SSO_REGION":
 				viper.Set("sso.region", value)
-			case "DEFAULT_PROFILE":
-				viper.Set("sso.default_profile", value)
 			case "LOG_DIR":
 				viper.Set("logging.directory", value)
 			}
@@ -267,11 +297,13 @@ func CreateSampleConfig(configPath string) error {
 		return fmt.Errorf("unable to get home directory: %w", err)
 	}
 
-	// Use absolute path for log directory
+	// Use absolute path for log directory with forward slashes for YAML
 	logDir := filepath.Join(home, "logs")
+	logDir = filepath.ToSlash(logDir) // Convert to forward slashes for YAML compatibility
 
-	// Use platform-appropriate temp directory
+	// Use platform-appropriate temp directory with forward slashes for YAML
 	tempDir := os.TempDir()
+	tempDir = filepath.ToSlash(tempDir) // Convert to forward slashes for YAML compatibility
 
 	sampleConfig := fmt.Sprintf(`# ztictl Configuration File
 # This file configures ztictl with your AWS SSO and system settings
@@ -283,9 +315,6 @@ sso:
   
   # The AWS region where your SSO is configured
   region: "us-east-1"
-  
-  # Default profile name to use when none is specified
-  default_profile: "default-sso-profile"
 
 # Default AWS region for operations
 default_region: "ca-central-1"
@@ -355,36 +384,56 @@ func InteractiveInit() error {
 	fmt.Println("\n📋 AWS SSO Configuration")
 	fmt.Println("-------------------------")
 
-	fmt.Print("Enter your AWS SSO Start URL (e.g., https://d-xxxxxxxxxx.awsapps.com/start): ")
-	startURL, _ := reader.ReadString('\n')
-	config.SSO.StartURL = strings.TrimSpace(startURL)
+	// Get SSO Start URL with validation
+	for {
+		fmt.Print("Enter your AWS SSO Start URL (e.g., https://d-xxxxxxxxxx.awsapps.com/start): ")
+		startURL, _ := reader.ReadString('\n')
+		startURL = strings.TrimSpace(startURL)
 
-	fmt.Print("Enter your SSO region [us-east-1]: ")
-	ssoRegion, _ := reader.ReadString('\n')
-	ssoRegion = strings.TrimSpace(ssoRegion)
-	if ssoRegion == "" {
-		ssoRegion = "us-east-1"
+		if err := validateInput(startURL, "url"); err != nil {
+			fmt.Printf("❌ %s\n", err)
+			continue
+		}
+		config.SSO.StartURL = startURL
+		break
 	}
-	config.SSO.Region = ssoRegion
 
-	fmt.Print("Enter default profile name [default-sso-profile]: ")
-	defaultProfile, _ := reader.ReadString('\n')
-	defaultProfile = strings.TrimSpace(defaultProfile)
-	if defaultProfile == "" {
-		defaultProfile = "default-sso-profile"
+	// Get SSO Region with validation
+	for {
+		fmt.Print("Enter your SSO region [us-east-1]: ")
+		ssoRegion, _ := reader.ReadString('\n')
+		ssoRegion = strings.TrimSpace(ssoRegion)
+		if ssoRegion == "" {
+			ssoRegion = "us-east-1"
+		}
+
+		if err := validateInput(ssoRegion, "region"); err != nil {
+			fmt.Printf("❌ %s\n", err)
+			continue
+		}
+		config.SSO.Region = ssoRegion
+		break
 	}
-	config.SSO.DefaultProfile = defaultProfile
 
 	// Default AWS Region
 	fmt.Println("\n🌍 Default AWS Region")
 	fmt.Println("--------------------")
-	fmt.Print("Enter your default AWS region [ca-central-1]: ")
-	defaultRegion, _ := reader.ReadString('\n')
-	defaultRegion = strings.TrimSpace(defaultRegion)
-	if defaultRegion == "" {
-		defaultRegion = "ca-central-1"
+	// Get Default Region with validation
+	for {
+		fmt.Print("Enter your default AWS region [ca-central-1]: ")
+		defaultRegion, _ := reader.ReadString('\n')
+		defaultRegion = strings.TrimSpace(defaultRegion)
+		if defaultRegion == "" {
+			defaultRegion = "ca-central-1"
+		}
+
+		if err := validateInput(defaultRegion, "region"); err != nil {
+			fmt.Printf("❌ %s\n", err)
+			continue
+		}
+		config.DefaultRegion = defaultRegion
+		break
 	}
-	config.DefaultRegion = defaultRegion
 
 	// Logging Configuration
 	fmt.Println("\n📝 Logging Configuration")
@@ -399,6 +448,9 @@ func InteractiveInit() error {
 	if logDir == "" {
 		logDir = "~/logs"
 	}
+	// Expand and convert to forward slashes for YAML compatibility
+	logDir = expandPath(logDir)
+	logDir = filepath.ToSlash(logDir)
 	config.Logging.Directory = logDir
 
 	fmt.Print("Log level (debug/info/warn/error) [info]: ")
@@ -432,6 +484,9 @@ func InteractiveInit() error {
 	// Set default file size threshold
 	config.System.FileSizeThreshold = 1048576 // 1MB
 
+	// Set temp directory with forward slashes for YAML
+	config.System.TempDirectory = filepath.ToSlash(os.TempDir())
+
 	// Write the configuration
 	if err := writeInteractiveConfig(config); err != nil {
 		return fmt.Errorf("failed to write configuration: %w", err)
@@ -464,7 +519,6 @@ func writeInteractiveConfig(config *Config) error {
 sso:
   start_url: "%s"
   region: "%s"
-  default_profile: "%s"
 
 # Default AWS region for operations
 default_region: "%s"
@@ -483,7 +537,6 @@ system:
 `,
 		config.SSO.StartURL,
 		config.SSO.Region,
-		config.SSO.DefaultProfile,
 		config.DefaultRegion,
 		config.Logging.Directory,
 		config.Logging.FileLogging,
@@ -526,4 +579,130 @@ func expandPath(path string) string {
 	}
 
 	return path
+}
+
+// validateLoadedConfig validates configuration values after loading
+func validateLoadedConfig(cfg *Config) error {
+	// Validate SSO Start URL if provided
+	if cfg.SSO.StartURL != "" {
+		// Check for common mistakes first
+		if strings.Contains(cfg.SSO.StartURL, `""`) || strings.HasPrefix(cfg.SSO.StartURL, `"`) {
+			return errors.NewValidationError("SSO start URL contains invalid quotes")
+		}
+		if !isValidURL(cfg.SSO.StartURL) {
+			return errors.NewValidationError(fmt.Sprintf("SSO start URL is not a valid URL: %s", cfg.SSO.StartURL))
+		}
+	}
+
+	// Validate regions
+	if cfg.SSO.Region != "" && !isValidRegion(cfg.SSO.Region) {
+		return errors.NewValidationError(fmt.Sprintf("SSO region is not valid: %s", cfg.SSO.Region))
+	}
+	if cfg.DefaultRegion != "" && !isValidRegion(cfg.DefaultRegion) {
+		return errors.NewValidationError(fmt.Sprintf("Default region is not valid: %s", cfg.DefaultRegion))
+	}
+
+	// Paths are already converted to forward slashes for YAML storage, no validation needed
+
+	return nil
+}
+
+// isValidURL checks if a string is a valid URL
+func isValidURL(s string) bool {
+	if s == "" {
+		return false
+	}
+	// Basic URL validation - must start with http:// or https:// and have something after
+	if strings.HasPrefix(s, "http://") {
+		return len(s) > 7 // More than just "http://"
+	}
+	if strings.HasPrefix(s, "https://") {
+		return len(s) > 8 // More than just "https://"
+	}
+	return false
+}
+
+// isValidRegion checks if a region string follows AWS region format
+func isValidRegion(region string) bool {
+	// AWS region format: {area}-{subarea}-{number}
+	// Examples: us-east-1, eu-west-2, ap-southeast-1, ca-central-1
+	if region == "" {
+		return false
+	}
+
+	// Must contain at least two hyphens
+	parts := strings.Split(region, "-")
+
+	// Handle special case for us-gov regions (4 parts)
+	if len(parts) == 4 && parts[0] == "us" && parts[1] == "gov" {
+		// us-gov-east-1, us-gov-west-1
+		parts = []string{"us-gov", parts[2], parts[3]}
+	}
+
+	// Now must have exactly 3 parts
+	if len(parts) != 3 {
+		return false
+	}
+
+	// First part: valid region codes only
+	validPrefixes := map[string]bool{
+		"us": true, "eu": true, "ap": true, "ca": true,
+		"sa": true, "me": true, "af": true, "cn": true,
+		"us-gov": true, // Special case for GovCloud
+	}
+
+	if !validPrefixes[parts[0]] {
+		return false
+	}
+
+	// Second part: valid direction/area names
+	// Special case for GovCloud - only east and west are valid
+	if parts[0] == "us-gov" {
+		if parts[1] != "east" && parts[1] != "west" {
+			return false
+		}
+	} else {
+		validDirections := map[string]bool{
+			"east": true, "west": true, "north": true, "south": true,
+			"central": true, "northeast": true, "southeast": true, "northwest": true, "southwest": true,
+		}
+
+		if !validDirections[parts[1]] {
+			return false
+		}
+	}
+
+	// Third part: must be a number (1-99)
+	if len(parts[2]) < 1 || len(parts[2]) > 2 {
+		return false
+	}
+
+	// Check if third part is a number
+	for _, char := range parts[2] {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+
+	return true
+}
+
+// validateInput validates user input during interactive configuration
+func validateInput(input string, inputType string) error {
+	input = strings.TrimSpace(input)
+
+	switch inputType {
+	case "url":
+		if input != "" && !isValidURL(input) {
+			return fmt.Errorf("invalid URL format. Must start with http:// or https://")
+		}
+	case "region":
+		if input != "" && !isValidRegion(input) {
+			return fmt.Errorf("invalid AWS region: %s", input)
+		}
+	case "path":
+		// No validation needed - paths will be automatically converted to forward slashes for YAML
+	}
+
+	return nil
 }

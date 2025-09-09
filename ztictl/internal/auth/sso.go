@@ -297,11 +297,14 @@ func getAWSCacheDir() (string, error) {
 func (m *Manager) Login(ctx context.Context, profileName string) error {
 	cfg := appconfig.Get()
 
+	// Log the SSO configuration for debugging
+	logging.LogDebug("SSO Configuration | start_url=%s region=%s profile=%s", cfg.SSO.StartURL, cfg.SSO.Region, profileName)
+
 	if cfg.SSO.StartURL == "" {
-		return errors.NewValidationError("SSO start URL not configured. Please run 'ztictl config init' first")
+		return errors.NewValidationError("SSO start URL not configured. Please run 'ztictl config init --interactive' to set up your AWS SSO settings, or edit ~/.ztictl.yaml manually")
 	}
 
-	logging.LogInfo("Starting AWS SSO authentication | profile=%s", profileName)
+	logging.LogInfo("Starting AWS SSO authentication | profile=%s start_url=%s", profileName, cfg.SSO.StartURL)
 
 	// Step 1: Configure the profile with basic SSO settings first (like bash version)
 	if err := m.configureProfile(profileName, cfg); err != nil {

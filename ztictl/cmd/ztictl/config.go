@@ -70,9 +70,12 @@ var configShowCmd = &cobra.Command{
 		fmt.Println()
 
 		fmt.Println("AWS SSO Configuration:")
-		fmt.Printf("  Start URL: %s\n", cfg.SSO.StartURL)
+		if cfg.SSO.StartURL != "" {
+			fmt.Printf("  Start URL: %s\n", cfg.SSO.StartURL)
+		} else {
+			fmt.Printf("  Start URL: (not configured)\n")
+		}
 		fmt.Printf("  Region: %s\n", cfg.SSO.Region)
-		fmt.Printf("  Default Profile: %s\n", cfg.SSO.DefaultProfile)
 		fmt.Println()
 
 		fmt.Println("Logging Configuration:")
@@ -230,9 +233,6 @@ func validateConfiguration() error {
 	if cfg.SSO.StartURL != "" {
 		if cfg.SSO.Region == "" {
 			errors = append(errors, "SSO region is required when SSO start URL is provided")
-		}
-		if cfg.SSO.DefaultProfile == "" {
-			errors = append(errors, "SSO default profile is required when SSO start URL is provided")
 		}
 	}
 

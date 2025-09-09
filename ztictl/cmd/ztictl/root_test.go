@@ -364,3 +364,103 @@ func TestFlagBinding(t *testing.T) {
 		t.Errorf("Debug flag default should be false, got %s", flag.DefValue)
 	}
 }
+
+func TestIsValidAWSRegion(t *testing.T) {
+	tests := []struct {
+		name     string
+		region   string
+		expected bool
+	}{
+		// Valid regions - standard format
+		{"Valid US East 1", "us-east-1", true},
+		{"Valid US East 2", "us-east-2", true},
+		{"Valid US West 1", "us-west-1", true},
+		{"Valid US West 2", "us-west-2", true},
+		{"Valid EU West 1", "eu-west-1", true},
+		{"Valid EU West 2", "eu-west-2", true},
+		{"Valid EU West 3", "eu-west-3", true},
+		{"Valid EU Central 1", "eu-central-1", true},
+		{"Valid EU North 1", "eu-north-1", true},
+		{"Valid AP Southeast 1", "ap-southeast-1", true},
+		{"Valid AP Southeast 2", "ap-southeast-2", true},
+		{"Valid AP Northeast 1", "ap-northeast-1", true},
+		{"Valid AP Northeast 2", "ap-northeast-2", true},
+		{"Valid AP South 1", "ap-south-1", true},
+		{"Valid CA Central 1", "ca-central-1", true},
+		{"Valid SA East 1", "sa-east-1", true},
+		{"Valid ME South 1", "me-south-1", true},
+		{"Valid AF South 1", "af-south-1", true},
+		{"Valid CN North 1", "cn-north-1", true},
+		{"Valid CN Northwest 1", "cn-northwest-1", true},
+
+		// Valid GovCloud regions
+		{"Valid US GovCloud West", "us-gov-west-1", true},
+		{"Valid US GovCloud East", "us-gov-east-1", true},
+
+		// Invalid regions - wrong prefix
+		{"Invalid prefix caa", "caa-central-1", false},
+		{"Invalid prefix xx", "xx-central-1", false},
+		{"Invalid prefix abc", "abc-east-1", false},
+		{"Invalid prefix u", "u-east-1", false},
+		{"Invalid prefix usss", "usss-east-1", false},
+
+		// Invalid regions - wrong direction/area
+		{"Invalid direction", "us-invalid-1", false},
+		{"Invalid direction midwest", "us-midwest-1", false},
+		{"Invalid direction too short", "us-ea-1", false},
+		{"Invalid direction too long", "us-centralllllll-1", false},
+
+		// Invalid regions - wrong number
+		{"Invalid number letters", "us-east-a", false},
+		{"Invalid number letters mix", "us-east-1a", false},
+		{"Invalid number too long", "us-east-123", false},
+
+		// Invalid regions - wrong format
+		{"Invalid no hyphens", "useast1", false},
+		{"Invalid one hyphen", "us-east1", false},
+		{"Invalid four parts", "us-east-west-1", false},
+		{"Invalid five parts", "us-gov-east-west-1", false},
+		{"Empty string", "", false},
+
+		// Edge cases
+		{"With spaces", "us east 1", false},
+		{"With underscores", "us_east_1", false},
+		{"With dots", "us.east.1", false},
+		{"With special chars", "us-east-1!", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isValidAWSRegion(tt.region)
+			if result != tt.expected {
+				t.Errorf("isValidAWSRegion(%q) = %v, want %v", tt.region, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestIsValidAWSRegion_GovCloudHandling(t *testing.T) {
+	// Special test cases for GovCloud region handling
+	tests := []struct {
+		name     string
+		region   string
+		expected bool
+	}{
+		{"GovCloud West", "us-gov-west-1", true},
+		{"GovCloud East", "us-gov-east-1", true},
+		{"Invalid GovCloud", "us-gov-north-1", false},           // No north govcloud
+		{"Invalid GovCloud central", "us-gov-central-1", false}, // No central govcloud
+		{"Malformed GovCloud", "usgov-west-1", false},
+		{"GovCloud without number", "us-gov-west", false},
+		{"GovCloud with invalid number", "us-gov-west-a", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isValidAWSRegion(tt.region)
+			if result != tt.expected {
+				t.Errorf("isValidAWSRegion(%q) = %v, want %v", tt.region, result, tt.expected)
+			}
+		})
+	}
+}
