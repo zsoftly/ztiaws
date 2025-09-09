@@ -26,7 +26,7 @@ func InteractiveRegionSetup() error {
 
 	if response != "yes" && response != "y" {
 		colors.PrintWarning("Region configuration skipped. You can configure it later in ~/.ztictl.yaml\n")
-		return fmt.Errorf("region configuration required; you can configure it later in ~/.ztictl.yaml")
+		return fmt.Errorf("region configuration skipped; you can configure it later in ~/.ztictl.yaml")
 	}
 
 	// Get enabled regions
@@ -141,7 +141,7 @@ func parseAndNormalizeRegions(input string) []string {
 		}
 
 		// Try to validate as AWS region format
-		if isValidAWSRegion(region) {
+		if aws.IsValidAWSRegion(region) {
 			// It's a valid AWS region format but not in our mapping
 			// Store it as-is (might be a new region)
 			if !seen[region] {
@@ -154,12 +154,6 @@ func parseAndNormalizeRegions(input string) []string {
 	}
 
 	return normalized
-}
-
-// isValidAWSRegion checks if a string looks like a valid AWS region
-func isValidAWSRegion(region string) bool {
-	parts := strings.Split(region, "-")
-	return len(parts) >= 3 && len(parts) <= 4
 }
 
 // saveRegionConfig saves the region configuration to the config file
@@ -224,7 +218,7 @@ func ResolveRegionInput(regionInput string) string {
 	}
 
 	// Check if it's already a full region name
-	if isValidAWSRegion(regionInput) {
+	if aws.IsValidAWSRegion(regionInput) {
 		return regionInput
 	}
 

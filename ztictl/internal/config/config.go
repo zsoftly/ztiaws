@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"ztictl/pkg/aws"
 	"ztictl/pkg/errors"
 	"ztictl/pkg/security"
 )
@@ -81,22 +82,59 @@ var (
 	cfg *Config
 )
 
-// Load loads the configuration from file and environment variables
-func Load() error {
+// ConfigValidationError represents a validation error
+type ConfigValidationError struct {
+	Field   string
+	Value   string
+	Message string
+}
+
+func (e *ConfigValidationError) Error() string {
+	return fmt.Sprintf("%s '%s' is invalid: %s", e.Field, e.Value, e.Message)
+}
+
+// LoadWithOptions loads configuration with options for recovery
+func LoadWithOptions(allowInvalid bool) (*ConfigValidationError, error) {
 	cfg = &Config{}
-
-	// Set defaults first
 	setDefaults()
-
-	// Check if this is a first run (no config file exists)
 	isFirstRun := !Exists()
 
-	// Debug: check what viper has loaded
 	if viper.GetBool("debug") {
 		fmt.Printf("[DEBUG] Config file exists: %v\n", Exists())
 		fmt.Printf("[DEBUG] Config file path: %s\n", getConfigPath())
 		fmt.Printf("[DEBUG] Viper config file used: %s\n", viper.ConfigFileUsed())
 		fmt.Printf("[DEBUG] Viper has SSO start_url: %q\n", viper.GetString("sso.start_url"))
+	}
+
+	// First, try to load and validate normally
+	validationErr, err := loadConfigInternal(isFirstRun)
+	if err != nil && !allowInvalid {
+		return validationErr, err
+	}
+
+	// If allowInvalid is true and we have a validation error, load with defaults for invalid fields
+	if err != nil && allowInvalid && validationErr != nil {
+		// Load config but replace invalid values with defaults
+		if err := loadWithDefaults(validationErr); err != nil {
+			return validationErr, err
+		}
+		return validationErr, nil // Return validation error but no fatal error
+	}
+
+	return validationErr, err
+}
+
+// Load loads the configuration from file and environment variables
+func Load() error {
+	_, err := LoadWithOptions(false)
+	return err
+}
+
+// loadConfigInternal performs the actual config loading
+func loadConfigInternal(isFirstRun bool) (*ConfigValidationError, error) {
+	// Debug: check what viper has loaded
+	if viper.GetBool("debug") {
+		fmt.Printf("[DEBUG] Loading config internally, first run: %v\n", isFirstRun)
 	}
 
 	// Try to load from legacy .env file first (from the parent directory where authaws is)
@@ -105,7 +143,7 @@ func Load() error {
 	if _, err := os.Stat(envFilePath); err == nil {
 		envFileExists = true
 		if err := LoadLegacyEnvFile(envFilePath); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -155,7 +193,7 @@ func Load() error {
 	} else {
 		// Try to load from config file (normal operation)
 		if err := viper.Unmarshal(cfg); err != nil {
-			return errors.NewConfigError("failed to unmarshal configuration", err)
+			return nil, errors.NewConfigError("failed to unmarshal configuration", err)
 		}
 
 		// Log raw values for debugging
@@ -167,9 +205,9 @@ func Load() error {
 		// Expand paths with tilde support
 		cfg.Logging.Directory = expandPath(cfg.Logging.Directory)
 
-		// Validate loaded values
-		if err := validateLoadedConfig(cfg); err != nil {
-			return fmt.Errorf("invalid configuration: %w", err)
+		// Validate loaded values and return detailed error
+		if valErr := validateLoadedConfigDetailed(cfg); valErr != nil {
+			return valErr, fmt.Errorf("invalid configuration: %w", valErr)
 		}
 	}
 
@@ -177,11 +215,25 @@ func Load() error {
 	if err := validate(cfg); err != nil {
 		// If validation fails and it's first run, provide helpful guidance
 		if isFirstRun && !envFileExists {
-			return errors.NewValidationError("Configuration needed. Please run 'ztictl config init' to set up your AWS SSO settings")
+			return nil, errors.NewValidationError("Configuration needed. Please run 'ztictl config init' to set up your AWS SSO settings")
 		}
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+// loadWithDefaults loads config but continues despite validation errors
+func loadWithDefaults(valErr *ConfigValidationError) error {
+	// Reload config - we'll use it as-is even with invalid values
+	if err := viper.Unmarshal(cfg); err != nil {
 		return err
 	}
 
+	// Expand paths
+	cfg.Logging.Directory = expandPath(cfg.Logging.Directory)
+
+	// Note: We're not replacing invalid values, just loading what we can
 	return nil
 }
 
@@ -593,28 +645,34 @@ func expandPath(path string) string {
 	return path
 }
 
-// validateLoadedConfig validates configuration values after loading
-func validateLoadedConfig(cfg *Config) error {
+// validateLoadedConfigDetailed validates configuration and returns detailed error info
+func validateLoadedConfigDetailed(cfg *Config) *ConfigValidationError {
 	// Validate SSO Start URL if provided
 	if cfg.SSO.StartURL != "" {
-		// Check for common mistakes first
-		if strings.Contains(cfg.SSO.StartURL, `""`) || strings.HasPrefix(cfg.SSO.StartURL, `"`) {
-			return errors.NewValidationError("SSO start URL contains invalid quotes")
-		}
 		if !isValidURL(cfg.SSO.StartURL) {
-			return errors.NewValidationError(fmt.Sprintf("SSO start URL is not a valid URL: %s", cfg.SSO.StartURL))
+			return &ConfigValidationError{
+				Field:   "SSO start URL",
+				Value:   cfg.SSO.StartURL,
+				Message: "must start with http:// or https://",
+			}
 		}
 	}
 
 	// Validate regions
-	if cfg.SSO.Region != "" && !isValidRegion(cfg.SSO.Region) {
-		return errors.NewValidationError(fmt.Sprintf("SSO region is not valid: %s", cfg.SSO.Region))
+	if cfg.SSO.Region != "" && !aws.IsValidAWSRegion(cfg.SSO.Region) {
+		return &ConfigValidationError{
+			Field:   "SSO region",
+			Value:   cfg.SSO.Region,
+			Message: "invalid AWS region format (expected format: xx-xxxx-n)",
+		}
 	}
-	if cfg.DefaultRegion != "" && !isValidRegion(cfg.DefaultRegion) {
-		return errors.NewValidationError(fmt.Sprintf("Default region is not valid: %s", cfg.DefaultRegion))
+	if cfg.DefaultRegion != "" && !aws.IsValidAWSRegion(cfg.DefaultRegion) {
+		return &ConfigValidationError{
+			Field:   "Default region",
+			Value:   cfg.DefaultRegion,
+			Message: "invalid AWS region format (expected format: xx-xxxx-n)",
+		}
 	}
-
-	// Paths are already converted to forward slashes for YAML storage, no validation needed
 
 	return nil
 }
@@ -634,71 +692,6 @@ func isValidURL(s string) bool {
 	return false
 }
 
-// isValidRegion checks if a region string follows AWS region format
-func isValidRegion(region string) bool {
-	// AWS region format: {area}-{subarea}-{number}
-	// Examples: us-east-1, eu-west-2, ap-southeast-1, ca-central-1
-	if region == "" {
-		return false
-	}
-
-	// Must contain at least two hyphens
-	parts := strings.Split(region, "-")
-
-	// Handle special case for us-gov regions (4 parts)
-	if len(parts) == 4 && parts[0] == "us" && parts[1] == "gov" {
-		// us-gov-east-1, us-gov-west-1
-		parts = []string{"us-gov", parts[2], parts[3]}
-	}
-
-	// Now must have exactly 3 parts
-	if len(parts) != 3 {
-		return false
-	}
-
-	// First part: valid region codes only
-	validPrefixes := map[string]bool{
-		"us": true, "eu": true, "ap": true, "ca": true,
-		"sa": true, "me": true, "af": true, "cn": true,
-		"us-gov": true, // Special case for GovCloud
-	}
-
-	if !validPrefixes[parts[0]] {
-		return false
-	}
-
-	// Second part: valid direction/area names
-	// Special case for GovCloud - only east and west are valid
-	if parts[0] == "us-gov" {
-		if parts[1] != "east" && parts[1] != "west" {
-			return false
-		}
-	} else {
-		validDirections := map[string]bool{
-			"east": true, "west": true, "north": true, "south": true,
-			"central": true, "northeast": true, "southeast": true, "northwest": true, "southwest": true,
-		}
-
-		if !validDirections[parts[1]] {
-			return false
-		}
-	}
-
-	// Third part: must be a number (1-99)
-	if len(parts[2]) < 1 || len(parts[2]) > 2 {
-		return false
-	}
-
-	// Check if third part is a number
-	for _, char := range parts[2] {
-		if char < '0' || char > '9' {
-			return false
-		}
-	}
-
-	return true
-}
-
 // validateInput validates user input during interactive configuration
 func validateInput(input string, inputType string) error {
 	input = strings.TrimSpace(input)
@@ -709,7 +702,7 @@ func validateInput(input string, inputType string) error {
 			return fmt.Errorf("invalid URL format. Must start with http:// or https://")
 		}
 	case "region":
-		if input != "" && !isValidRegion(input) {
+		if input != "" && !aws.IsValidAWSRegion(input) {
 			return fmt.Errorf("invalid AWS region: %s", input)
 		}
 	case "path":

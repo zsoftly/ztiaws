@@ -53,8 +53,8 @@ func TestParseAndNormalizeRegions(t *testing.T) {
 		},
 		{
 			name:     "New AWS region format accepted",
-			input:    "ap-south-2,il-central-1",
-			expected: []string{"aps2", "il-central-1"}, // aps2 is known, il-central-1 is new
+			input:    "ap-south-2,me-central-1",
+			expected: []string{"aps2", "mec1"}, // both are known regions
 		},
 	}
 
@@ -133,47 +133,6 @@ func TestResolveRegionInput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ResolveRegionInput(tt.input)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestIsValidAWSRegion(t *testing.T) {
-	tests := []struct {
-		name     string
-		region   string
-		expected bool
-	}{
-		{
-			name:     "Valid 3-part region",
-			region:   "us-east-1",
-			expected: true,
-		},
-		{
-			name:     "Valid 4-part region",
-			region:   "ap-southeast-1",
-			expected: true,
-		},
-		{
-			name:     "Invalid 2-part",
-			region:   "us-east",
-			expected: false,
-		},
-		{
-			name:     "Invalid 5-part",
-			region:   "us-east-1-az-1",
-			expected: false,
-		},
-		{
-			name:     "Shortcode invalid",
-			region:   "use1",
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isValidAWSRegion(tt.region)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

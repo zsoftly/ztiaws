@@ -97,6 +97,18 @@ curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/insta
 - Opening pull requests  
 - Considering development work "complete"
 
+### Post-Development Cleanup
+After any development session, run:
+```bash
+# Clean test artifacts
+go clean -testcache
+rm -rf coverage/ *.out *.test *.html
+
+# Remove any temporary test files created for debugging
+find . -name "*_temp_test.go" -delete
+find . -name "test_*.sh" -delete
+```
+
 ### Usage Examples
 ```bash
 # ztictl (recommended)
@@ -144,3 +156,33 @@ ztictl --version
 authaws --help
 ssm --help
 ```
+
+## Test File Management Guidelines
+**IMPORTANT**: When creating test files or scripts during development:
+
+### Temporary Files to Clean Up
+1. **One-time test files**: Delete after use
+   - `*_repair_test.go`, `*_init_test.go` (unless part of permanent suite)
+   - `test_coverage.sh`, `run_tests.sh` (temporary scripts)
+   
+2. **Coverage artifacts**: Remove after review
+   ```bash
+   rm -rf coverage/ *.out *.html
+   ```
+
+3. **Test binaries and cache**: Clean after testing
+   ```bash
+   go clean -testcache
+   rm -f *.test
+   ```
+
+### Permanent Test Files (Keep These)
+- `*_test.go` files that test actual functionality
+- Test fixtures in `testdata/` directories
+- Benchmark tests for performance validation
+
+### Best Practices
+- **Before committing**: Clean up all temporary test artifacts
+- **After debugging**: Remove one-off test files
+- **Duplicate tests**: Update existing tests rather than creating new files
+- **Use .gitignore**: Ensure coverage/, *.out, *.test are ignored

@@ -134,9 +134,9 @@ func TestInitializeConfigFile(t *testing.T) {
 	})
 }
 
-func TestCheckSystemRequirements(t *testing.T) {
+func TestCheckRequirements(t *testing.T) {
 	t.Run("handles requirements check gracefully", func(t *testing.T) {
-		// This test verifies that the function returns an error
+		// This test verifies that checkRequirements returns an error
 		// instead of calling os.Exit when there are system issues
 
 		// Initialize logger to avoid nil pointer dereference
@@ -145,7 +145,7 @@ func TestCheckSystemRequirements(t *testing.T) {
 		}
 
 		// The function should return an error or succeed, not call os.Exit
-		err := checkSystemRequirements(false)
+		err := checkRequirements(false)
 
 		// We expect this might fail (missing requirements), but it shouldn't panic
 		// The important thing is that it returns an error instead of calling os.Exit

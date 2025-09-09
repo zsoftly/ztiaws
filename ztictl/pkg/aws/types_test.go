@@ -722,11 +722,8 @@ func TestStructsWithNilPointers(t *testing.T) {
 
 	// CommandExecution with nil times
 	execution := CommandExecution{
-		CommandID:  "test-123",
-		InstanceID: "i-1234567890abcdef0",
-		Status:     "Success",
-		StartTime:  nil,
-		EndTime:    nil,
+		StartTime: nil,
+		EndTime:   nil,
 	}
 
 	if execution.StartTime != nil {
@@ -739,7 +736,6 @@ func TestStructsWithNilPointers(t *testing.T) {
 
 	// FileTransfer with nil times
 	transfer := FileTransfer{
-		ID:        "transfer-123",
 		StartTime: nil,
 		EndTime:   nil,
 	}
@@ -754,7 +750,6 @@ func TestStructsWithNilPointers(t *testing.T) {
 
 	// Instance with nil launch time
 	instance := Instance{
-		ID:         "i-1234567890abcdef0",
 		LaunchTime: nil,
 	}
 
