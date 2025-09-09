@@ -43,6 +43,12 @@ test_results/
 *.temp
 *.bak
 
+# Downloaded packages (from auto-install features)
+*.deb
+*.rpm
+*.pkg
+*.msi
+
 # Local development
 .env
 .env.local

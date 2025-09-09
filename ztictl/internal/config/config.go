@@ -26,6 +26,9 @@ type Config struct {
 
 	// System configuration
 	System SystemConfig `mapstructure:"system"`
+
+	// Region configuration for multi-region operations
+	Regions RegionConfig `mapstructure:"regions"`
 }
 
 // SSOConfig represents SSO-specific configuration
@@ -62,6 +65,15 @@ type SystemConfig struct {
 
 	// Temporary directory for file operations
 	TempDirectory string `mapstructure:"temp_directory"`
+}
+
+// RegionConfig represents region configuration for multi-region operations
+type RegionConfig struct {
+	// Groups of regions (e.g., production, development, all)
+	Groups map[string][]string `mapstructure:"groups"`
+
+	// Enabled regions for the account
+	Enabled []string `mapstructure:"enabled"`
 }
 
 var (

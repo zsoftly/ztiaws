@@ -12,9 +12,18 @@ func resolveRegion(regionCode string) string {
 		return config.Get().DefaultRegion
 	}
 
-	// Try to convert region shortcode to full AWS region name
-	if fullRegion, err := awspkg.GetRegion(regionCode); err == nil {
+	// Handle both shortcodes and full region names
+	// First normalize to shortcode if it's a full name
+	normalized := config.NormalizeRegion(regionCode)
+
+	// Then convert shortcode to full AWS region name
+	if fullRegion, err := awspkg.GetRegion(normalized); err == nil {
 		return fullRegion
+	}
+
+	// If it's not a known shortcode, check if it's already a valid full region
+	if isValidAWSRegion(regionCode) {
+		return regionCode
 	}
 
 	// If conversion fails, assume it's already a full region name
