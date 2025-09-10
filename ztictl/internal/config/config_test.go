@@ -87,13 +87,24 @@ func TestValidateLoadedConfigDetailed(t *testing.T) {
 		want   *ConfigValidationError
 	}{
 		{
-			name: "valid config",
+			name: "valid config with ca-central-1 defaults",
+			config: &Config{
+				SSO: SSOConfig{
+					StartURL: "https://example.awsapps.com/start",
+					Region:   "ca-central-1",
+				},
+				DefaultRegion: "ca-central-1",
+			},
+			want: nil,
+		},
+		{
+			name: "valid config with us-east-1",
 			config: &Config{
 				SSO: SSOConfig{
 					StartURL: "https://example.awsapps.com/start",
 					Region:   "us-east-1",
 				},
-				DefaultRegion: "ca-central-1",
+				DefaultRegion: "us-east-1",
 			},
 			want: nil,
 		},
@@ -1057,7 +1068,7 @@ func TestSetDefaultsWithViper(t *testing.T) {
 		expected interface{}
 	}{
 		{"default_region", "ca-central-1"},
-		{"sso.region", "us-east-1"},
+		{"sso.region", "ca-central-1"},
 		{"logging.file_logging", true},
 		{"logging.level", "info"},
 		{"system.iam_propagation_delay", 5},

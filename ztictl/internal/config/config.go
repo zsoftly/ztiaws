@@ -174,10 +174,10 @@ func loadConfigInternal(isFirstRun bool) (*ConfigValidationError, error) {
 		// The user can run 'ztictl config init' later to configure properly
 		cfg = &Config{
 			SSO: SSOConfig{
-				StartURL: "", // Will be empty, user needs to configure
-				Region:   viper.GetString("sso.region"),
+				StartURL: "",                            // Will be empty, user needs to configure
+				Region:   viper.GetString("sso.region"), // Defaults to ca-central-1
 			},
-			DefaultRegion: viper.GetString("default_region"),
+			DefaultRegion: viper.GetString("default_region"), // Defaults to ca-central-1
 			Logging: LoggingConfig{
 				Directory:   expandPath(viper.GetString("logging.directory")),
 				FileLogging: viper.GetBool("logging.file_logging"),
@@ -252,7 +252,7 @@ func setDefaults() {
 	viper.SetDefault("default_region", "ca-central-1")
 
 	// SSO defaults - these should be overridden by user config or .env file
-	viper.SetDefault("sso.region", "us-east-1")
+	viper.SetDefault("sso.region", "ca-central-1")
 
 	// Logging defaults
 	home, _ := os.UserHomeDir()
@@ -448,27 +448,36 @@ func InteractiveInit() error {
 	fmt.Println("\n📋 AWS SSO Configuration")
 	fmt.Println("-------------------------")
 
-	// Get SSO Start URL with validation
+	// Get SSO Domain ID (simplified input)
 	for {
-		fmt.Print("Enter your AWS SSO Start URL (e.g., https://d-xxxxxxxxxx.awsapps.com/start): ")
-		startURL, _ := reader.ReadString('\n')
-		startURL = strings.TrimSpace(startURL)
+		fmt.Print("Enter your AWS SSO domain ID (e.g., d-1234567890 or zsoftly): ")
+		domainID, _ := reader.ReadString('\n')
+		domainID = strings.TrimSpace(domainID)
+
+		if domainID == "" {
+			fmt.Println("❌ Domain ID cannot be empty")
+			continue
+		}
+
+		// Build the full SSO URL
+		startURL := fmt.Sprintf("https://%s.awsapps.com/start", domainID)
 
 		if err := validateInput(startURL, "url"); err != nil {
-			fmt.Printf("❌ %s\n", err)
+			fmt.Printf("❌ Invalid domain ID: %s\n", err)
 			continue
 		}
 		config.SSO.StartURL = startURL
+		fmt.Printf("✅ SSO URL set to: %s\n", startURL)
 		break
 	}
 
 	// Get SSO Region with validation
 	for {
-		fmt.Print("Enter your SSO region [us-east-1]: ")
+		fmt.Print("Enter your SSO region [ca-central-1]: ")
 		ssoRegion, _ := reader.ReadString('\n')
 		ssoRegion = strings.TrimSpace(ssoRegion)
 		if ssoRegion == "" {
-			ssoRegion = "us-east-1"
+			ssoRegion = "ca-central-1"
 		}
 
 		if err := validateInput(ssoRegion, "region"); err != nil {
@@ -617,6 +626,7 @@ system:
 
 	return nil
 }
+
 
 // expandPath expands paths with tilde (~) to the user's home directory
 func expandPath(path string) string {

@@ -80,8 +80,9 @@ To update to the latest version, see the update instructions in [INSTALLATION.md
 
 #### Quick Start
 ```bash
-# Initialize configuration interactively
+# Initialize configuration interactively (simplified setup)
 ztictl config init --interactive
+# Only asks for: SSO domain ID (not full URL), uses ca-central-1 defaults
 
 # Check system requirements
 ztictl config check --fix
@@ -130,6 +131,7 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) for complete command reference.
 ```bash
 # Interactive setup (recommended for first-time users)
 ztictl config init --interactive
+# Simplified: Enter domain ID only (e.g., 'd-1234567890' or 'zsoftly')
 
 # Repair invalid configuration
 ztictl config repair

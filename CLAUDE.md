@@ -125,6 +125,9 @@ ssm i-1234abcd  # Connect to instance
 
 ## Configuration
 - **ztictl**: `~/.ztictl.yaml` (YAML format)
+  - Default region: `ca-central-1` (both for SSO and operations)
+  - SSO setup: Only asks for domain ID (e.g., `d-1234567890` or `zsoftly`)
+  - Automatically constructs full URL: `https://{domain-id}.awsapps.com/start`
 - **Legacy tools**: `.env` file with SSO_START_URL, SSO_REGION, DEFAULT_PROFILE
 
 ## Build & Release

@@ -318,7 +318,16 @@ func repairConfiguration() error {
 		case "SSO region", "Default region":
 			fmt.Printf("\nEnter a valid AWS region (e.g., us-east-1, ca-central-1): ")
 		case "SSO start URL":
-			fmt.Printf("\nEnter a valid SSO start URL (must start with https://): ")
+			// First check if current value looks like it already has a domain ID we can extract
+			if strings.Contains(valErr.Value, ".awsapps.com") {
+				// Extract domain ID from existing URL
+				parts := strings.Split(valErr.Value, "//")
+				if len(parts) > 1 {
+					domainPart := strings.Split(parts[1], ".awsapps.com")[0]
+					fmt.Printf("\nDetected domain ID: %s\n", domainPart)
+				}
+			}
+			fmt.Printf("\nEnter your AWS SSO domain ID (e.g., d-1234567890 or zsoftly): ")
 		}
 
 		newValue, _ = reader.ReadString('\n')
@@ -337,8 +346,13 @@ func repairConfiguration() error {
 				continue
 			}
 		case "SSO start URL":
-			if !strings.HasPrefix(newValue, "https://") && !strings.HasPrefix(newValue, "http://") {
-				fmt.Println("URL must start with http:// or https://")
+			// Build full URL from domain ID
+			if !strings.HasPrefix(newValue, "https://") {
+				newValue = fmt.Sprintf("https://%s.awsapps.com/start", newValue)
+			}
+			// Validate the constructed URL
+			if !strings.HasPrefix(newValue, "https://") {
+				fmt.Println("Invalid SSO URL format")
 				continue
 			}
 		}
