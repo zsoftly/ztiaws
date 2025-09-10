@@ -8,10 +8,10 @@ import (
 // TestSSODomainIDConstruction tests that SSO URLs are correctly constructed from domain IDs
 func TestSSODomainIDConstruction(t *testing.T) {
 	tests := []struct {
-		name         string
-		domainID     string
-		expectedURL  string
-		shouldError  bool
+		name        string
+		domainID    string
+		expectedURL string
+		shouldError bool
 	}{
 		{
 			name:        "standard AWS domain ID",
@@ -43,16 +43,16 @@ func TestSSODomainIDConstruction(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Simulate the URL construction from InteractiveInit
 			constructedURL := "https://" + tt.domainID + ".awsapps.com/start"
-			
+
 			if constructedURL != tt.expectedURL {
 				t.Errorf("URL construction failed: got %s, want %s", constructedURL, tt.expectedURL)
 			}
-			
+
 			// Verify the URL is valid
 			if !strings.HasPrefix(constructedURL, "https://") {
 				t.Error("Constructed URL should start with https://")
 			}
-			
+
 			if !strings.HasSuffix(constructedURL, ".awsapps.com/start") {
 				t.Error("Constructed URL should end with .awsapps.com/start")
 			}
@@ -96,7 +96,7 @@ func TestDefaultRegionSettings(t *testing.T) {
 			if region == "" {
 				region = "ca-central-1"
 			}
-			
+
 			if region != tt.expectedRegion {
 				t.Errorf("Region default logic failed: got %s, want %s", region, tt.expectedRegion)
 			}
@@ -148,7 +148,7 @@ func TestValidateInput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateInput(tt.input, tt.inputType)
 			if (err != nil) != tt.shouldError {
-				t.Errorf("validateInput(%s, %s) error = %v, shouldError = %v", 
+				t.Errorf("validateInput(%s, %s) error = %v, shouldError = %v",
 					tt.input, tt.inputType, err, tt.shouldError)
 			}
 		})

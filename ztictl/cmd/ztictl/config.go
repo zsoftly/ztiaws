@@ -201,17 +201,31 @@ func checkRequirements(fix bool) error {
 	// Run all checks
 	results, _ := checker.CheckAll()
 
+	// Track failed requirements for summary
+	var criticalFailures []system.RequirementResult
+	var optionalFailures []system.RequirementResult
+
 	// Display results
 	allPassed := true
 	for _, result := range results {
 		if result.Passed {
 			logger.Info("✅", "check", result.Name)
+			if result.Version != "" {
+				logger.Info("   Version", "version", result.Version)
+			}
 		} else {
 			logger.Error("❌", "check", result.Name, "error", result.Error)
 			if result.Suggestion != "" {
-				logger.Info("💡 Fix", "suggestion", result.Suggestion)
+				logger.Info("   💡", "fix", result.Suggestion)
 			}
 			allPassed = false
+
+			// Categorize failures
+			if result.Name == "Go Version" {
+				optionalFailures = append(optionalFailures, result)
+			} else {
+				criticalFailures = append(criticalFailures, result)
+			}
 		}
 	}
 
@@ -219,30 +233,140 @@ func checkRequirements(fix bool) error {
 
 	// Display configuration status
 	cfg := config.Get()
+	configExists := false
 	if cfg != nil && cfg.SSO.StartURL != "" {
-		logger.Info("Configuration loaded", "sso_start_url", cfg.SSO.StartURL)
+		logger.Info("✅ Configuration", "status", "Loaded", "sso_url", cfg.SSO.StartURL)
+		configExists = true
 	} else {
-		logger.Warn("No SSO configuration found. Run 'ztictl config init' to set up.")
+		logger.Error("❌ Configuration", "status", "Not found or incomplete")
+		logger.Info("   💡", "fix", "Run 'ztictl config init' to set up SSO configuration")
 	}
 
-	if allPassed {
-		logger.Info("All requirements met! ✅")
+	fmt.Println()
+
+	if allPassed && configExists {
+		logger.Info("🎉 All requirements met! You're ready to use ztictl")
+		fmt.Println("\n📝 Next steps:")
+		fmt.Println("  1. Authenticate: ztictl auth login")
+		fmt.Println("  2. List instances: ztictl ssm list")
+		fmt.Println("  3. Connect to instance: ztictl ssm connect <instance-id>")
 		return nil
-	} else {
-		logger.Error("Some requirements are not met")
-
-		if fix {
-			logger.Info("Attempting to fix issues...")
-			if err := checker.FixIssues(results); err != nil {
-				return fmt.Errorf("failed to fix some issues: %w", err)
-			}
-			logger.Info("Issues fixed successfully. Please run check again to verify.")
-			return nil
-		} else {
-			logger.Info("Run with --fix to attempt automatic fixes")
-			return fmt.Errorf("some requirements are not met")
-		}
 	}
+
+	// Provide detailed action plan
+	if len(criticalFailures) > 0 || !configExists {
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		fmt.Println("📋 ACTION REQUIRED - Follow these steps:")
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+		stepNumber := 1
+
+		// Configuration setup first if needed
+		if !configExists {
+			fmt.Printf("\n%d. SET UP CONFIGURATION:\n", stepNumber)
+			fmt.Println("   Run: ztictl config init --interactive")
+			fmt.Println("   This will guide you through setting up AWS SSO")
+			stepNumber++
+		}
+
+		// Critical requirements
+		for _, failure := range criticalFailures {
+			fmt.Printf("\n%d. INSTALL %s:\n", stepNumber, strings.ToUpper(failure.Name))
+
+			switch failure.Name {
+			case "AWS CLI":
+				fmt.Println("   Option A: Use official installer")
+				fmt.Println("   Visit: https://aws.amazon.com/cli/")
+				fmt.Println("   ")
+				fmt.Println("   Option B: Platform-specific install:")
+				fmt.Println("   - macOS: brew install awscli")
+				fmt.Println("   - Ubuntu/Debian: sudo apt install awscli")
+				fmt.Println("   - Windows: Use MSI installer from AWS website")
+
+			case "Session Manager Plugin":
+				fmt.Println("   Option A: Quick install")
+				if fix {
+					fmt.Println("   Run: ztictl config check --fix")
+				} else {
+					fmt.Printf("   %s\n", failure.Suggestion)
+				}
+				fmt.Println("   ")
+				fmt.Println("   Option B: Manual install")
+				fmt.Println("   Visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html")
+
+			case "jq":
+				fmt.Println("   Option A: Quick install")
+				if fix {
+					fmt.Println("   Run: ztictl config check --fix")
+				} else {
+					fmt.Printf("   %s\n", failure.Suggestion)
+				}
+				fmt.Println("   ")
+				fmt.Println("   Option B: Download binary")
+				fmt.Println("   Visit: https://stedolan.github.io/jq/download/")
+
+			case "AWS Credentials":
+				fmt.Println("   Your AWS credentials are missing or expired")
+				fmt.Println("   ")
+				fmt.Println("   Option A: Use ztictl (recommended)")
+				fmt.Println("   Run: ztictl auth login")
+				fmt.Println("   ")
+				fmt.Println("   Option B: Use AWS CLI")
+				fmt.Println("   Run: aws configure sso")
+			}
+			stepNumber++
+		}
+
+		// Optional requirements
+		if len(optionalFailures) > 0 {
+			fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			fmt.Println("📦 OPTIONAL (for development only):")
+			fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			for _, failure := range optionalFailures {
+				fmt.Printf("\n• %s: %s\n", failure.Name, failure.Suggestion)
+			}
+		}
+
+		// Automatic fix option
+		if fix {
+			fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			logger.Info("Attempting automatic fixes for supported components...")
+			if err := checker.FixIssues(results); err != nil {
+				logger.Error("Some automatic fixes failed", "error", err)
+				fmt.Println("\n⚠️  Please complete the manual steps above")
+			} else {
+				fmt.Println("\n✅ Automatic fixes applied. Run 'ztictl config check' again to verify")
+			}
+			return nil
+		} else if len(criticalFailures) > 0 {
+			// Check if any can be auto-fixed
+			canAutoFix := false
+			for _, failure := range criticalFailures {
+				if failure.Name == "Session Manager Plugin" || failure.Name == "jq" {
+					canAutoFix = true
+					break
+				}
+			}
+
+			if canAutoFix {
+				fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+				fmt.Println("💡 TIP: Some issues can be fixed automatically")
+				fmt.Println("   Run: ztictl config check --fix")
+				fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			}
+		}
+
+		// Final verification step
+		fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		fmt.Println("✔️  VERIFY: After completing the steps above")
+		fmt.Println("   Run: ztictl config check")
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+		return fmt.Errorf("prerequisites not met - see action plan above")
+	}
+
+	// All checks passed
+	return nil
 }
 
 // validateConfiguration handles the config validation logic and returns errors instead of calling os.Exit

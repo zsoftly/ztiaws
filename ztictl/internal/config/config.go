@@ -627,7 +627,6 @@ system:
 	return nil
 }
 
-
 // expandPath expands paths with tilde (~) to the user's home directory
 func expandPath(path string) string {
 	if path == "" {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"ztictl/pkg/logging"
 )
 
 func TestSsmConnectCmd(t *testing.T) {
@@ -584,7 +585,7 @@ func TestPerformConnection(t *testing.T) {
 	t.Run("handles connection gracefully", func(t *testing.T) {
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// The function should return an error or succeed, not call os.Exit
@@ -602,7 +603,7 @@ func TestPerformConnection(t *testing.T) {
 
 	t.Run("validates region code", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test with empty region code (should be handled gracefully)
@@ -618,7 +619,7 @@ func TestPerformConnection(t *testing.T) {
 
 	t.Run("validates instance identifier", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test with empty instance identifier
@@ -641,7 +642,7 @@ func TestPerformConnection(t *testing.T) {
 
 	t.Run("handles invalid region gracefully", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test with invalid region
@@ -667,7 +668,7 @@ func TestConnectionSeparationOfConcerns(t *testing.T) {
 	t.Run("connection returns instead of exiting", func(t *testing.T) {
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// This call should return an error or succeed, not exit the process
@@ -687,7 +688,7 @@ func TestConnectionSeparationOfConcerns(t *testing.T) {
 
 	t.Run("handles various error conditions without exiting", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test various error conditions that should return errors, not exit

@@ -39,7 +39,7 @@ func TestSSODomainIDExtraction(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Simulate the extraction logic from config repair
 			domainID := extractDomainFromURL(tt.inputURL)
-			
+
 			if domainID != tt.expectedDomainID {
 				t.Errorf("Domain extraction failed: got %s, want %s", domainID, tt.expectedDomainID)
 			}
@@ -50,27 +50,27 @@ func TestSSODomainIDExtraction(t *testing.T) {
 // TestConfigRepairDomainIDHandling tests the repair command's handling of domain IDs
 func TestConfigRepairDomainIDHandling(t *testing.T) {
 	tests := []struct {
-		name           string
-		userInput      string
-		expectedURL    string
+		name            string
+		userInput       string
+		expectedURL     string
 		shouldConstruct bool
 	}{
 		{
-			name:           "user enters domain ID only",
-			userInput:      "d-1234567890",
-			expectedURL:    "https://d-1234567890.awsapps.com/start",
+			name:            "user enters domain ID only",
+			userInput:       "d-1234567890",
+			expectedURL:     "https://d-1234567890.awsapps.com/start",
 			shouldConstruct: true,
 		},
 		{
-			name:           "user enters custom domain",
-			userInput:      "zsoftly",
-			expectedURL:    "https://zsoftly.awsapps.com/start",
+			name:            "user enters custom domain",
+			userInput:       "zsoftly",
+			expectedURL:     "https://zsoftly.awsapps.com/start",
 			shouldConstruct: true,
 		},
 		{
-			name:           "user enters full URL",
-			userInput:      "https://existing.awsapps.com/start",
-			expectedURL:    "https://existing.awsapps.com/start",
+			name:            "user enters full URL",
+			userInput:       "https://existing.awsapps.com/start",
+			expectedURL:     "https://existing.awsapps.com/start",
 			shouldConstruct: false,
 		},
 	}
@@ -78,12 +78,12 @@ func TestConfigRepairDomainIDHandling(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.userInput
-			
+
 			// Simulate the URL construction logic from config repair
 			if !strings.HasPrefix(result, "https://") {
 				result = fmt.Sprintf("https://%s.awsapps.com/start", result)
 			}
-			
+
 			if result != tt.expectedURL {
 				t.Errorf("URL construction failed: got %s, want %s", result, tt.expectedURL)
 			}
@@ -97,7 +97,7 @@ func extractDomainFromURL(url string) string {
 		// Remove protocol if present
 		url = strings.TrimPrefix(url, "https://")
 		url = strings.TrimPrefix(url, "http://")
-		
+
 		// Extract domain part
 		parts := strings.Split(url, ".awsapps.com")
 		if len(parts) > 0 {
@@ -110,10 +110,10 @@ func extractDomainFromURL(url string) string {
 // TestConfigRepairValidation tests validation of repaired config values
 func TestConfigRepairValidation(t *testing.T) {
 	tests := []struct {
-		name        string
-		field       string
-		value       string
-		shouldPass  bool
+		name       string
+		field      string
+		value      string
+		shouldPass bool
 	}{
 		{
 			name:       "valid SSO URL from domain ID",
@@ -151,7 +151,7 @@ func TestConfigRepairValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Simulate validation based on field type
 			var isValid bool
-			
+
 			switch tt.field {
 			case "SSO start URL":
 				isValid = strings.HasPrefix(tt.value, "https://") || strings.HasPrefix(tt.value, "http://")
@@ -169,9 +169,9 @@ func TestConfigRepairValidation(t *testing.T) {
 					isValid = false
 				}
 			}
-			
+
 			if isValid != tt.shouldPass {
-				t.Errorf("Validation for %s with value %s: got %v, want %v", 
+				t.Errorf("Validation for %s with value %s: got %v, want %v",
 					tt.field, tt.value, isValid, tt.shouldPass)
 			}
 		})

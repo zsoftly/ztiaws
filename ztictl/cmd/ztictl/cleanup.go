@@ -28,7 +28,6 @@ and temporary resources were not cleaned up automatically.`,
 			return fmt.Errorf("region is required")
 		}
 
-		logger := GetLogger()
 		ssmManager := ssm.NewManager(logger)
 
 		ctx := context.Background()
@@ -66,7 +65,6 @@ ensure all temporary resources are removed.`,
 			return fmt.Errorf("region is required")
 		}
 
-		logger := GetLogger()
 		ssmManager := ssm.NewManager(logger)
 
 		ctx := context.Background()

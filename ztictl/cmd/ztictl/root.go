@@ -110,6 +110,9 @@ func init() {
 
 	// Bind flags to viper
 	_ = viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug")) // #nosec G104
+
+	// Disable Cobra's default completion command in favor of our custom one
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -188,14 +191,6 @@ func setupConfiguration() error {
 	}
 
 	return nil
-}
-
-// GetLogger returns a compatibility logger instance
-func GetLogger() *logging.Logger {
-	if logger == nil {
-		logger = logging.NewLogger(debug)
-	}
-	return logger
 }
 
 // runInteractiveConfig prompts the user for configuration values

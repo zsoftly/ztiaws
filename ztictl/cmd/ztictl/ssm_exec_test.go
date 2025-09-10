@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"ztictl/pkg/logging"
 )
 
 func TestSsmExecCmd(t *testing.T) {
@@ -1473,7 +1474,7 @@ func TestExecuteSingleCommand(t *testing.T) {
 	t.Run("handles execution gracefully", func(t *testing.T) {
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// The function should return an error or succeed, not call os.Exit
@@ -1491,7 +1492,7 @@ func TestExecuteSingleCommand(t *testing.T) {
 
 	t.Run("validates region code", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test with empty region code (should be handled gracefully)
@@ -1507,7 +1508,7 @@ func TestExecuteSingleCommand(t *testing.T) {
 
 	t.Run("validates instance identifier", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test with empty instance identifier
@@ -1604,7 +1605,7 @@ func TestExecuteTaggedCommand(t *testing.T) {
 	t.Run("handles tagged execution gracefully", func(t *testing.T) {
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// The function should return success status and error, not call os.Exit
@@ -1624,7 +1625,7 @@ func TestExecuteTaggedCommand(t *testing.T) {
 
 	t.Run("validates arguments before execution", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test invalid arguments (no tags or instances)
@@ -1647,7 +1648,7 @@ func TestExecuteTaggedCommand(t *testing.T) {
 
 	t.Run("handles mutual exclusion validation", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test both tags and instances provided
@@ -1670,7 +1671,7 @@ func TestExecuteTaggedCommand(t *testing.T) {
 
 	t.Run("handles parallel validation", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test invalid parallel value
@@ -1693,7 +1694,7 @@ func TestExecuteTaggedCommand(t *testing.T) {
 
 	t.Run("handles instances flag parsing", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test instances flag with comma-separated values
@@ -1726,7 +1727,7 @@ func TestExecCommandSeparationOfConcerns(t *testing.T) {
 	t.Run("single command execution returns instead of exiting", func(t *testing.T) {
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// This call should return an error or succeed, not exit the process
@@ -1746,7 +1747,7 @@ func TestExecCommandSeparationOfConcerns(t *testing.T) {
 
 	t.Run("tagged command execution returns instead of exiting", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// This call should return results, not exit the process

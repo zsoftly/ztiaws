@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"ztictl/pkg/logging"
 )
 
 func TestSetupConfiguration(t *testing.T) {
@@ -117,7 +119,7 @@ func TestInitializeConfigFile(t *testing.T) {
 
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// The function should return an error or succeed, not call os.Exit
@@ -141,7 +143,7 @@ func TestCheckRequirements(t *testing.T) {
 
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// The function should return an error or succeed, not call os.Exit
@@ -165,7 +167,7 @@ func TestValidateConfiguration(t *testing.T) {
 
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// The function should return an error or succeed, not call os.Exit
