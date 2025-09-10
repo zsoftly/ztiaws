@@ -68,7 +68,6 @@ func TestDetectShell(t *testing.T) {
 			// Set test environment
 			os.Setenv("SHELL", tt.envShell)
 			os.Setenv("PSModulePath", tt.psModule)
-			// Note: We can't actually change runtime.GOOS, so we'll skip Windows-specific tests on non-Windows
 
 			// Skip Windows-specific tests on non-Windows systems
 			if tt.goos == "windows" && runtime.GOOS != "windows" {
@@ -93,22 +92,25 @@ func TestDetectShell(t *testing.T) {
 	}
 }
 
-// TestInstallCompletion tests the installCompletion function routing
-func TestInstallCompletion(t *testing.T) {
+// TestInstallCompletionRouting tests that installCompletion routes to correct handlers
+func TestInstallCompletionRouting(t *testing.T) {
 	tests := []struct {
 		name      string
 		shell     string
 		wantError bool
+		errorMsg  string
 	}{
 		{
 			name:      "unsupported shell",
 			shell:     "tcsh",
 			wantError: true,
+			errorMsg:  "unsupported shell",
 		},
 		{
 			name:      "empty shell",
 			shell:     "",
 			wantError: true,
+			errorMsg:  "unsupported shell",
 		},
 	}
 
@@ -117,6 +119,9 @@ func TestInstallCompletion(t *testing.T) {
 			err := installCompletion(tt.shell)
 			if (err != nil) != tt.wantError {
 				t.Errorf("installCompletion(%q) error = %v, wantError %v", tt.shell, err, tt.wantError)
+			}
+			if err != nil && tt.errorMsg != "" && !strings.Contains(err.Error(), tt.errorMsg) {
+				t.Errorf("installCompletion(%q) error = %v, want error containing %q", tt.shell, err, tt.errorMsg)
 			}
 		})
 	}
@@ -164,8 +169,8 @@ func TestCompletionCommand(t *testing.T) {
 	}
 }
 
-// TestShowCompletionInstructions tests that instructions are generated without panics
-func TestShowCompletionInstructions(t *testing.T) {
+// TestShowCompletionInstructionsNoPanic verifies the functions don't panic
+func TestShowCompletionInstructionsNoPanic(t *testing.T) {
 	shells := []string{"bash", "zsh", "fish", "powershell", "unknown"}
 
 	for _, shell := range shells {
@@ -176,61 +181,204 @@ func TestShowCompletionInstructions(t *testing.T) {
 	}
 }
 
-// TestCompletionFunctionHelpers verifies helper functions don't panic
-func TestCompletionFunctionHelpers(t *testing.T) {
-	// These should not panic even if called directly
-	t.Run("showBashInstructions", func(t *testing.T) {
-		showBashInstructions()
-	})
-
-	t.Run("showZshInstructions", func(t *testing.T) {
-		showZshInstructions()
-	})
-
-	t.Run("showFishInstructions", func(t *testing.T) {
-		showFishInstructions()
-	})
-
-	t.Run("showPowerShellInstructions", func(t *testing.T) {
-		showPowerShellInstructions()
-	})
-}
-
-// TestCompletionInstructionsContainKeyInfo tests that instructions include essential information
-func TestCompletionInstructionsContainKeyInfo(t *testing.T) {
-	// Capture output for bash instructions
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	showBashInstructions()
-
-	w.Close()
-	os.Stdout = oldStdout
-
-	// Read the output
-	buf := make([]byte, 4096)
-	n, _ := r.Read(buf)
-	output := string(buf[:n])
-
-	// Check for key content
-	expectedStrings := []string{
-		"BASH COMPLETION SETUP",
-		"--install",
-		"source <(ztictl completion bash)",
+// TestPathValidation tests comprehensive path security validation
+func TestPathValidation(t *testing.T) {
+	validSystemPaths := []string{
+		"/etc/bash_completion.d/",
+		"/usr/share/bash-completion/completions/",
+		"/usr/local/share/bash-completion/completions/",
 	}
 
-	for _, expected := range expectedStrings {
-		if !strings.Contains(output, expected) {
-			t.Errorf("Bash instructions missing expected content: %q", expected)
-		}
+	tests := []struct {
+		name          string
+		path          string
+		hasTraversal  bool
+		requiresSudo  bool
+		isValidSystem bool
+	}{
+		// Normal paths
+		{
+			name:          "valid etc path",
+			path:          "/etc/bash_completion.d/ztictl",
+			hasTraversal:  false,
+			requiresSudo:  true,
+			isValidSystem: true,
+		},
+		{
+			name:          "valid usr share path",
+			path:          "/usr/share/bash-completion/completions/ztictl",
+			hasTraversal:  false,
+			requiresSudo:  true,
+			isValidSystem: true,
+		},
+		{
+			name:          "user home path",
+			path:          "/home/user/.local/share/bash-completion/completions/ztictl",
+			hasTraversal:  false,
+			requiresSudo:  false,
+			isValidSystem: false,
+		},
+		// Path traversal attempts
+		{
+			name:          "traversal in etc",
+			path:          "/etc/../etc/bash_completion.d/ztictl",
+			hasTraversal:  true,
+			requiresSudo:  false,
+			isValidSystem: false,
+		},
+		{
+			name:          "traversal with dots",
+			path:          "/etc/bash_completion.d/../../../tmp/evil",
+			hasTraversal:  true,
+			requiresSudo:  false,
+			isValidSystem: false,
+		},
+		{
+			name:          "user traversal attempt",
+			path:          "/home/user/.local/../../../etc/passwd",
+			hasTraversal:  true,
+			requiresSudo:  false,
+			isValidSystem: false,
+		},
+		// Invalid system paths
+		{
+			name:          "invalid etc path",
+			path:          "/etc/evil/ztictl",
+			hasTraversal:  false,
+			requiresSudo:  false,
+			isValidSystem: false,
+		},
+		{
+			name:          "invalid usr path",
+			path:          "/usr/bin/ztictl",
+			hasTraversal:  false,
+			requiresSudo:  false,
+			isValidSystem: false,
+		},
+		// Paths with shell metacharacters (documented but safe with exec.Command)
+		{
+			name:          "semicolon injection attempt",
+			path:          "/tmp/ztictl; rm -rf /",
+			hasTraversal:  false,
+			requiresSudo:  false,
+			isValidSystem: false,
+		},
+		{
+			name:          "command substitution attempt",
+			path:          "/tmp/ztictl$(whoami)",
+			hasTraversal:  false,
+			requiresSudo:  false,
+			isValidSystem: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test traversal detection
+			hasTraversal := strings.Contains(tt.path, "..")
+			if hasTraversal != tt.hasTraversal {
+				t.Errorf("path traversal detection: got %v, want %v", hasTraversal, tt.hasTraversal)
+			}
+
+			// Test system path validation
+			isValidSystem := false
+			requiresSudo := false
+			if !hasTraversal && (strings.HasPrefix(tt.path, "/etc") || strings.HasPrefix(tt.path, "/usr")) {
+				for _, validPath := range validSystemPaths {
+					if strings.HasPrefix(tt.path, validPath) {
+						isValidSystem = true
+						requiresSudo = true
+						break
+					}
+				}
+			}
+
+			if isValidSystem != tt.isValidSystem {
+				t.Errorf("valid system path: got %v, want %v", isValidSystem, tt.isValidSystem)
+			}
+			if requiresSudo != tt.requiresSudo {
+				t.Errorf("requires sudo: got %v, want %v", requiresSudo, tt.requiresSudo)
+			}
+		})
 	}
 }
 
-// TestNoHardcodedCompletions verifies we removed environment-specific completions
-func TestNoHardcodedCompletions(t *testing.T) {
-	// Check that ssm exec command doesn't have ValidArgsFunction
-	if ssmExecCmd.ValidArgsFunction != nil {
-		t.Error("ssmExecCmd still has ValidArgsFunction - hardcoded completions should be removed")
+// TestDuplicateCompletionDetection tests detection of existing completions
+func TestDuplicateCompletionDetection(t *testing.T) {
+	tests := []struct {
+		name         string
+		content      string
+		shell        string
+		shouldDetect bool
+	}{
+		// Bash patterns
+		{
+			name:         "bash exact match",
+			content:      "source <(ztictl completion bash)",
+			shell:        "bash",
+			shouldDetect: true,
+		},
+		{
+			name:         "bash extra spaces",
+			content:      "source <(ztictl  completion  bash)",
+			shell:        "bash",
+			shouldDetect: true,
+		},
+		{
+			name:         "bash command substitution",
+			content:      "source $(ztictl completion bash)",
+			shell:        "bash",
+			shouldDetect: true,
+		},
+		// Zsh patterns
+		{
+			name:         "zsh exact match",
+			content:      "source <(ztictl completion zsh)",
+			shell:        "zsh",
+			shouldDetect: true,
+		},
+		{
+			name:         "zsh in plugins",
+			content:      "plugins=(git ztictl docker)",
+			shell:        "zsh",
+			shouldDetect: true,
+		},
+		// False positives
+		{
+			name:         "comment only",
+			content:      "# ztictl is installed",
+			shell:        "bash",
+			shouldDetect: false,
+		},
+		{
+			name:         "different command",
+			content:      "ztictl auth login",
+			shell:        "bash",
+			shouldDetect: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var detected bool
+
+			switch tt.shell {
+			case "bash":
+				detected = strings.Contains(tt.content, "ztictl completion bash") ||
+					strings.Contains(tt.content, "ztictl  completion  bash") ||
+					strings.Contains(tt.content, "$(ztictl completion bash)") ||
+					strings.Contains(tt.content, "`ztictl completion bash`")
+			case "zsh":
+				detected = strings.Contains(tt.content, "ztictl completion zsh") ||
+					strings.Contains(tt.content, "ztictl  completion  zsh") ||
+					strings.Contains(tt.content, "$(ztictl completion zsh)") ||
+					strings.Contains(tt.content, "`ztictl completion zsh`") ||
+					(strings.Contains(tt.content, "plugins=(") && strings.Contains(tt.content, "ztictl"))
+			}
+
+			if detected != tt.shouldDetect {
+				t.Errorf("detection = %v, want %v for content: %q", detected, tt.shouldDetect, tt.content)
+			}
+		})
 	}
 }

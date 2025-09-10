@@ -354,7 +354,7 @@ func TestS3TransferThreshold(t *testing.T) {
 	}
 }
 
-func TestPathValidation(t *testing.T) {
+func TestTransferPathValidation(t *testing.T) {
 	tests := []struct {
 		name     string
 		path     string
