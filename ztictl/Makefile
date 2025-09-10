@@ -88,7 +88,7 @@ endif
 # Run tests
 test:
 	@echo "Running tests..."
-	@go test -v ./...
+	@AWS_EC2_METADATA_DISABLED=true go test -v ./...
 	@echo "✓ Tests completed"
 
 # Install locally (for development)

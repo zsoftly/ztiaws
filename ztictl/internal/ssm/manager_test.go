@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -13,11 +12,6 @@ import (
 
 	"ztictl/pkg/logging"
 )
-
-func init() {
-	// Disable EC2 IMDS for all tests to prevent timeouts
-	os.Setenv("AWS_EC2_METADATA_DISABLED", "true")
-}
 
 func TestNewManager(t *testing.T) {
 	logger := logging.NewNoOpLogger()

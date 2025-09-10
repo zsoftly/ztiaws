@@ -9,11 +9,6 @@ import (
 	"ztictl/pkg/logging"
 )
 
-func init() {
-	// Disable EC2 IMDS for all tests to prevent timeouts
-	os.Setenv("AWS_EC2_METADATA_DISABLED", "true")
-}
-
 func TestNewRequirementsChecker(t *testing.T) {
 	logger := logging.NewLogger(false)
 	checker := NewRequirementsChecker(logger)

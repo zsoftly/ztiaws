@@ -160,6 +160,14 @@ authaws --help
 ssm --help
 ```
 
+## Test Infrastructure
+**AWS Credential Handling in Tests**:
+- Each test package has an `init_test.go` file that sets `AWS_EC2_METADATA_DISABLED=true`
+- This prevents AWS SDK from attempting to reach EC2 Instance Metadata Service (IMDS)
+- Prevents test timeouts and CI/CD failures on systems without AWS credentials
+- Located in: `cmd/ztictl/init_test.go`, `internal/ssm/init_test.go`, `internal/system/init_test.go`
+- Makefile also sets this environment variable for `make test` command
+
 ## Test File Management Guidelines
 **IMPORTANT**: When creating test files or scripts during development:
 
