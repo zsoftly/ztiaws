@@ -253,6 +253,32 @@ generate_changelog() {
     rm -f "$temp_entry"
 }
 
+update_version_files() {
+    local version_no_v="${VERSION#v}"  # Remove 'v' prefix if present
+    
+    log_info "Updating version to $version_no_v in source files..."
+    
+    # Update Makefile
+    if [[ -f ztictl/Makefile ]]; then
+        sed -i "s/^BASE_VERSION ?= .*/BASE_VERSION ?= $version_no_v/" ztictl/Makefile
+        log_info "Updated ztictl/Makefile with version $version_no_v"
+        debug_log "Makefile version line: $(grep '^BASE_VERSION' ztictl/Makefile)"
+    else
+        log_error "ztictl/Makefile not found"
+    fi
+    
+    # Update root.go
+    if [[ -f ztictl/cmd/ztictl/root.go ]]; then
+        # Use a more flexible pattern to handle varying whitespace
+        # The pattern matches: Version (any whitespace) = (any whitespace) "anything"
+        sed -i "s/Version[[:space:]]*=[[:space:]]*\".*\"/Version    = \"$version_no_v\"/" ztictl/cmd/ztictl/root.go
+        log_info "Updated ztictl/cmd/ztictl/root.go with version $version_no_v"
+        debug_log "root.go version line: $(grep -E 'Version[[:space:]]*=' ztictl/cmd/ztictl/root.go | head -1)"
+    else
+        log_error "ztictl/cmd/ztictl/root.go not found"
+    fi
+}
+
 generate_release_notes() {
     local features_file="$1"
     local fixes_file="$2"
@@ -353,6 +379,9 @@ main() {
     validate_version
     get_latest_tag
     check_existing_files
+    
+    # Update version in source files first
+    update_version_files
     
     generate_documentation
     

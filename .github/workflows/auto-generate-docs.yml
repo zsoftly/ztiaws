@@ -48,14 +48,14 @@ jobs:
             --force
         fi
         
-    - name: Commit generated documentation
+    - name: Commit generated documentation and version updates
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add CHANGELOG.md RELEASE_NOTES.txt
+        git add CHANGELOG.md RELEASE_NOTES.txt ztictl/Makefile ztictl/cmd/ztictl/root.go
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else
-          git commit -m "Auto-generate changelog and release notes for ${{ steps.version.outputs.version }}"
+          git commit -m "Auto-generate changelog, release notes, and update version to ${{ steps.version.outputs.version }}"
           git push
         fi
