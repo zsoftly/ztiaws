@@ -113,13 +113,13 @@ func TestValidateSSOURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidateSSOURL(tt.url)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("ValidateSSOURL(%q) expected error but got none", tt.url)
 					return
 				}
-				
+
 				if valErr, ok := err.(*ValidationError); ok {
 					if valErr.Field != tt.errorField {
 						t.Errorf("ValidateSSOURL(%q) error field = %q, expected %q", tt.url, valErr.Field, tt.errorField)
@@ -142,7 +142,7 @@ func TestValidationError(t *testing.T) {
 		Value:   "test value",
 		Message: "test message",
 	}
-	
+
 	expected := "test field 'test value' is invalid: test message"
 	if err.Error() != expected {
 		t.Errorf("ValidationError.Error() = %q, expected %q", err.Error(), expected)

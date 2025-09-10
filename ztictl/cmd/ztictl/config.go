@@ -235,7 +235,7 @@ func checkRequirements(fix bool) error {
 	cfg := config.Get()
 	configExists := false
 	configValid := true
-	
+
 	// First, try to load config with validation to check for errors
 	if err := config.Load(); err != nil {
 		logger.Error("❌ Configuration", "status", "Invalid configuration detected")
@@ -451,54 +451,54 @@ func repairConfiguration() error {
 		return fmt.Errorf("repair cancelled by user")
 	}
 
-		// Get the correct value from user
-		var newValue string
-		for {
-			switch valErr.Field {
-			case "SSO region", "Default region":
-				fmt.Printf("\nEnter a valid AWS region (e.g., us-east-1, ca-central-1): ")
-			case "SSO start URL":
-				// First check if current value looks like it already has a domain ID we can extract
-				if strings.Contains(valErr.Value, ".awsapps.com") {
-					// Extract domain ID from existing URL
-					parts := strings.Split(valErr.Value, "//")
-					if len(parts) > 1 {
-						domainPart := strings.Split(parts[1], ".awsapps.com")[0]
-						fmt.Printf("\nDetected domain ID: %s\n", domainPart)
-					}
+	// Get the correct value from user
+	var newValue string
+	for {
+		switch valErr.Field {
+		case "SSO region", "Default region":
+			fmt.Printf("\nEnter a valid AWS region (e.g., us-east-1, ca-central-1): ")
+		case "SSO start URL":
+			// First check if current value looks like it already has a domain ID we can extract
+			if strings.Contains(valErr.Value, ".awsapps.com") {
+				// Extract domain ID from existing URL
+				parts := strings.Split(valErr.Value, "//")
+				if len(parts) > 1 {
+					domainPart := strings.Split(parts[1], ".awsapps.com")[0]
+					fmt.Printf("\nDetected domain ID: %s\n", domainPart)
 				}
-				fmt.Printf("\nEnter your AWS SSO domain ID (e.g., d-1234567890 or zsoftly): ")
 			}
+			fmt.Printf("\nEnter your AWS SSO domain ID (e.g., d-1234567890 or zsoftly): ")
+		}
 
-			newValue, _ = reader.ReadString('\n')
-			newValue = strings.TrimSpace(newValue)
+		newValue, _ = reader.ReadString('\n')
+		newValue = strings.TrimSpace(newValue)
 
-			if newValue == "" {
-				fmt.Println("Value cannot be empty. Please try again.")
+		if newValue == "" {
+			fmt.Println("Value cannot be empty. Please try again.")
+			continue
+		}
+
+		// Validate the new value
+		switch valErr.Field {
+		case "SSO region", "Default region":
+			if !aws.IsValidAWSRegion(newValue) {
+				fmt.Printf("'%s' is not a valid AWS region format. Expected format: xx-xxxx-n\n", newValue)
 				continue
 			}
-
-			// Validate the new value
-			switch valErr.Field {
-			case "SSO region", "Default region":
-				if !aws.IsValidAWSRegion(newValue) {
-					fmt.Printf("'%s' is not a valid AWS region format. Expected format: xx-xxxx-n\n", newValue)
-					continue
-				}
-			case "SSO start URL":
-				// Build full URL from domain ID
-				if !strings.HasPrefix(newValue, "https://") {
-					newValue = fmt.Sprintf("https://%s.awsapps.com/start", newValue)
-				}
-				// Validate the constructed URL using the new validation function
-				if err := aws.ValidateSSOURL(newValue); err != nil {
-					fmt.Printf("Invalid SSO URL: %s\n", err)
-					continue
-				}
+		case "SSO start URL":
+			// Build full URL from domain ID
+			if !strings.HasPrefix(newValue, "https://") {
+				newValue = fmt.Sprintf("https://%s.awsapps.com/start", newValue)
 			}
-
-			break
+			// Validate the constructed URL using the new validation function
+			if err := aws.ValidateSSOURL(newValue); err != nil {
+				fmt.Printf("Invalid SSO URL: %s\n", err)
+				continue
+			}
 		}
+
+		break
+	}
 
 	// Read and parse the config file using YAML parser
 	home, err := os.UserHomeDir()
