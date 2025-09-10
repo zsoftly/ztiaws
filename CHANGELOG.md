@@ -1,5 +1,27 @@
 # Changelog
 
+## [v2.7.0] - 2025-09-10
+
+### Added
+- feat: auto-update version in Makefile and root.go during release
+- Enhance bash completion installation logic: add support for system path installation with sudo, improve path validation, and update test cases for mocked sudo behavior.
+- Add AWS credential handling to tests: disable EC2 IMDS to prevent timeouts and CI/CD failures
+- Enhance test setup and maintenance guidelines
+- Enhance AWS SSO configuration: simplify domain ID input, set default region to ca-central-1, and improve URL construction logic. Add tests for domain ID extraction and configuration validation.
+- Add comprehensive documentation for ztictl commands, configuration, and multi-region operations
+- Implement comprehensive AWS region validation and refactor related tests
+- Add multi-region command execution tests and region configuration setup
+
+### Changed
+- Refactor test credentials: replace hardcoded AWS credentials with mock values from testutil for improved test reliability and maintainability
+- Refactor test functions: rename TestPathValidation to TestTransferPathValidation for clarity and consistency
+- Refactor AWS credential handling in tests: centralize mock credentials, improve test environment setup, and remove deprecated code
+- Refactor logging initialization and improve test coverage
+- Refactor tilde path expansion logic in TestExpandPathTildeExpansion and remove unused mockStdin function
+- Refactor AWS SSO configuration and validation
+- chore: remove deprecated v2.6.1 section from CHANGELOG.md
+
+
 ## [v2.6.1] - 2025-09-08
 
 ### Added
