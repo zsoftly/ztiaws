@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"ztictl/internal/testutil"
 
 	"github.com/spf13/cobra"
 )
@@ -372,10 +373,10 @@ func TestAuthCredsCmd(t *testing.T) {
 					}
 
 					creds := Credentials{
-						AccessKeyID:     "AKIAIOSFODNN7EXAMPLE",
-						SecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-						SessionToken:    "AQoDYXdzEJr...",
-						Region:          "us-east-1",
+						AccessKeyID:     testutil.MockAWSAccessKeyID,
+						SecretAccessKey: testutil.MockAWSSecretAccessKey,
+						SessionToken:    testutil.MockAWSSessionToken,
+						Region:          testutil.MockAWSRegion,
 					}
 
 					// Verify credentials are not empty
@@ -571,10 +572,10 @@ func TestMockAuthManagerBehavior(t *testing.T) {
 
 	// Mock credentials for testing
 	mockCreds := Credentials{
-		AccessKeyID:     "AKIAIOSFODNN7EXAMPLE",
-		SecretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-		SessionToken:    "AQoDYXdzEJr...",
-		Region:          "us-east-1",
+		AccessKeyID:     testutil.MockAWSAccessKeyID,
+		SecretAccessKey: testutil.MockAWSSecretAccessKey,
+		SessionToken:    testutil.MockAWSSessionToken,
+		Region:          testutil.MockAWSRegion,
 	}
 
 	if mockCreds.AccessKeyID == "" {
