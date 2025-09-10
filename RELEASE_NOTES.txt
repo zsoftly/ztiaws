@@ -10,24 +10,85 @@ ztictl is a unified AWS SSM management tool that provides both Go binary and bas
 
 **Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
 
-## New Features
-* feat: auto-update version in Makefile and root.go during release
-* Enhance bash completion installation logic: add support for system path installation with sudo, improve path validation, and update test cases for mocked sudo behavior.
-* Add AWS credential handling to tests: disable EC2 IMDS to prevent timeouts and CI/CD failures
-* Enhance test setup and maintenance guidelines
-* Enhance AWS SSO configuration: simplify domain ID input, set default region to ca-central-1, and improve URL construction logic. Add tests for domain ID extraction and configuration validation.
-* Add comprehensive documentation for ztictl commands, configuration, and multi-region operations
-* Implement comprehensive AWS region validation and refactor related tests
-* Add multi-region command execution tests and region configuration setup
+## 🎯 Key Features in v2.7.0
 
-## Bug Fixes
-* No bug fixes in this release
+### 1. **Multi-Region Command Execution** 🌍
+Execute commands across multiple AWS regions simultaneously with the new `ssm exec-multi` command:
+```bash
+ztictl ssm exec-multi --regions us-east-1,eu-west-1 --command "df -h"
+```
+- Parallel execution across regions for faster results
+- Aggregated output with clear region identification
+- Support for all standard SSM exec options
 
-## Other Changes
-* Refactor test credentials: replace hardcoded AWS credentials with mock values from testutil for improved test reliability and maintainability
-* Refactor test functions: rename TestPathValidation to TestTransferPathValidation for clarity and consistency
-* Refactor AWS credential handling in tests: centralize mock credentials, improve test environment setup, and remove deprecated code
-* Refactor logging initialization and improve test coverage
-* Refactor tilde path expansion logic in TestExpandPathTildeExpansion and remove unused mockStdin function
-* Refactor AWS SSO configuration and validation
-* chore: remove deprecated v2.6.1 section from CHANGELOG.md
+### 2. **Shell Completion Support** 🚀
+Full bash and zsh completion for all ztictl commands:
+```bash
+# Install completion for bash
+ztictl completion bash
+
+# Install completion for zsh  
+ztictl completion zsh
+```
+- Tab completion for commands, flags, and arguments
+- Automatic instance ID completion
+- System-wide or user-specific installation options
+
+### 3. **Simplified SSO Configuration** ⚙️
+Streamlined AWS SSO setup process:
+- Now only requires domain ID (e.g., `d-1234567890` or `zsoftly`)
+- Automatic URL construction from domain ID
+- Default region set to `ca-central-1` for consistency
+- Interactive configuration wizard with validation
+
+### 4. **Enhanced Documentation** 📚
+Comprehensive new documentation:
+- [COMMANDS.md](docs/COMMANDS.md) - Complete command reference
+- [CONFIGURATION.md](docs/CONFIGURATION.md) - Detailed configuration guide
+- [MULTI_REGION.md](docs/MULTI_REGION.md) - Multi-region operations guide
+
+### 5. **Improved Developer Experience** 🛠️
+- Automated version updates during release process
+- Centralized test credentials management
+- Enhanced AWS region validation
+- Better error messages and debugging output
+
+## Breaking Changes
+
+None - This release maintains full backward compatibility.
+
+## Upgrade Instructions
+
+### Binary Installation
+```bash
+# Download latest release
+curl -L https://github.com/zsoftly/ztiaws/releases/download/v2.7.0/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m) -o ztictl
+chmod +x ztictl
+sudo mv ztictl /usr/local/bin/
+```
+
+### Enable Shell Completion (Optional)
+```bash
+# For bash
+ztictl completion install bash
+
+# For zsh
+ztictl completion install zsh
+```
+
+## Requirements
+
+- AWS CLI version 2.x
+- AWS Session Manager Plugin
+- Valid AWS credentials or SSO configuration
+
+## Support
+
+For issues or questions, please visit: https://github.com/zsoftly/ztiaws/issues
+
+## What's Next
+
+Future releases will focus on:
+- Enhanced monitoring and logging capabilities
+- Additional multi-region operations
+- Performance optimizations for large-scale deployments
