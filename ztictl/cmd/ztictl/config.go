@@ -1,13 +1,17 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 	"ztictl/internal/config"
 	"ztictl/internal/system"
+	"ztictl/pkg/aws"
 )
 
 // configCmd represents the config command
@@ -48,8 +52,8 @@ This includes AWS CLI, Session Manager plugin, and other system requirements.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fix, _ := cmd.Flags().GetBool("fix")
 
-		if err := checkSystemRequirements(fix); err != nil {
-			logger.Error("System requirements check failed", "error", err)
+		if err := checkRequirements(fix); err != nil {
+			logger.Error("Requirements check failed", "error", err)
 			os.Exit(1)
 		}
 	},
@@ -58,44 +62,40 @@ This includes AWS CLI, Session Manager plugin, and other system requirements.`,
 // configShowCmd represents the config show command
 var configShowCmd = &cobra.Command{
 	Use:   "show",
-	Short: "Show current configuration",
-	Long:  `Display the current ztictl configuration including all settings and their sources.`,
+	Short: "Display current configuration",
+	Long:  `Display the current ztictl configuration settings.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Get configuration
 		cfg := config.Get()
 
-		fmt.Println("\nztictl Configuration:")
-		fmt.Println("=====================")
-
-		fmt.Printf("Default Region: %s\n", cfg.DefaultRegion)
-		fmt.Println()
-
-		fmt.Println("AWS SSO Configuration:")
-		if cfg.SSO.StartURL != "" {
-			fmt.Printf("  Start URL: %s\n", cfg.SSO.StartURL)
-		} else {
-			fmt.Printf("  Start URL: (not configured)\n")
+		if cfg == nil {
+			fmt.Println("No configuration loaded")
+			return
 		}
+
+		// Display configuration
+		fmt.Println("\n=== Current Configuration ===")
+		fmt.Printf("\nSSO Configuration:\n")
+		fmt.Printf("  Start URL: %s\n", cfg.SSO.StartURL)
 		fmt.Printf("  Region: %s\n", cfg.SSO.Region)
-		fmt.Println()
 
-		fmt.Println("Logging Configuration:")
+		fmt.Printf("\nDefaults:\n")
+		fmt.Printf("  Default Region: %s\n", cfg.DefaultRegion)
+
+		fmt.Printf("\nLogging:\n")
 		fmt.Printf("  Directory: %s\n", cfg.Logging.Directory)
-		fmt.Printf("  File Logging: %t\n", cfg.Logging.FileLogging)
+		fmt.Printf("  File Logging: %v\n", cfg.Logging.FileLogging)
 		fmt.Printf("  Level: %s\n", cfg.Logging.Level)
-		fmt.Println()
 
-		fmt.Println("System Configuration:")
+		fmt.Printf("\nSystem:\n")
 		fmt.Printf("  IAM Propagation Delay: %d seconds\n", cfg.System.IAMPropagationDelay)
-		fmt.Printf("  File Size Threshold: %d bytes (%.1f MB)\n",
-			cfg.System.FileSizeThreshold, float64(cfg.System.FileSizeThreshold)/1024/1024)
+		fmt.Printf("  File Size Threshold: %d bytes\n", cfg.System.FileSizeThreshold)
 		fmt.Printf("  S3 Bucket Prefix: %s\n", cfg.System.S3BucketPrefix)
-		fmt.Printf("  Temporary Directory: %s\n", cfg.System.TempDirectory)
+		fmt.Printf("  Temp Directory: %s\n", cfg.System.TempDirectory)
 
-		// Show config file location if available
-		if configFile := os.Getenv("ZTICTL_CONFIG"); configFile != "" {
-			fmt.Printf("\nConfig File: %s\n", configFile)
-		} else {
-			home, _ := os.UserHomeDir()
+		// Display file path
+		home, err := os.UserHomeDir()
+		if err == nil {
 			defaultConfig := filepath.Join(home, ".ztictl.yaml")
 			if _, err := os.Stat(defaultConfig); err == nil {
 				fmt.Printf("\nConfig File: %s\n", defaultConfig)
@@ -120,6 +120,20 @@ var configValidateCmd = &cobra.Command{
 	},
 }
 
+// configRepairCmd represents the config repair command
+var configRepairCmd = &cobra.Command{
+	Use:   "repair",
+	Short: "Repair configuration issues interactively",
+	Long: `Detect configuration issues and guide you through fixing them interactively.
+This command will identify invalid values and prompt you for correct replacements.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := repairConfiguration(); err != nil {
+			logger.Error("Configuration repair failed", "error", err)
+			os.Exit(1)
+		}
+	},
+}
+
 // initializeConfigFile handles the config initialization logic and returns errors instead of calling os.Exit
 func initializeConfigFile(force, interactive bool) error {
 	// Determine config file path
@@ -131,12 +145,35 @@ func initializeConfigFile(force, interactive bool) error {
 	configPath := filepath.Join(home, ".ztictl.yaml")
 
 	// Check if config file already exists
-	if _, err := os.Stat(configPath); err == nil && !force {
-		return fmt.Errorf("configuration file already exists at %s. Use --force to overwrite", configPath)
+	if _, err := os.Stat(configPath); err == nil {
+		// File exists - check if we should overwrite
+		if !force {
+			fmt.Printf("\n⚠️  Configuration file already exists at %s\n", configPath)
+			fmt.Println("Would you like to overwrite it? (yes/no)")
+
+			reader := bufio.NewReader(os.Stdin)
+			response, _ := reader.ReadString('\n')
+			response = strings.TrimSpace(strings.ToLower(response))
+
+			if response != "yes" && response != "y" {
+				fmt.Println("Configuration initialization cancelled.")
+				return nil
+			}
+			// User confirmed, proceed as if --force was provided
+			force = true
+		}
+
+		// Run interactive setup if force is now true (either from flag or user confirmation)
+		if interactive || force {
+			if err := runInteractiveConfig(configPath); err != nil {
+				return fmt.Errorf("interactive configuration failed: %w", err)
+			}
+			return nil
+		}
 	}
 
-	// Run interactive setup if requested or if it's a first run
-	if interactive || force {
+	// Run interactive setup if requested (for new files)
+	if interactive {
 		if err := runInteractiveConfig(configPath); err != nil {
 			return fmt.Errorf("interactive configuration failed: %w", err)
 		}
@@ -148,72 +185,188 @@ func initializeConfigFile(force, interactive bool) error {
 		return fmt.Errorf("failed to create configuration file: %w", err)
 	}
 
-	logger.Info("Configuration file created successfully", "path", configPath)
-	logger.Info("Please edit the configuration file with your AWS SSO settings")
-
-	fmt.Printf("\nNext steps:\n")
-	fmt.Printf("1. Edit %s with your AWS SSO settings\n", configPath)
-	fmt.Printf("2. Run 'ztictl config check' to verify requirements\n")
-	fmt.Printf("3. Run 'ztictl auth login' to authenticate\n")
-	fmt.Printf("\nOr run 'ztictl config init --interactive' for guided setup\n")
+	fmt.Printf("Sample configuration created at %s\n", configPath)
+	fmt.Println("Please edit the file with your AWS SSO settings and run 'ztictl auth login' to authenticate.")
 
 	return nil
 }
 
-// checkSystemRequirements handles the requirements checking logic and returns errors instead of calling os.Exit
-func checkSystemRequirements(fix bool) error {
+// checkRequirements handles the requirements check logic and returns errors instead of calling os.Exit
+func checkRequirements(fix bool) error {
 	logger.Info("Checking system requirements...")
 
+	// Create system requirements checker
 	checker := system.NewRequirementsChecker(logger)
 
-	// Check all requirements
-	results, err := checker.CheckAll()
-	if err != nil {
-		return fmt.Errorf("failed to check requirements: %w", err)
-	}
+	// Run all checks
+	results, _ := checker.CheckAll()
+
+	// Track failed requirements for summary
+	var criticalFailures []system.RequirementResult
+	var optionalFailures []system.RequirementResult
 
 	// Display results
 	allPassed := true
-	fmt.Println("\nSystem Requirements Check:")
-	fmt.Println("==========================")
-
 	for _, result := range results {
-		status := "❌ FAIL"
 		if result.Passed {
-			status = "✅ PASS"
+			logger.Info("✅", "check", result.Name)
+			if result.Version != "" {
+				logger.Info("   Version", "version", result.Version)
+			}
 		} else {
-			allPassed = false
-		}
-
-		fmt.Printf("%-30s %s\n", result.Name, status)
-
-		if !result.Passed {
-			fmt.Printf("  Issue: %s\n", result.Error)
+			logger.Error("❌", "check", result.Name, "error", result.Error)
 			if result.Suggestion != "" {
-				fmt.Printf("  Fix: %s\n", result.Suggestion)
+				logger.Info("   💡", "fix", result.Suggestion)
 			}
-			fmt.Println()
+			allPassed = false
+
+			// Categorize failures
+			if result.Name == "Go Version" {
+				optionalFailures = append(optionalFailures, result)
+			} else {
+				criticalFailures = append(criticalFailures, result)
+			}
 		}
 	}
 
-	if allPassed {
-		logger.Info("All requirements met! ✅")
-		return nil
+	fmt.Println()
+
+	// Display configuration status
+	cfg := config.Get()
+	configExists := false
+	if cfg != nil && cfg.SSO.StartURL != "" {
+		logger.Info("✅ Configuration", "status", "Loaded", "sso_url", cfg.SSO.StartURL)
+		configExists = true
 	} else {
-		logger.Error("Some requirements are not met")
-
-		if fix {
-			logger.Info("Attempting to fix issues...")
-			if err := checker.FixIssues(results); err != nil {
-				return fmt.Errorf("failed to fix some issues: %w", err)
-			}
-			logger.Info("Issues fixed successfully. Please run check again to verify.")
-			return nil
-		} else {
-			logger.Info("Run with --fix to attempt automatic fixes")
-			return fmt.Errorf("some requirements are not met")
-		}
+		logger.Error("❌ Configuration", "status", "Not found or incomplete")
+		logger.Info("   💡", "fix", "Run 'ztictl config init' to set up SSO configuration")
 	}
+
+	fmt.Println()
+
+	if allPassed && configExists {
+		logger.Info("🎉 All requirements met! You're ready to use ztictl")
+		fmt.Println("\n📝 Next steps:")
+		fmt.Println("  1. Authenticate: ztictl auth login")
+		fmt.Println("  2. List instances: ztictl ssm list")
+		fmt.Println("  3. Connect to instance: ztictl ssm connect <instance-id>")
+		return nil
+	}
+
+	// Provide detailed action plan
+	if len(criticalFailures) > 0 || !configExists {
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		fmt.Println("📋 ACTION REQUIRED - Follow these steps:")
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+		stepNumber := 1
+
+		// Configuration setup first if needed
+		if !configExists {
+			fmt.Printf("\n%d. SET UP CONFIGURATION:\n", stepNumber)
+			fmt.Println("   Run: ztictl config init --interactive")
+			fmt.Println("   This will guide you through setting up AWS SSO")
+			stepNumber++
+		}
+
+		// Critical requirements
+		for _, failure := range criticalFailures {
+			fmt.Printf("\n%d. INSTALL %s:\n", stepNumber, strings.ToUpper(failure.Name))
+
+			switch failure.Name {
+			case "AWS CLI":
+				fmt.Println("   Option A: Use official installer")
+				fmt.Println("   Visit: https://aws.amazon.com/cli/")
+				fmt.Println("   ")
+				fmt.Println("   Option B: Platform-specific install:")
+				fmt.Println("   - macOS: brew install awscli")
+				fmt.Println("   - Ubuntu/Debian: sudo apt install awscli")
+				fmt.Println("   - Windows: Use MSI installer from AWS website")
+
+			case "Session Manager Plugin":
+				fmt.Println("   Option A: Quick install")
+				if fix {
+					fmt.Println("   Run: ztictl config check --fix")
+				} else {
+					fmt.Printf("   %s\n", failure.Suggestion)
+				}
+				fmt.Println("   ")
+				fmt.Println("   Option B: Manual install")
+				fmt.Println("   Visit: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html")
+
+			case "jq":
+				fmt.Println("   Option A: Quick install")
+				if fix {
+					fmt.Println("   Run: ztictl config check --fix")
+				} else {
+					fmt.Printf("   %s\n", failure.Suggestion)
+				}
+				fmt.Println("   ")
+				fmt.Println("   Option B: Download binary")
+				fmt.Println("   Visit: https://stedolan.github.io/jq/download/")
+
+			case "AWS Credentials":
+				fmt.Println("   Your AWS credentials are missing or expired")
+				fmt.Println("   ")
+				fmt.Println("   Option A: Use ztictl (recommended)")
+				fmt.Println("   Run: ztictl auth login")
+				fmt.Println("   ")
+				fmt.Println("   Option B: Use AWS CLI")
+				fmt.Println("   Run: aws configure sso")
+			}
+			stepNumber++
+		}
+
+		// Optional requirements
+		if len(optionalFailures) > 0 {
+			fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			fmt.Println("📦 OPTIONAL (for development only):")
+			fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			for _, failure := range optionalFailures {
+				fmt.Printf("\n• %s: %s\n", failure.Name, failure.Suggestion)
+			}
+		}
+
+		// Automatic fix option
+		if fix {
+			fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			logger.Info("Attempting automatic fixes for supported components...")
+			if err := checker.FixIssues(results); err != nil {
+				logger.Error("Some automatic fixes failed", "error", err)
+				fmt.Println("\n⚠️  Please complete the manual steps above")
+			} else {
+				fmt.Println("\n✅ Automatic fixes applied. Run 'ztictl config check' again to verify")
+			}
+			return nil
+		} else if len(criticalFailures) > 0 {
+			// Check if any can be auto-fixed
+			canAutoFix := false
+			for _, failure := range criticalFailures {
+				if failure.Name == "Session Manager Plugin" || failure.Name == "jq" {
+					canAutoFix = true
+					break
+				}
+			}
+
+			if canAutoFix {
+				fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+				fmt.Println("💡 TIP: Some issues can be fixed automatically")
+				fmt.Println("   Run: ztictl config check --fix")
+				fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			}
+		}
+
+		// Final verification step
+		fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		fmt.Println("✔️  VERIFY: After completing the steps above")
+		fmt.Println("   Run: ztictl config check")
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+		return fmt.Errorf("prerequisites not met - see action plan above")
+	}
+
+	// All checks passed
+	return nil
 }
 
 // validateConfiguration handles the config validation logic and returns errors instead of calling os.Exit
@@ -248,12 +401,162 @@ func validateConfiguration() error {
 	return nil
 }
 
+// repairConfiguration guides user through fixing configuration issues
+func repairConfiguration() error {
+	logger.Info("Checking configuration for issues...")
+
+	// Try to load config with validation errors allowed
+	valErr, err := config.LoadWithOptions(true)
+	if err != nil && valErr == nil {
+		// Fatal error that's not a validation error
+		return fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	if valErr == nil {
+		logger.Info("No configuration issues found ✅")
+		return nil
+	}
+
+	// We have a validation error
+	logger.Error("Found configuration issue", "error", valErr.Error())
+	fmt.Println()
+	fmt.Printf("The %s has an invalid value: '%s'\n", valErr.Field, valErr.Value)
+	fmt.Printf("Error: %s\n\n", valErr.Message)
+
+	// Prompt for interactive fix
+	fmt.Println("Would you like to fix this interactively? (yes/no)")
+	reader := bufio.NewReader(os.Stdin)
+	response, _ := reader.ReadString('\n')
+	response = strings.TrimSpace(strings.ToLower(response))
+
+	if response != "yes" && response != "y" {
+		fmt.Println("\nYou can manually edit the configuration file at ~/.ztictl.yaml")
+		fmt.Printf("Fix the %s field which currently has value: %s\n", valErr.Field, valErr.Value)
+		return fmt.Errorf("repair cancelled by user")
+	}
+
+	// Get the correct value from user
+	var newValue string
+	for {
+		switch valErr.Field {
+		case "SSO region", "Default region":
+			fmt.Printf("\nEnter a valid AWS region (e.g., us-east-1, ca-central-1): ")
+		case "SSO start URL":
+			// First check if current value looks like it already has a domain ID we can extract
+			if strings.Contains(valErr.Value, ".awsapps.com") {
+				// Extract domain ID from existing URL
+				parts := strings.Split(valErr.Value, "//")
+				if len(parts) > 1 {
+					domainPart := strings.Split(parts[1], ".awsapps.com")[0]
+					fmt.Printf("\nDetected domain ID: %s\n", domainPart)
+				}
+			}
+			fmt.Printf("\nEnter your AWS SSO domain ID (e.g., d-1234567890 or zsoftly): ")
+		}
+
+		newValue, _ = reader.ReadString('\n')
+		newValue = strings.TrimSpace(newValue)
+
+		if newValue == "" {
+			fmt.Println("Value cannot be empty. Please try again.")
+			continue
+		}
+
+		// Validate the new value
+		switch valErr.Field {
+		case "SSO region", "Default region":
+			if !aws.IsValidAWSRegion(newValue) {
+				fmt.Printf("'%s' is not a valid AWS region format. Expected format: xx-xxxx-n\n", newValue)
+				continue
+			}
+		case "SSO start URL":
+			// Build full URL from domain ID
+			if !strings.HasPrefix(newValue, "https://") {
+				newValue = fmt.Sprintf("https://%s.awsapps.com/start", newValue)
+			}
+			// Validate the constructed URL
+			if !strings.HasPrefix(newValue, "https://") {
+				fmt.Println("Invalid SSO URL format")
+				continue
+			}
+		}
+
+		break
+	}
+
+	// Read and parse the config file using YAML parser
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("unable to find home directory: %w", err)
+	}
+	configPath := filepath.Join(home, ".ztictl.yaml")
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	// Parse YAML into a map to preserve structure and comments
+	var configData map[string]interface{}
+	if err := yaml.Unmarshal(data, &configData); err != nil {
+		return fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	// Apply the fix based on the field
+	switch valErr.Field {
+	case "SSO region":
+		// Update SSO region in the parsed data
+		if ssoData, ok := configData["sso"].(map[string]interface{}); ok {
+			ssoData["region"] = newValue
+		} else {
+			return fmt.Errorf("SSO configuration not found in config file")
+		}
+	case "Default region":
+		// Update default region in the parsed data
+		configData["default_region"] = newValue
+	case "SSO start URL":
+		// Update SSO start URL in the parsed data
+		if ssoData, ok := configData["sso"].(map[string]interface{}); ok {
+			ssoData["start_url"] = newValue
+		} else {
+			return fmt.Errorf("SSO configuration not found in config file")
+		}
+	default:
+		return fmt.Errorf("unknown field: %s", valErr.Field)
+	}
+
+	// Marshal back to YAML
+	updatedData, err := yaml.Marshal(configData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated config: %w", err)
+	}
+
+	// Write the fixed config back
+	if err := os.WriteFile(configPath, updatedData, 0600); err != nil {
+		return fmt.Errorf("failed to write fixed config: %w", err)
+	}
+
+	logger.Info("Configuration updated", "field", valErr.Field, "old", valErr.Value, "new", newValue)
+	logger.Info("Verifying fixed configuration...")
+
+	// Reload and validate the fixed config
+	if err := config.Load(); err != nil {
+		logger.Error("Configuration still has issues after repair", "error", err)
+		fmt.Println("\nThere are more configuration issues. Please run 'ztictl config repair' again.")
+		return nil
+	}
+
+	logger.Info("Configuration is now valid! ✅")
+	return nil
+}
+
 func init() {
 	rootCmd.AddCommand(configCmd)
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configCheckCmd)
 	configCmd.AddCommand(configShowCmd)
 	configCmd.AddCommand(configValidateCmd)
+	configCmd.AddCommand(configRepairCmd)
 
 	// Add flags
 	configInitCmd.Flags().BoolP("force", "f", false, "Overwrite existing configuration file")

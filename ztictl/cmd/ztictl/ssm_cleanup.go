@@ -35,7 +35,7 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 
 		logging.LogInfo("Starting cleanup operation in region: %s", region)
 
-		ssmManager := ssm.NewManager(GetLogger())
+		ssmManager := ssm.NewManager(logger)
 		ctx := context.Background()
 
 		// Perform routine cleanup
@@ -76,7 +76,7 @@ ensure all temporary resources are removed.`,
 
 		logging.LogInfo("Starting emergency cleanup operation in region: %s", region)
 
-		ssmManager := ssm.NewManager(GetLogger())
+		ssmManager := ssm.NewManager(logger)
 		ctx := context.Background()
 
 		// Perform emergency cleanup

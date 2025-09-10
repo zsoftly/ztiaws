@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"ztictl/pkg/aws"
 	"ztictl/pkg/errors"
 	"ztictl/pkg/security"
 )
@@ -26,6 +27,9 @@ type Config struct {
 
 	// System configuration
 	System SystemConfig `mapstructure:"system"`
+
+	// Region configuration for multi-region operations
+	Regions RegionConfig `mapstructure:"regions"`
 }
 
 // SSOConfig represents SSO-specific configuration
@@ -64,27 +68,73 @@ type SystemConfig struct {
 	TempDirectory string `mapstructure:"temp_directory"`
 }
 
+// RegionConfig represents region configuration for multi-region operations
+type RegionConfig struct {
+	// Groups of regions (e.g., production, development, all)
+	Groups map[string][]string `mapstructure:"groups"`
+
+	// Enabled regions for the account
+	Enabled []string `mapstructure:"enabled"`
+}
+
 var (
 	// Global configuration instance
 	cfg *Config
 )
 
-// Load loads the configuration from file and environment variables
-func Load() error {
+// ConfigValidationError represents a validation error
+type ConfigValidationError struct {
+	Field   string
+	Value   string
+	Message string
+}
+
+func (e *ConfigValidationError) Error() string {
+	return fmt.Sprintf("%s '%s' is invalid: %s", e.Field, e.Value, e.Message)
+}
+
+// LoadWithOptions loads configuration with options for recovery
+func LoadWithOptions(allowInvalid bool) (*ConfigValidationError, error) {
 	cfg = &Config{}
-
-	// Set defaults first
 	setDefaults()
-
-	// Check if this is a first run (no config file exists)
 	isFirstRun := !Exists()
 
-	// Debug: check what viper has loaded
 	if viper.GetBool("debug") {
 		fmt.Printf("[DEBUG] Config file exists: %v\n", Exists())
 		fmt.Printf("[DEBUG] Config file path: %s\n", getConfigPath())
 		fmt.Printf("[DEBUG] Viper config file used: %s\n", viper.ConfigFileUsed())
 		fmt.Printf("[DEBUG] Viper has SSO start_url: %q\n", viper.GetString("sso.start_url"))
+	}
+
+	// First, try to load and validate normally
+	validationErr, err := loadConfigInternal(isFirstRun)
+	if err != nil && !allowInvalid {
+		return validationErr, err
+	}
+
+	// If allowInvalid is true and we have a validation error, load with defaults for invalid fields
+	if err != nil && allowInvalid && validationErr != nil {
+		// Load config despite validation errors for repair purposes
+		if err := loadDespiteErrors(); err != nil {
+			return validationErr, err
+		}
+		return validationErr, nil // Return validation error but no fatal error
+	}
+
+	return validationErr, err
+}
+
+// Load loads the configuration from file and environment variables
+func Load() error {
+	_, err := LoadWithOptions(false)
+	return err
+}
+
+// loadConfigInternal performs the actual config loading
+func loadConfigInternal(isFirstRun bool) (*ConfigValidationError, error) {
+	// Debug: check what viper has loaded
+	if viper.GetBool("debug") {
+		fmt.Printf("[DEBUG] Loading config internally, first run: %v\n", isFirstRun)
 	}
 
 	// Try to load from legacy .env file first (from the parent directory where authaws is)
@@ -93,7 +143,7 @@ func Load() error {
 	if _, err := os.Stat(envFilePath); err == nil {
 		envFileExists = true
 		if err := LoadLegacyEnvFile(envFilePath); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -124,10 +174,10 @@ func Load() error {
 		// The user can run 'ztictl config init' later to configure properly
 		cfg = &Config{
 			SSO: SSOConfig{
-				StartURL: "", // Will be empty, user needs to configure
-				Region:   viper.GetString("sso.region"),
+				StartURL: "",                            // Will be empty, user needs to configure
+				Region:   viper.GetString("sso.region"), // Defaults to ca-central-1
 			},
-			DefaultRegion: viper.GetString("default_region"),
+			DefaultRegion: viper.GetString("default_region"), // Defaults to ca-central-1
 			Logging: LoggingConfig{
 				Directory:   expandPath(viper.GetString("logging.directory")),
 				FileLogging: viper.GetBool("logging.file_logging"),
@@ -143,7 +193,7 @@ func Load() error {
 	} else {
 		// Try to load from config file (normal operation)
 		if err := viper.Unmarshal(cfg); err != nil {
-			return errors.NewConfigError("failed to unmarshal configuration", err)
+			return nil, errors.NewConfigError("failed to unmarshal configuration", err)
 		}
 
 		// Log raw values for debugging
@@ -155,9 +205,9 @@ func Load() error {
 		// Expand paths with tilde support
 		cfg.Logging.Directory = expandPath(cfg.Logging.Directory)
 
-		// Validate loaded values
-		if err := validateLoadedConfig(cfg); err != nil {
-			return fmt.Errorf("invalid configuration: %w", err)
+		// Validate loaded values and return detailed error
+		if valErr := validateLoadedConfigDetailed(cfg); valErr != nil {
+			return valErr, fmt.Errorf("invalid configuration: %w", valErr)
 		}
 	}
 
@@ -165,10 +215,24 @@ func Load() error {
 	if err := validate(cfg); err != nil {
 		// If validation fails and it's first run, provide helpful guidance
 		if isFirstRun && !envFileExists {
-			return errors.NewValidationError("Configuration needed. Please run 'ztictl config init' to set up your AWS SSO settings")
+			return nil, errors.NewValidationError("Configuration needed. Please run 'ztictl config init' to set up your AWS SSO settings")
 		}
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+// loadDespiteErrors loads config even when validation errors are present.
+// This allows tools like 'config repair' to work with invalid configurations.
+func loadDespiteErrors() error {
+	// Reload config with invalid values intact
+	if err := viper.Unmarshal(cfg); err != nil {
 		return err
 	}
+
+	// Expand paths
+	cfg.Logging.Directory = expandPath(cfg.Logging.Directory)
 
 	return nil
 }
@@ -188,7 +252,7 @@ func setDefaults() {
 	viper.SetDefault("default_region", "ca-central-1")
 
 	// SSO defaults - these should be overridden by user config or .env file
-	viper.SetDefault("sso.region", "us-east-1")
+	viper.SetDefault("sso.region", "ca-central-1")
 
 	// Logging defaults
 	home, _ := os.UserHomeDir()
@@ -384,27 +448,36 @@ func InteractiveInit() error {
 	fmt.Println("\n📋 AWS SSO Configuration")
 	fmt.Println("-------------------------")
 
-	// Get SSO Start URL with validation
+	// Get SSO Domain ID (simplified input)
 	for {
-		fmt.Print("Enter your AWS SSO Start URL (e.g., https://d-xxxxxxxxxx.awsapps.com/start): ")
-		startURL, _ := reader.ReadString('\n')
-		startURL = strings.TrimSpace(startURL)
+		fmt.Print("Enter your AWS SSO domain ID (e.g., d-1234567890 or zsoftly): ")
+		domainID, _ := reader.ReadString('\n')
+		domainID = strings.TrimSpace(domainID)
+
+		if domainID == "" {
+			fmt.Println("❌ Domain ID cannot be empty")
+			continue
+		}
+
+		// Build the full SSO URL
+		startURL := fmt.Sprintf("https://%s.awsapps.com/start", domainID)
 
 		if err := validateInput(startURL, "url"); err != nil {
-			fmt.Printf("❌ %s\n", err)
+			fmt.Printf("❌ Invalid domain ID: %s\n", err)
 			continue
 		}
 		config.SSO.StartURL = startURL
+		fmt.Printf("✅ SSO URL set to: %s\n", startURL)
 		break
 	}
 
 	// Get SSO Region with validation
 	for {
-		fmt.Print("Enter your SSO region [us-east-1]: ")
+		fmt.Print("Enter your SSO region [ca-central-1]: ")
 		ssoRegion, _ := reader.ReadString('\n')
 		ssoRegion = strings.TrimSpace(ssoRegion)
 		if ssoRegion == "" {
-			ssoRegion = "us-east-1"
+			ssoRegion = "ca-central-1"
 		}
 
 		if err := validateInput(ssoRegion, "region"); err != nil {
@@ -581,28 +654,34 @@ func expandPath(path string) string {
 	return path
 }
 
-// validateLoadedConfig validates configuration values after loading
-func validateLoadedConfig(cfg *Config) error {
+// validateLoadedConfigDetailed validates configuration and returns detailed error info
+func validateLoadedConfigDetailed(cfg *Config) *ConfigValidationError {
 	// Validate SSO Start URL if provided
 	if cfg.SSO.StartURL != "" {
-		// Check for common mistakes first
-		if strings.Contains(cfg.SSO.StartURL, `""`) || strings.HasPrefix(cfg.SSO.StartURL, `"`) {
-			return errors.NewValidationError("SSO start URL contains invalid quotes")
-		}
 		if !isValidURL(cfg.SSO.StartURL) {
-			return errors.NewValidationError(fmt.Sprintf("SSO start URL is not a valid URL: %s", cfg.SSO.StartURL))
+			return &ConfigValidationError{
+				Field:   "SSO start URL",
+				Value:   cfg.SSO.StartURL,
+				Message: "must start with http:// or https://",
+			}
 		}
 	}
 
 	// Validate regions
-	if cfg.SSO.Region != "" && !isValidRegion(cfg.SSO.Region) {
-		return errors.NewValidationError(fmt.Sprintf("SSO region is not valid: %s", cfg.SSO.Region))
+	if cfg.SSO.Region != "" && !aws.IsValidAWSRegion(cfg.SSO.Region) {
+		return &ConfigValidationError{
+			Field:   "SSO region",
+			Value:   cfg.SSO.Region,
+			Message: "invalid AWS region format (expected format: xx-xxxx-n)",
+		}
 	}
-	if cfg.DefaultRegion != "" && !isValidRegion(cfg.DefaultRegion) {
-		return errors.NewValidationError(fmt.Sprintf("Default region is not valid: %s", cfg.DefaultRegion))
+	if cfg.DefaultRegion != "" && !aws.IsValidAWSRegion(cfg.DefaultRegion) {
+		return &ConfigValidationError{
+			Field:   "Default region",
+			Value:   cfg.DefaultRegion,
+			Message: "invalid AWS region format (expected format: xx-xxxx-n)",
+		}
 	}
-
-	// Paths are already converted to forward slashes for YAML storage, no validation needed
 
 	return nil
 }
@@ -622,71 +701,6 @@ func isValidURL(s string) bool {
 	return false
 }
 
-// isValidRegion checks if a region string follows AWS region format
-func isValidRegion(region string) bool {
-	// AWS region format: {area}-{subarea}-{number}
-	// Examples: us-east-1, eu-west-2, ap-southeast-1, ca-central-1
-	if region == "" {
-		return false
-	}
-
-	// Must contain at least two hyphens
-	parts := strings.Split(region, "-")
-
-	// Handle special case for us-gov regions (4 parts)
-	if len(parts) == 4 && parts[0] == "us" && parts[1] == "gov" {
-		// us-gov-east-1, us-gov-west-1
-		parts = []string{"us-gov", parts[2], parts[3]}
-	}
-
-	// Now must have exactly 3 parts
-	if len(parts) != 3 {
-		return false
-	}
-
-	// First part: valid region codes only
-	validPrefixes := map[string]bool{
-		"us": true, "eu": true, "ap": true, "ca": true,
-		"sa": true, "me": true, "af": true, "cn": true,
-		"us-gov": true, // Special case for GovCloud
-	}
-
-	if !validPrefixes[parts[0]] {
-		return false
-	}
-
-	// Second part: valid direction/area names
-	// Special case for GovCloud - only east and west are valid
-	if parts[0] == "us-gov" {
-		if parts[1] != "east" && parts[1] != "west" {
-			return false
-		}
-	} else {
-		validDirections := map[string]bool{
-			"east": true, "west": true, "north": true, "south": true,
-			"central": true, "northeast": true, "southeast": true, "northwest": true, "southwest": true,
-		}
-
-		if !validDirections[parts[1]] {
-			return false
-		}
-	}
-
-	// Third part: must be a number (1-99)
-	if len(parts[2]) < 1 || len(parts[2]) > 2 {
-		return false
-	}
-
-	// Check if third part is a number
-	for _, char := range parts[2] {
-		if char < '0' || char > '9' {
-			return false
-		}
-	}
-
-	return true
-}
-
 // validateInput validates user input during interactive configuration
 func validateInput(input string, inputType string) error {
 	input = strings.TrimSpace(input)
@@ -697,7 +711,7 @@ func validateInput(input string, inputType string) error {
 			return fmt.Errorf("invalid URL format. Must start with http:// or https://")
 		}
 	case "region":
-		if input != "" && !isValidRegion(input) {
+		if input != "" && !aws.IsValidAWSRegion(input) {
 			return fmt.Errorf("invalid AWS region: %s", input)
 		}
 	case "path":

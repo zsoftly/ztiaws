@@ -176,10 +176,7 @@ func TestValidateCredentialsLogic(t *testing.T) {
 	// GetCallerIdentity returns an error, ValidateCredentials should return that error
 
 	// This test validates the logical flow of the method
-	client := &Client{}
-	if client == nil {
-		t.Error("Client should be creatable")
-	}
+	_ = &Client{}
 
 	// Test that the method exists and has the right signature
 	ctx := context.Background()
@@ -225,8 +222,7 @@ func TestRegionHandling(t *testing.T) {
 
 	for _, region := range validRegions {
 		opts := ClientOptions{
-			Region:  region,
-			Profile: "default",
+			Region: region,
 		}
 
 		if opts.Region != region {
@@ -235,9 +231,7 @@ func TestRegionHandling(t *testing.T) {
 	}
 
 	// Test empty region (should be handled by AWS SDK defaults)
-	emptyRegionOpts := ClientOptions{
-		Profile: "default",
-	}
+	emptyRegionOpts := ClientOptions{}
 
 	if emptyRegionOpts.Region != "" {
 		t.Error("Empty region should remain empty")
@@ -258,7 +252,6 @@ func TestProfileHandling(t *testing.T) {
 
 	for _, profile := range profiles {
 		opts := ClientOptions{
-			Region:  "us-east-1",
 			Profile: profile,
 		}
 
@@ -268,9 +261,7 @@ func TestProfileHandling(t *testing.T) {
 	}
 
 	// Test empty profile (should use AWS SDK defaults)
-	emptyProfileOpts := ClientOptions{
-		Region: "us-east-1",
-	}
+	emptyProfileOpts := ClientOptions{}
 
 	if emptyProfileOpts.Profile != "" {
 		t.Error("Empty profile should remain empty")
@@ -364,7 +355,7 @@ func TestServiceClientInitialization(t *testing.T) {
 func TestClientMethodAvailability(t *testing.T) {
 	// Test that the Client struct has the expected methods
 
-	client := &Client{}
+	_ = &Client{}
 
 	// Test that we can call these methods (they should exist)
 	// We create a context for testing method signatures
@@ -386,8 +377,4 @@ func TestClientMethodAvailability(t *testing.T) {
 		t.Error("Test region should not be empty")
 	}
 
-	// Verify client struct is not nil
-	if client == nil {
-		t.Error("Client struct should be creatable")
-	}
 }

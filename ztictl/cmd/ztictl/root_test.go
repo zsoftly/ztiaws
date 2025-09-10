@@ -194,38 +194,6 @@ default_region: "us-west-2"`
 	})
 }
 
-func TestGetLogger(t *testing.T) {
-	// Reset logger for clean test
-	logger = nil
-
-	tests := []struct {
-		name      string
-		debugMode bool
-	}{
-		{"Debug mode", true},
-		{"Normal mode", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			logger = nil
-			debug = tt.debugMode
-
-			result := GetLogger()
-
-			if result == nil {
-				t.Error("GetLogger() should not return nil")
-			}
-
-			// Test that subsequent calls return the same instance
-			result2 := GetLogger()
-			if result != result2 {
-				t.Error("GetLogger() should return the same instance on subsequent calls")
-			}
-		})
-	}
-}
-
 func TestRunInteractiveConfig(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "ztictl_test")

@@ -88,7 +88,13 @@ endif
 # Run tests
 test:
 	@echo "Running tests..."
-	@go test -v ./...
+	@# Mock AWS credentials for testing - matches internal/testutil/aws.go constants
+	@AWS_EC2_METADATA_DISABLED=true \
+		AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE \
+		AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \
+		AWS_SESSION_TOKEN=test-session-token \
+		AWS_REGION=ca-central-1 \
+		go test -v ./...
 	@echo "✓ Tests completed"
 
 # Install locally (for development)

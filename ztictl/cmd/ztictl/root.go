@@ -110,6 +110,9 @@ func init() {
 
 	// Bind flags to viper
 	_ = viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug")) // #nosec G104
+
+	// Disable Cobra's default completion command in favor of our custom one
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -119,7 +122,26 @@ func initConfig() {
 
 	// Perform configuration setup and handle any errors
 	if err := setupConfiguration(); err != nil {
-		logger.Error("Configuration setup failed", "error", err)
+		// Check if we're running a config command
+		if len(os.Args) > 1 {
+			// Check for config command or its subcommands
+			if os.Args[1] == "config" ||
+				(len(os.Args) > 2 && os.Args[1] == "config" &&
+					(os.Args[2] == "init" || os.Args[2] == "repair" || os.Args[2] == "check")) {
+				logger.Warn("Configuration has errors, but allowing config command to run", "error", err)
+				// Load config with invalid values allowed for config commands
+				_, _ = config.LoadWithOptions(true) // Ignore error, we're in repair mode
+				return
+			}
+		}
+
+		// For other commands, show helpful error message
+		if strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), "validation") {
+			logger.Error("Configuration validation failed", "error", err)
+			logger.Info("Run 'ztictl config init --interactive' to fix configuration")
+		} else {
+			logger.Error("Configuration setup failed", "error", err)
+		}
 		os.Exit(1)
 	}
 }
@@ -169,14 +191,6 @@ func setupConfiguration() error {
 	}
 
 	return nil
-}
-
-// GetLogger returns a compatibility logger instance
-func GetLogger() *logging.Logger {
-	if logger == nil {
-		logger = logging.NewLogger(debug)
-	}
-	return logger
 }
 
 // runInteractiveConfig prompts the user for configuration values

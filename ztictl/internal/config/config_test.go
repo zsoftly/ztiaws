@@ -45,6 +45,145 @@ func TestExpandPath(t *testing.T) {
 	}
 }
 
+func TestConfigValidationError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      ConfigValidationError
+		expected string
+	}{
+		{
+			name: "invalid region error",
+			err: ConfigValidationError{
+				Field:   "SSO region",
+				Value:   "caa-central-1",
+				Message: "invalid AWS region format (expected format: xx-xxxx-n)",
+			},
+			expected: "SSO region 'caa-central-1' is invalid: invalid AWS region format (expected format: xx-xxxx-n)",
+		},
+		{
+			name: "invalid URL error",
+			err: ConfigValidationError{
+				Field:   "SSO start URL",
+				Value:   "not-a-url",
+				Message: "must start with http:// or https://",
+			},
+			expected: "SSO start URL 'not-a-url' is invalid: must start with http:// or https://",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.err.Error(); got != tt.expected {
+				t.Errorf("ConfigValidationError.Error() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestValidateLoadedConfigDetailed(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *Config
+		want   *ConfigValidationError
+	}{
+		{
+			name: "valid config with ca-central-1 defaults",
+			config: &Config{
+				SSO: SSOConfig{
+					StartURL: "https://example.awsapps.com/start",
+					Region:   "ca-central-1",
+				},
+				DefaultRegion: "ca-central-1",
+			},
+			want: nil,
+		},
+		{
+			name: "valid config with us-east-1",
+			config: &Config{
+				SSO: SSOConfig{
+					StartURL: "https://example.awsapps.com/start",
+					Region:   "us-east-1",
+				},
+				DefaultRegion: "us-east-1",
+			},
+			want: nil,
+		},
+		{
+			name: "invalid SSO region",
+			config: &Config{
+				SSO: SSOConfig{
+					StartURL: "https://example.awsapps.com/start",
+					Region:   "caa-central-1",
+				},
+				DefaultRegion: "us-east-1",
+			},
+			want: &ConfigValidationError{
+				Field:   "SSO region",
+				Value:   "caa-central-1",
+				Message: "invalid AWS region format (expected format: xx-xxxx-n)",
+			},
+		},
+		{
+			name: "invalid default region",
+			config: &Config{
+				SSO: SSOConfig{
+					StartURL: "https://example.awsapps.com/start",
+					Region:   "us-east-1",
+				},
+				DefaultRegion: "invalid-region",
+			},
+			want: &ConfigValidationError{
+				Field:   "Default region",
+				Value:   "invalid-region",
+				Message: "invalid AWS region format (expected format: xx-xxxx-n)",
+			},
+		},
+		{
+			name: "invalid SSO URL",
+			config: &Config{
+				SSO: SSOConfig{
+					StartURL: "not-a-url",
+					Region:   "us-east-1",
+				},
+				DefaultRegion: "ca-central-1",
+			},
+			want: &ConfigValidationError{
+				Field:   "SSO start URL",
+				Value:   "not-a-url",
+				Message: "must start with http:// or https://",
+			},
+		},
+		{
+			name: "empty config is valid",
+			config: &Config{
+				SSO: SSOConfig{
+					StartURL: "",
+					Region:   "",
+				},
+				DefaultRegion: "",
+			},
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := validateLoadedConfigDetailed(tt.config)
+			if tt.want == nil {
+				if got != nil {
+					t.Errorf("validateLoadedConfigDetailed() = %v, want nil", got)
+				}
+			} else {
+				if got == nil {
+					t.Errorf("validateLoadedConfigDetailed() = nil, want %v", tt.want)
+				} else if got.Field != tt.want.Field || got.Value != tt.want.Value || got.Message != tt.want.Message {
+					t.Errorf("validateLoadedConfigDetailed() = %v, want %v", got, tt.want)
+				}
+			}
+		})
+	}
+}
+
 func TestConfigDefaults(t *testing.T) {
 	// Test that setDefaults doesn't panic
 	setDefaults()
@@ -929,7 +1068,7 @@ func TestSetDefaultsWithViper(t *testing.T) {
 		expected interface{}
 	}{
 		{"default_region", "ca-central-1"},
-		{"sso.region", "us-east-1"},
+		{"sso.region", "ca-central-1"},
 		{"logging.file_logging", true},
 		{"logging.level", "info"},
 		{"system.iam_propagation_delay", 5},

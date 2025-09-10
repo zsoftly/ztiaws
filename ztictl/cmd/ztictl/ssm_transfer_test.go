@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"ztictl/pkg/logging"
 )
 
 func TestSsmTransferCmd(t *testing.T) {
@@ -353,7 +354,7 @@ func TestS3TransferThreshold(t *testing.T) {
 	}
 }
 
-func TestPathValidation(t *testing.T) {
+func TestTransferPathValidation(t *testing.T) {
 	tests := []struct {
 		name     string
 		path     string
@@ -719,7 +720,7 @@ func TestPerformFileUpload(t *testing.T) {
 	t.Run("handles upload gracefully", func(t *testing.T) {
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// The function should return an error or succeed, not call os.Exit
@@ -737,7 +738,7 @@ func TestPerformFileUpload(t *testing.T) {
 
 	t.Run("validates region code", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test with empty region code (should be handled gracefully)
@@ -753,7 +754,7 @@ func TestPerformFileUpload(t *testing.T) {
 
 	t.Run("validates file paths", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test with empty local file path
@@ -783,7 +784,7 @@ func TestPerformFileDownload(t *testing.T) {
 	t.Run("handles download gracefully", func(t *testing.T) {
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// The function should return an error or succeed, not call os.Exit
@@ -801,7 +802,7 @@ func TestPerformFileDownload(t *testing.T) {
 
 	t.Run("validates region code", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test with empty region code (should be handled gracefully)
@@ -817,7 +818,7 @@ func TestPerformFileDownload(t *testing.T) {
 
 	t.Run("validates file paths", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// Test with empty remote file path
@@ -850,7 +851,7 @@ func TestTransferSeparationOfConcerns(t *testing.T) {
 	t.Run("file upload returns instead of exiting", func(t *testing.T) {
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// This call should return an error or succeed, not exit the process
@@ -870,7 +871,7 @@ func TestTransferSeparationOfConcerns(t *testing.T) {
 
 	t.Run("file download returns instead of exiting", func(t *testing.T) {
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// This call should return an error or succeed, not exit the process

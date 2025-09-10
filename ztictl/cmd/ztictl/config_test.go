@@ -4,9 +4,16 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"ztictl/pkg/logging"
 )
 
 func TestSetupConfiguration(t *testing.T) {
+	// Initialize a no-op logger for test to avoid noisy output
+	if logger == nil {
+		logger = logging.NewNoOpLogger()
+	}
+
 	// Save original state
 	originalConfigFile := configFile
 	originalDebug := debug
@@ -79,6 +86,11 @@ func TestConfigurationSeparationOfConcerns(t *testing.T) {
 	// This test verifies that setupConfiguration doesn't call os.Exit
 	// and can be tested without terminating the test process
 
+	// Initialize a no-op logger for test to avoid noisy output
+	if logger == nil {
+		logger = logging.NewNoOpLogger()
+	}
+
 	// Save original state
 	originalConfigFile := configFile
 	defer func() { configFile = originalConfigFile }()
@@ -117,7 +129,7 @@ func TestInitializeConfigFile(t *testing.T) {
 
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// The function should return an error or succeed, not call os.Exit
@@ -134,18 +146,18 @@ func TestInitializeConfigFile(t *testing.T) {
 	})
 }
 
-func TestCheckSystemRequirements(t *testing.T) {
+func TestCheckRequirements(t *testing.T) {
 	t.Run("handles requirements check gracefully", func(t *testing.T) {
-		// This test verifies that the function returns an error
+		// This test verifies that checkRequirements returns an error
 		// instead of calling os.Exit when there are system issues
 
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// The function should return an error or succeed, not call os.Exit
-		err := checkSystemRequirements(false)
+		err := checkRequirements(false)
 
 		// We expect this might fail (missing requirements), but it shouldn't panic
 		// The important thing is that it returns an error instead of calling os.Exit
@@ -165,7 +177,7 @@ func TestValidateConfiguration(t *testing.T) {
 
 		// Initialize logger to avoid nil pointer dereference
 		if logger == nil {
-			logger = GetLogger()
+			logger = logging.NewLogger(false)
 		}
 
 		// The function should return an error or succeed, not call os.Exit

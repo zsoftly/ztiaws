@@ -33,15 +33,25 @@ coverage.out
 coverage*.out
 coverage.html
 *.coverage
+coverage/
 
 # Test files
 *.log
 test_results/
+*.test
+*_temp_test.go
+test_*.sh
 
 # Temporary files
 *.tmp
 *.temp
 *.bak
+
+# Downloaded packages (from auto-install features)
+*.deb
+*.rpm
+*.pkg
+*.msi
 
 # Local development
 .env

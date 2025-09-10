@@ -215,64 +215,6 @@ func TestGetRegionCode(t *testing.T) {
 	}
 }
 
-func TestIsValidAWSRegion(t *testing.T) {
-	tests := []struct {
-		name   string
-		region string
-		valid  bool
-	}{
-		{
-			name:   "valid region us-east-1",
-			region: "us-east-1",
-			valid:  true,
-		},
-		{
-			name:   "valid region eu-west-1",
-			region: "eu-west-1",
-			valid:  true,
-		},
-		{
-			name:   "valid region ap-southeast-1",
-			region: "ap-southeast-1",
-			valid:  true,
-		},
-		{
-			name:   "valid region with 4 parts",
-			region: "ap-southeast-1a", // This would be 4 parts when split
-			valid:  true,              // Actually, this does match AWS pattern (3-4 parts allowed)
-		},
-		{
-			name:   "invalid short region",
-			region: "us-east",
-			valid:  false,
-		},
-		{
-			name:   "invalid single part",
-			region: "region",
-			valid:  false,
-		},
-		{
-			name:   "empty string",
-			region: "",
-			valid:  false,
-		},
-		{
-			name:   "region code not full region",
-			region: "use1",
-			valid:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isValidAWSRegion(tt.region)
-			if result != tt.valid {
-				t.Errorf("isValidAWSRegion() = %v, want %v for region %s", result, tt.valid, tt.region)
-			}
-		})
-	}
-}
-
 func TestRegionMapping(t *testing.T) {
 	// Test that RegionMapping contains expected entries
 	expectedMappings := map[string]string{
@@ -295,7 +237,7 @@ func TestRegionMapping(t *testing.T) {
 			t.Error("Region code should not be empty")
 		}
 
-		if !isValidAWSRegion(region) {
+		if !IsValidAWSRegion(region) {
 			t.Errorf("Region %s for code %s is not a valid AWS region", region, code)
 		}
 	}

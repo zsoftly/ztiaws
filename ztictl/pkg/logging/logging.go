@@ -241,7 +241,9 @@ func (l *Logger) formatFields(fields ...interface{}) string {
 	}
 
 	if len(parts) > 0 {
-		return " | " + strings.Join(parts, " ")
+		// Use a simple separator that works across all platforms
+		// Avoid pipe character which has special meaning in PowerShell
+		return " - " + strings.Join(parts, " ")
 	}
 	return ""
 }

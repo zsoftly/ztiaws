@@ -341,51 +341,6 @@ func TestOSDetectionHelpers(t *testing.T) {
 	_ = isRedHat
 }
 
-func TestInstallationFunctions(t *testing.T) {
-	// Test that installation functions exist and handle errors appropriately
-	logger := logging.NewLogger(false)
-	checker := NewRequirementsChecker(logger)
-
-	// Create mock failed results to test installation attempts
-	mockResults := []RequirementResult{
-		{
-			Name:   "Session Manager Plugin",
-			Passed: false,
-			Error:  "Not found",
-		},
-		{
-			Name:   "jq",
-			Passed: false,
-			Error:  "Not found",
-		},
-		{
-			Name:   "Unknown Requirement",
-			Passed: false,
-			Error:  "Not found",
-		},
-	}
-
-	// Test FixIssues function
-	err := checker.FixIssues(mockResults)
-
-	// Installation will likely fail in CI, but function should not panic
-	// and should handle unsupported requirements gracefully
-	if err != nil {
-		t.Logf("Installation failed as expected in test environment: %v", err)
-	}
-
-	// Test individual installation functions exist
-	err = checker.installSSMPlugin()
-	if err != nil {
-		t.Logf("SSM plugin installation failed as expected: %v", err)
-	}
-
-	err = checker.installJQ()
-	if err != nil {
-		t.Logf("jq installation failed as expected: %v", err)
-	}
-}
-
 func TestGetSystemInfo(t *testing.T) {
 	logger := logging.NewLogger(false)
 	checker := NewRequirementsChecker(logger)
@@ -470,58 +425,6 @@ func TestFixIssuesWithPassedRequirements(t *testing.T) {
 	err := checker.FixIssues(passedResults)
 	if err != nil {
 		t.Errorf("FixIssues should not error with all passed requirements: %v", err)
-	}
-}
-
-func TestInstallationErrorHandling(t *testing.T) {
-	logger := logging.NewLogger(false)
-	checker := NewRequirementsChecker(logger)
-
-	// Test installation functions with current OS
-	// These will likely fail, but should return proper errors
-
-	// Test SSM plugin installation
-	err := checker.installSSMPlugin()
-	if err != nil && !strings.Contains(err.Error(), "not supported") {
-		t.Logf("SSM plugin installation error (expected): %v", err)
-	}
-
-	// Test jq installation
-	err = checker.installJQ()
-	if err != nil && !strings.Contains(err.Error(), "not supported") {
-		t.Logf("jq installation error (expected): %v", err)
-	}
-
-	// Test individual platform installers
-	switch runtime.GOOS {
-	case "linux":
-		// Test Ubuntu/Debian installer
-		err = checker.installJQUbuntu()
-		if err != nil {
-			t.Logf("Ubuntu jq install failed as expected: %v", err)
-		}
-
-		err = checker.installJQRedHat()
-		if err != nil {
-			t.Logf("RedHat jq install failed as expected: %v", err)
-		}
-
-		err = checker.installSSMPluginUbuntu()
-		if err != nil {
-			t.Logf("Ubuntu SSM install failed as expected: %v", err)
-		}
-
-	case "darwin":
-		// Test macOS installers
-		err = checker.installJQMacOS()
-		if err != nil {
-			t.Logf("macOS jq install failed as expected: %v", err)
-		}
-
-		err = checker.installSSMPluginMacOS()
-		if err != nil {
-			t.Logf("macOS SSM install failed as expected: %v", err)
-		}
 	}
 }
 

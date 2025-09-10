@@ -97,6 +97,18 @@ curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/insta
 - Opening pull requests  
 - Considering development work "complete"
 
+### Post-Development Cleanup
+After any development session, run:
+```bash
+# Clean test artifacts
+go clean -testcache
+rm -rf coverage/ *.out *.test *.html
+
+# Remove any temporary test files created for debugging
+find . -name "*_temp_test.go" -delete
+find . -name "test_*.sh" -delete
+```
+
 ### Usage Examples
 ```bash
 # ztictl (recommended)
@@ -113,6 +125,9 @@ ssm i-1234abcd  # Connect to instance
 
 ## Configuration
 - **ztictl**: `~/.ztictl.yaml` (YAML format)
+  - Default region: `ca-central-1` (both for SSO and operations)
+  - SSO setup: Only asks for domain ID (e.g., `d-1234567890` or `zsoftly`)
+  - Automatically constructs full URL: `https://{domain-id}.awsapps.com/start`
 - **Legacy tools**: `.env` file with SSO_START_URL, SSO_REGION, DEFAULT_PROFILE
 
 ## Build & Release
@@ -144,3 +159,73 @@ ztictl --version
 authaws --help
 ssm --help
 ```
+
+## Test Infrastructure
+**AWS Credential Handling in Tests**:
+- Centralized test utilities in `internal/testutil/aws.go` define mock AWS credentials
+- Each test package has an `init_test.go` file that calls `testutil.SetupAWSTestEnvironment()`
+- Mock credentials (AWS documentation examples):
+  - Access Key: `AKIAIOSFODNN7EXAMPLE`
+  - Secret Key: `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`
+  - Session Token: `test-session-token`
+  - Region: `ca-central-1` (matches project default)
+- Benefits:
+  - Single source of truth for test credentials
+  - Easy to update across all tests
+  - Prevents real AWS API calls in tests
+  - Ensures consistent behavior across all platforms (Linux, macOS, Windows)
+- Located in: `cmd/ztictl/init_test.go`, `internal/ssm/init_test.go`, `internal/system/init_test.go`
+- Makefile also sets these environment variables for `make test` command
+
+## Test File Management Guidelines
+**IMPORTANT**: When creating test files or scripts during development:
+
+### Temporary Files to Clean Up
+1. **One-time test files**: Delete after use
+   - `*_repair_test.go`, `*_init_test.go` (unless part of permanent suite)
+   - `test_coverage.sh`, `run_tests.sh` (temporary scripts)
+   
+2. **Coverage artifacts**: Remove after review
+   ```bash
+   rm -rf coverage/ *.out *.html
+   ```
+
+3. **Test binaries and cache**: Clean after testing
+   ```bash
+   go clean -testcache
+   rm -f *.test
+   ```
+
+### Permanent Test Files (Keep These)
+- `*_test.go` files that test actual functionality
+- Test fixtures in `testdata/` directories
+- Benchmark tests for performance validation
+
+### Best Practices
+- **Before committing**: Clean up all temporary test artifacts
+- **After debugging**: Remove one-off test files
+- **Duplicate tests**: Update existing tests rather than creating new files
+- **Use .gitignore**: Ensure coverage/, *.out, *.test are ignored
+
+## Code Maintenance Guidelines
+**CRITICAL**: When removing deprecated, redundant, or obsolete code:
+- **NO COMMENTS**: Never leave comments explaining what was removed or why
+- **CLEAN REMOVAL**: Completely remove all traces of deprecated functionality
+- **NO DEAD CODE**: Remove entire functions, variables, and imports that are no longer needed
+- **NO EXPLANATORY COMMENTS**: Never add comments like "// Removed X", "// Deprecated", or "// No longer needed"
+- **COMPLETE CLEANUP**: If removing a feature, remove ALL related code including:
+  - Function definitions
+  - Variable declarations
+  - Import statements
+  - Test functions
+  - Documentation references
+  - Configuration options
+- **Examples of what NOT to do**:
+  ```go
+  // BAD - Don't do this:
+  // Removed deprecated auth method
+  // func oldAuthMethod() { } // Deprecated
+  
+  // GOOD - Just remove it completely with no trace
+  ```
+- **Principal**: When deprecating/removing code, act as a principal engineer - leave the codebase cleaner with no remnants of removed functionality

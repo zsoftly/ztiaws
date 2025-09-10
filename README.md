@@ -39,69 +39,27 @@
 
 ## ⚡ Installation
 
-### **For End Users (Simple Installation):**
+### Quick Install - ztictl (Recommended)
 
-**Step 1: Download**
+**Linux/macOS:**
 ```bash
-git clone https://github.com/zsoftly/ztiaws.git
-cd ztiaws
+curl -L -o /tmp/ztictl "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')" && chmod +x /tmp/ztictl && sudo mv /tmp/ztictl /usr/local/bin/ztictl && ztictl --version
 ```
 
-**Step 2: Install**
-```bash
-./install.sh
+**Windows PowerShell:**
+```powershell
+Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.exe" -OutFile "$env:TEMP\ztictl.exe"; New-Item -ItemType Directory -Force "$env:USERPROFILE\Tools" | Out-Null; Move-Item "$env:TEMP\ztictl.exe" "$env:USERPROFILE\Tools\ztictl.exe"; [Environment]::SetEnvironmentVariable("PATH", "$env:PATH;$env:USERPROFILE\Tools", "User"); $env:PATH += ";$env:USERPROFILE\Tools"; ztictl --version
 ```
 
-**Step 3: Verify**
-```bash
-authaws --check
-ssm --help
-```
+### Other Installation Options
 
-The installation script automatically:
-- ✅ Installs `authaws` and `ssm` commands globally
-- ✅ Copies all required modules to `/usr/local/bin/src/`
-- ✅ Sets up proper permissions
-- ✅ Verifies installation works correctly
-
-**To uninstall:** `./uninstall.sh`
-
----
-
-### **For Developers (Advanced Setup):**
-
-**Development Environment:**
-```bash
-git clone https://github.com/zsoftly/ztiaws.git
-cd ztiaws
-make dev          # Sets up development environment
-```
-
-**Development Tools:**
-```bash
-make test         # Run shellcheck and basic tests
-make clean        # Clean up temporary files
-make help         # Show all available targets
-```
-
-**Development Testing:**
-```bash
-# Test local development versions (before installation)
-./authaws --check
-./ssm --help
-
-# After make dev or make install
-authaws --check
-ssm --help
-```
-
-**Note for Developers:** Use `make` targets for development workflow. End users should use `./install.sh` for simpler installation without requiring build tools.
-
-See [INSTALLATION.md](INSTALLATION.md) for comprehensive installation instructions including:
-- Platform-specific instructions  
-- Windows PATH setup (detailed)
-- ztictl Go binary installation
-- Troubleshooting guide
+See [INSTALLATION.md](INSTALLATION.md) for:
+- **Platform-specific binaries** (Linux, macOS, Windows - AMD64/ARM64)
+- **Building from source** (requires Go 1.24+)
+- **Legacy bash tools** (for existing users)
+- **Developer setup** (contributing to the project)
+- **Update instructions**
+- **Troubleshooting guide**
 
 ## 🔄 Updating ZTiAWS
 
@@ -115,51 +73,78 @@ To update to the latest version, see the update instructions in [INSTALLATION.md
 
 ### ztictl (Recommended)
 
+> **📚 Complete Documentation:**
+> - [Command Reference](docs/COMMANDS.md) - All commands with examples
+> - [Configuration Guide](docs/CONFIGURATION.md) - Setup and configuration
+> - [Multi-Region Operations](docs/MULTI_REGION.md) - Cross-region execution
+
 #### Quick Start
 ```bash
+# Initialize configuration interactively (simplified setup)
+ztictl config init --interactive
+# Only asks for: SSO domain ID (not full URL), uses ca-central-1 defaults
+
 # Check system requirements
-ztictl config check
+ztictl config check --fix
 
-# Configure AWS authentication
-ztictl auth configure
+# Authenticate with AWS SSO
+ztictl auth login
 
-# List instances in a region
-ztictl ssm list --region ca-central-1
+# List instances in a region (shortcode or full name)
+ztictl ssm list --region cac1  # or ca-central-1
 
 # Connect to an instance
-ztictl ssm connect i-1234567890abcdef0 --region ca-central-1
+ztictl ssm connect i-1234567890abcdef0 --region use1
 
-# Execute commands remotely
-ztictl ssm exec i-1234567890abcdef0 "systemctl status nginx" --region ca-central-1
-
-# Power management operations
-ztictl ssm start i-1234567890abcdef0 --region ca-central-1
-ztictl ssm stop i-1234567890abcdef0 --region ca-central-1
-ztictl ssm reboot i-1234567890abcdef0 --region ca-central-1
-
-# Bulk power operations using tags
-ztictl ssm start-tagged --tags Environment=Production --region ca-central-1
-ztictl ssm stop-tagged --tags ManagedBy=ec2-manager --region ca-central-1
-
-# Power operations on multiple specific instances
-ztictl ssm start --instances i-123,i-456,i-789 --region ca-central-1 --parallel 3
-
-# Advanced file transfers (with automatic S3 routing for large files)
-ztictl ssm transfer upload i-1234567890abcdef0 large-file.zip /opt/data.zip --region ca-central-1
+# Execute commands on tagged instances
+ztictl ssm exec --tags "Environment=prod" "uptime" --region euw1
 ```
+
+#### New Features (v2.4+)
+
+**🔋 Power Management:**
+```bash
+# Start/stop instances
+ztictl ssm start i-1234567890abcdef0 --region cac1
+ztictl ssm stop --instances "i-1234,i-5678" --region use1
+
+# Bulk operations by tags
+ztictl ssm start-tagged --tags "AutoStart=true" --region euw1
+ztictl ssm stop-tagged --tags "Environment=dev" --force --region cac1
+```
+
+**🌍 Multi-Region Operations (v2.6+):**
+```bash
+# Execute across multiple regions
+ztictl ssm exec-multi cac1,use1,euw1 --tags "App=web" "health-check"
+
+# Use all configured regions
+ztictl ssm exec-multi --all-regions --tags "Type=api" "status"
+
+# Use region groups from config
+ztictl ssm exec-multi --region-group production --tags "Critical=true" "backup.sh"
+```
+
+See [docs/COMMANDS.md](docs/COMMANDS.md) for complete command reference.
 
 #### Configuration Management
 ```bash
+# Interactive setup (recommended for first-time users)
+ztictl config init --interactive
+# Simplified: Enter domain ID only (e.g., 'd-1234567890' or 'zsoftly')
+
+# Repair invalid configuration
+ztictl config repair
+
 # Show current configuration
 ztictl config show
 
-# Validate setup
-ztictl config validate
-
-# Get comprehensive help
+# Get help
 ztictl --help
 ztictl ssm --help
 ```
+
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for detailed configuration options.
 
 ### Legacy Bash Tools (Deprecated)
 
@@ -358,6 +343,21 @@ For required IAM permissions, see [docs/IAM_PERMISSIONS.md](docs/IAM_PERMISSIONS
 For troubleshooting common issues, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 For CI/CD pipeline architecture and development workflow, see [docs/CI_CD_PIPELINE.md](docs/CI_CD_PIPELINE.md).
+
+## 📚 Documentation
+
+### Core Documentation
+- **[Command Reference](docs/COMMANDS.md)** - Complete list of all commands with examples
+- **[Configuration Guide](docs/CONFIGURATION.md)** - Detailed configuration file reference  
+- **[Multi-Region Operations](docs/MULTI_REGION.md)** - Guide for cross-region command execution
+- **[Installation Guide](INSTALLATION.md)** - Platform-specific installation instructions
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[IAM Permissions](docs/IAM_PERMISSIONS.md)** - Required AWS permissions
+
+### Additional Resources
+- **[CI/CD Pipeline](docs/CI_CD_PIPELINE.md)** - Automated build and release process
+- **[Release Notifications](docs/NOTIFICATIONS.md)** - Google Chat integration
+- **[QA Test Guide](tests/QA_SSM_TESTS.md)** - Testing procedures
 
 ## 👥 Contributing
 

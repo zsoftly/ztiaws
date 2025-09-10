@@ -244,6 +244,48 @@ chmod +x ssm authaws
 
 If updating from pre-March 2025 (when repository was named "quickssm"), see [docs/deprecated_update_instructions.md](docs/deprecated_update_instructions.md).
 
+## Building from Source
+
+### Building ztictl
+
+If you prefer to build ztictl from source instead of using pre-built binaries:
+
+**Prerequisites:**
+- Go 1.24 or later
+- Git
+
+**Build Steps:**
+```bash
+# Clone the repository
+git clone https://github.com/zsoftly/ztiaws.git
+cd ztiaws/ztictl
+
+# Build for current platform
+make build-local
+# Binary will be at: ./bin/ztictl
+
+# Or build manually with Go
+go build -o ztictl cmd/ztictl/*.go
+
+# Install to system
+sudo mv ./bin/ztictl /usr/local/bin/ztictl
+# Or: sudo mv ./ztictl /usr/local/bin/ztictl
+
+# Verify installation
+ztictl --version
+```
+
+**Cross-platform builds:**
+```bash
+# Build for all platforms
+make build
+
+# Build for specific platform
+GOOS=windows GOARCH=amd64 go build -o ztictl.exe cmd/ztictl/*.go
+GOOS=linux GOARCH=arm64 go build -o ztictl-linux-arm64 cmd/ztictl/*.go
+GOOS=darwin GOARCH=arm64 go build -o ztictl-darwin-arm64 cmd/ztictl/*.go
+```
+
 ## Legacy Bash Tools (Deprecated)
 
 > **⚠️ Deprecation Notice:** The bash tools (`ssm` and `authaws`) are being phased out in favor of the Go binary. They remain available for existing users but new features will only be added to `ztictl`.

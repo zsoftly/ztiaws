@@ -41,6 +41,7 @@ func init() {
 	ssmCmd.AddCommand(ssmStatusCmd)           // ssm_management.go
 	ssmCmd.AddCommand(ssmExecCmd)             // ssm_exec.go
 	ssmCmd.AddCommand(ssmExecTaggedCmd)       // ssm_exec.go
+	ssmCmd.AddCommand(ssmExecMultiCmd)        // ssm_exec_multi.go
 	ssmCmd.AddCommand(ssmCleanupCmd)          // ssm_cleanup.go
 	ssmCmd.AddCommand(ssmEmergencyCleanupCmd) // ssm_cleanup.go
 	ssmCmd.AddCommand(ssmStartCmd)            // ssm_power.go

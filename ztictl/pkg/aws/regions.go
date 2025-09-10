@@ -85,7 +85,7 @@ var RegionDescriptions = map[string]string{
 // GetRegion converts a region code to an AWS region name
 func GetRegion(regionCode string) (string, error) {
 	// If it's already a full AWS region name, return it
-	if isValidAWSRegion(regionCode) {
+	if IsValidAWSRegion(regionCode) {
 		return regionCode, nil
 	}
 
@@ -125,12 +125,4 @@ func GetRegionCode(awsRegion string) string {
 		}
 	}
 	return awsRegion // Return the original if no mapping found
-}
-
-// isValidAWSRegion checks if a string is a valid AWS region name format
-func isValidAWSRegion(region string) bool {
-	// AWS regions follow pattern: [region]-[direction]-[number]
-	// e.g., us-east-1, eu-west-2, ap-southeast-1
-	parts := strings.Split(region, "-")
-	return len(parts) >= 3 && len(parts) <= 4
 }
