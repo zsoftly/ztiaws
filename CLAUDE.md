@@ -162,11 +162,20 @@ ssm --help
 
 ## Test Infrastructure
 **AWS Credential Handling in Tests**:
-- Each test package has an `init_test.go` file that sets `AWS_EC2_METADATA_DISABLED=true`
-- This prevents AWS SDK from attempting to reach EC2 Instance Metadata Service (IMDS)
-- Prevents test timeouts and CI/CD failures on systems without AWS credentials
+- Centralized test utilities in `internal/testutil/aws.go` define mock AWS credentials
+- Each test package has an `init_test.go` file that calls `testutil.SetupAWSTestEnvironment()`
+- Mock credentials (AWS documentation examples):
+  - Access Key: `AKIAIOSFODNN7EXAMPLE`
+  - Secret Key: `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`
+  - Session Token: `test-session-token`
+  - Region: `ca-central-1` (matches project default)
+- Benefits:
+  - Single source of truth for test credentials
+  - Easy to update across all tests
+  - Prevents real AWS API calls in tests
+  - Ensures consistent behavior across all platforms (Linux, macOS, Windows)
 - Located in: `cmd/ztictl/init_test.go`, `internal/ssm/init_test.go`, `internal/system/init_test.go`
-- Makefile also sets this environment variable for `make test` command
+- Makefile also sets these environment variables for `make test` command
 
 ## Test File Management Guidelines
 **IMPORTANT**: When creating test files or scripts during development:

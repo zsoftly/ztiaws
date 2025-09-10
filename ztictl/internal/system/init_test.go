@@ -1,8 +1,8 @@
 package system
 
-import "os"
+import "ztictl/internal/testutil"
 
 func init() {
-	// Disable EC2 IMDS for all tests to prevent AWS credential timeouts
-	os.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+	// Configure AWS test environment with mock credentials
+	testutil.SetupAWSTestEnvironment()
 }
