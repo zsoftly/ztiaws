@@ -10,6 +10,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func init() {
+	// Disable EC2 IMDS for all tests to prevent timeouts
+	os.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+}
+
 func TestAuthCmd(t *testing.T) {
 	tests := []struct {
 		name     string

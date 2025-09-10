@@ -9,6 +9,11 @@ import (
 )
 
 func TestSetupConfiguration(t *testing.T) {
+	// Initialize a no-op logger for test to avoid noisy output
+	if logger == nil {
+		logger = logging.NewNoOpLogger()
+	}
+
 	// Save original state
 	originalConfigFile := configFile
 	originalDebug := debug
@@ -80,6 +85,11 @@ logging:
 func TestConfigurationSeparationOfConcerns(t *testing.T) {
 	// This test verifies that setupConfiguration doesn't call os.Exit
 	// and can be tested without terminating the test process
+
+	// Initialize a no-op logger for test to avoid noisy output
+	if logger == nil {
+		logger = logging.NewNoOpLogger()
+	}
 
 	// Save original state
 	originalConfigFile := configFile

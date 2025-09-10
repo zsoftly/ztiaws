@@ -189,3 +189,26 @@ ssm --help
 - **After debugging**: Remove one-off test files
 - **Duplicate tests**: Update existing tests rather than creating new files
 - **Use .gitignore**: Ensure coverage/, *.out, *.test are ignored
+
+## Code Maintenance Guidelines
+**CRITICAL**: When removing deprecated, redundant, or obsolete code:
+- **NO COMMENTS**: Never leave comments explaining what was removed or why
+- **CLEAN REMOVAL**: Completely remove all traces of deprecated functionality
+- **NO DEAD CODE**: Remove entire functions, variables, and imports that are no longer needed
+- **NO EXPLANATORY COMMENTS**: Never add comments like "// Removed X", "// Deprecated", or "// No longer needed"
+- **COMPLETE CLEANUP**: If removing a feature, remove ALL related code including:
+  - Function definitions
+  - Variable declarations
+  - Import statements
+  - Test functions
+  - Documentation references
+  - Configuration options
+- **Examples of what NOT to do**:
+  ```go
+  // BAD - Don't do this:
+  // Removed deprecated auth method
+  // func oldAuthMethod() { } // Deprecated
+  
+  // GOOD - Just remove it completely with no trace
+  ```
+- **Principal**: When deprecating/removing code, act as a principal engineer - leave the codebase cleaner with no remnants of removed functionality

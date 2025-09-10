@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -68,6 +69,11 @@ func TestDetectShell(t *testing.T) {
 			os.Setenv("SHELL", tt.envShell)
 			os.Setenv("PSModulePath", tt.psModule)
 			// Note: We can't actually change runtime.GOOS, so we'll skip Windows-specific tests on non-Windows
+
+			// Skip Windows-specific tests on non-Windows systems
+			if tt.goos == "windows" && runtime.GOOS != "windows" {
+				t.Skip("Skipping Windows-specific test on non-Windows system")
+			}
 
 			// Run detection
 			shell := detectShell()
