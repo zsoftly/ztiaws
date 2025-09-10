@@ -36,108 +36,64 @@
 
 ### Installation
 
-Choose your installation method:
+See [INSTALLATION.md](../INSTALLATION.md) for detailed installation instructions.
 
-**📦 Pre-built Binaries (Recommended)**
+**Quick Install (Linux/macOS):**
 ```bash
-# Linux/macOS - automatic platform detection
 curl -L -o /tmp/ztictl "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')"
 chmod +x /tmp/ztictl
 sudo mv /tmp/ztictl /usr/local/bin/ztictl
 ```
 
-**🪟 Windows (PowerShell)**
-```powershell
-Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.exe" -OutFile "ztictl.exe"
-```
+### Configuration
 
-**🛠️ Build from Source**
 ```bash
-git clone https://github.com/zsoftly/ztiaws.git
-cd ztiaws/ztictl
-make build-local
-sudo cp ztictl /usr/local/bin/  # Linux/macOS
-```
+# Initialize configuration interactively (recommended)
+ztictl config init --interactive
 
-> **📚 Detailed Instructions:** See [INSTALLATION.md](../INSTALLATION.md) for platform-specific setup, prerequisites, and troubleshooting.
+# Check system requirements
+ztictl config check --fix
 
-### Verify Installation
-```bash
+# Verify installation
 ztictl --version
-ztictl auth whoami
-ztictl ssm list --region us-east-1
 ```
+
+See [Configuration Guide](../docs/CONFIGURATION.md) for detailed configuration options.
+
+## Documentation
+
+📚 **Complete documentation is available in the docs directory:**
+
+- **[Command Reference](../docs/COMMANDS.md)** - All commands with detailed examples
+- **[Configuration Guide](../docs/CONFIGURATION.md)** - Setup and configuration options
+- **[Multi-Region Operations](../docs/MULTI_REGION.md)** - Cross-region execution guide
+- **[Troubleshooting](../docs/TROUBLESHOOTING.md)** - Common issues and solutions
 
 ## Core Operations
 
-### 🔐 **Authentication**
+### Quick Examples
+
 ```bash
-# Check current identity
+# Authentication
+ztictl auth login
 ztictl auth whoami
 
-# List available regions  
-ztictl auth regions
+# Instance operations  
+ztictl ssm list --region cac1
+ztictl ssm connect i-1234567890abcdef0 --region use1
+ztictl ssm exec --tags "Environment=prod" "uptime" --region euw1
 
-# AWS SSO authentication (planned)
-ztictl auth sso --profile myprofile
+# Power management (v2.4+)
+ztictl ssm start i-1234567890abcdef0 --region cac1
+ztictl ssm stop-tagged --tags "Environment=dev" --region use1
+
+# Multi-region operations (v2.6+)
+ztictl ssm exec-multi cac1,use1,euw1 --tags "App=web" "health-check"
+ztictl ssm exec-multi --all-regions --tags "Type=api" "status"
 ```
 
-### 🖥️ **Instance Management**
-```bash
-# List SSM-enabled instances
-ztictl ssm list --region us-east-1
+For complete command documentation, see [docs/COMMANDS.md](../docs/COMMANDS.md).
 
-# Filter by tags or status
-ztictl ssm list --tag "Environment=prod" --status running
-
-# Check SSM agent status
-ztictl ssm status i-1234567890abcdef0
-```
-
-### 🔗 **Instance Connection**
-```bash
-# Connect via Session Manager
-ztictl ssm connect i-1234567890abcdef0 --region us-east-1
-
-# Execute commands remotely
-ztictl ssm command i-1234567890abcdef0 "systemctl status nginx"
-
-# Execute on multiple instances by tags (NEW: Parallel execution + Instance filtering)
-ztictl ssm exec-tagged cac1 --tags Environment=production "df -h"
-ztictl ssm exec-tagged use1 --tags Environment=dev,Component=fts,Team=backend "systemctl status nginx"
-# NEW: Direct instance targeting with parallel execution
-ztictl ssm exec-tagged cac1 --instances i-123,i-456,i-789 --parallel 5 "uptime" 
-# NEW: Custom parallelism for large-scale operations
-ztictl ssm exec-tagged use1 --tags Environment=production --parallel 15 "docker ps"
-
-# Port forwarding
-ztictl ssm forward i-1234567890abcdef0 8080:80
-```
-
-### 📁 **File Transfer Operations**
-
-**🚀 Intelligent Transfer Routing**
-- **Small files (<1MB)**: Direct SSM transfer for speed
-- **Large files (≥1MB)**: S3 intermediary for reliability
-
-```bash
-# Upload files (any size)
-ztictl ssm transfer upload i-1234567890abcdef0 local-file.txt /tmp/remote-file.txt
-
-# Download files (any size)  
-ztictl ssm transfer download i-1234567890abcdef0 /var/log/app.log ./downloaded-log.txt
-
-# Advanced: Large file handling with debugging
-ztictl ssm transfer upload i-1234567890abcdef0 large-file.zip /opt/app/data.zip --debug
-```
-
-### 🧹 **Resource Management**
-```bash
-# Clean up temporary resources
-ztictl ssm cleanup --region us-east-1
-
-# Emergency cleanup (aggressive)
-ztictl ssm emergency-cleanup --region us-east-1
 ```
 
 ## Advanced Features
@@ -154,73 +110,13 @@ ztictl ssm emergency-cleanup --region us-east-1
 - **Multipart upload handling**: Automatic cleanup of incomplete uploads
 
 ### 📊 **Logging & Debugging**
-```bash
-# Enable debug logging
-ztictl ssm list --debug --region us-east-1
 
-# Cross-platform log locations:
-# Linux:   ~/.local/share/ztictl/logs/ztictl-YYYY-MM-DD.log
-# macOS:   ~/Library/Logs/ztictl/ztictl-YYYY-MM-DD.log  
-# Windows: %LOCALAPPDATA%\ztictl\logs\ztictl-YYYY-MM-DD.log
+See [Configuration Guide](../docs/CONFIGURATION.md#logging-configuration) for detailed logging setup and locations.
 
-# Custom log directory (all platforms)
-export ZTICTL_LOG_DIR="/custom/path"
-ztictl ssm list --region us-east-1
+## Migration from Legacy Tools
 
-# View timestamped logs
-tail -f ~/.local/share/ztictl/logs/ztictl-$(date +%Y-%m-%d).log
-```
+The bash `ssm` tool and `ztictl` can coexist during the transition. See [Command Reference](../docs/COMMANDS.md#legacy-bash-commands) for comparison and migration guide.
 
-## Migration Path
-
-### 🔄 **From Bash SSM Tool**
-
-The bash `ssm` tool and `ztictl` can coexist during the transition:
-
-**Current (Production)**
-```bash
-ssm cac1                                    # List instances  
-ssm i-1234567890abcdef0                     # Connect
-ssm exec cac1 i-1234567890abcdef0 "uptime"  # Execute command
-```
-
-**ztictl (Next Generation)**
-```bash
-ztictl ssm list --region ca-central-1                              # List instances
-ztictl ssm connect i-1234567890abcdef0 --region ca-central-1        # Connect  
-ztictl ssm command i-1234567890abcdef0 "uptime" --region ca-central-1  # Execute command
-```
-
-**🆕 Enhanced Capabilities in ztictl**
-```bash
-# Advanced file transfers (not available in bash version)
-ztictl ssm transfer upload i-1234567890abcdef0 large-file.zip /opt/data.zip
-
-# Comprehensive resource management  
-ztictl ssm cleanup --region ca-central-1
-
-# Cross-platform support
-# Works natively on Windows, macOS, and Linux
-```
-
-### 📈 **Migration Timeline**
-1. **Current**: Bash tools (`ssm`, `authaws`) remain in production
-2. **Testing Phase**: `ztictl` available for evaluation and testing  
-3. **Transition Phase**: Gradual migration to `ztictl` with feature parity
-4. **Future**: Complete replacement with enhanced capabilities
-
-## Documentation
-
-Following DRY principles, comprehensive documentation is centralized:
-
-| Topic | Location | Description |
-|-------|----------|-------------|
-| **Installation** | [INSTALLATION.md](../INSTALLATION.md) | Platform-specific setup and troubleshooting |
-| **Release Process** | [RELEASE.md](../RELEASE.md) | Version management and deployment |
-| **CI/CD Pipeline** | [docs/CI_CD_PIPELINE.md](../docs/CI_CD_PIPELINE.md) | Build automation and workflow architecture |
-| **Build Artifacts** | [BUILD_ARTIFACTS.md](../BUILD_ARTIFACTS.md) | Git workflow and artifact management |
-| **Quick Reference** | [QUICK_START.md](../QUICK_START.md) | Essential commands and examples |
-| **Root Project** | [../README.md](../README.md) | Current production tools and overview |
 
 ## Development
 

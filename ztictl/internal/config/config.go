@@ -114,8 +114,8 @@ func LoadWithOptions(allowInvalid bool) (*ConfigValidationError, error) {
 
 	// If allowInvalid is true and we have a validation error, load with defaults for invalid fields
 	if err != nil && allowInvalid && validationErr != nil {
-		// Load config but replace invalid values with defaults
-		if err := loadWithDefaults(validationErr); err != nil {
+		// Load config despite validation errors for repair purposes
+		if err := loadDespiteErrors(); err != nil {
 			return validationErr, err
 		}
 		return validationErr, nil // Return validation error but no fatal error
@@ -223,9 +223,10 @@ func loadConfigInternal(isFirstRun bool) (*ConfigValidationError, error) {
 	return nil, nil
 }
 
-// loadWithDefaults loads config but continues despite validation errors
-func loadWithDefaults(valErr *ConfigValidationError) error {
-	// Reload config - we'll use it as-is even with invalid values
+// loadDespiteErrors loads config even when validation errors are present.
+// This allows tools like 'config repair' to work with invalid configurations.
+func loadDespiteErrors() error {
+	// Reload config with invalid values intact
 	if err := viper.Unmarshal(cfg); err != nil {
 		return err
 	}
@@ -233,7 +234,6 @@ func loadWithDefaults(valErr *ConfigValidationError) error {
 	// Expand paths
 	cfg.Logging.Directory = expandPath(cfg.Logging.Directory)
 
-	// Note: We're not replacing invalid values, just loading what we can
 	return nil
 }
 
