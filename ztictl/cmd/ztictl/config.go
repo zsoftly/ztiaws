@@ -234,17 +234,33 @@ func checkRequirements(fix bool) error {
 	// Display configuration status
 	cfg := config.Get()
 	configExists := false
-	if cfg != nil && cfg.SSO.StartURL != "" {
-		logger.Info("✅ Configuration", "status", "Loaded", "sso_url", cfg.SSO.StartURL)
+	configValid := true
+	
+	// First, try to load config with validation to check for errors
+	if err := config.Load(); err != nil {
+		logger.Error("❌ Configuration", "status", "Invalid configuration detected")
+		logger.Info("   💡", "fix", "Run 'ztictl config repair' to fix configuration issues")
+		configValid = false
+		configExists = true // Config file exists but has errors
+	} else if cfg != nil && cfg.SSO.StartURL != "" {
+		// Check if it's a placeholder URL
+		if aws.IsPlaceholderSSOURL(cfg.SSO.StartURL) {
+			logger.Error("❌ Configuration", "status", "Placeholder URL detected", "sso_url", cfg.SSO.StartURL)
+			logger.Info("   💡", "fix", "Run 'ztictl config init' to set up your actual SSO URL")
+			configValid = false
+		} else {
+			logger.Info("✅ Configuration", "status", "Loaded", "sso_url", cfg.SSO.StartURL)
+		}
 		configExists = true
 	} else {
 		logger.Error("❌ Configuration", "status", "Not found or incomplete")
 		logger.Info("   💡", "fix", "Run 'ztictl config init' to set up SSO configuration")
+		configValid = false
 	}
 
 	fmt.Println()
 
-	if allPassed && configExists {
+	if allPassed && configExists && configValid {
 		logger.Info("🎉 All requirements met! You're ready to use ztictl")
 		fmt.Println("\n📝 Next steps:")
 		fmt.Println("  1. Authenticate: ztictl auth login")
@@ -254,7 +270,7 @@ func checkRequirements(fix bool) error {
 	}
 
 	// Provide detailed action plan
-	if len(criticalFailures) > 0 || !configExists {
+	if len(criticalFailures) > 0 || !configExists || !configValid {
 		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 		fmt.Println("📋 ACTION REQUIRED - Follow these steps:")
 		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -435,54 +451,54 @@ func repairConfiguration() error {
 		return fmt.Errorf("repair cancelled by user")
 	}
 
-	// Get the correct value from user
-	var newValue string
-	for {
-		switch valErr.Field {
-		case "SSO region", "Default region":
-			fmt.Printf("\nEnter a valid AWS region (e.g., us-east-1, ca-central-1): ")
-		case "SSO start URL":
-			// First check if current value looks like it already has a domain ID we can extract
-			if strings.Contains(valErr.Value, ".awsapps.com") {
-				// Extract domain ID from existing URL
-				parts := strings.Split(valErr.Value, "//")
-				if len(parts) > 1 {
-					domainPart := strings.Split(parts[1], ".awsapps.com")[0]
-					fmt.Printf("\nDetected domain ID: %s\n", domainPart)
+		// Get the correct value from user
+		var newValue string
+		for {
+			switch valErr.Field {
+			case "SSO region", "Default region":
+				fmt.Printf("\nEnter a valid AWS region (e.g., us-east-1, ca-central-1): ")
+			case "SSO start URL":
+				// First check if current value looks like it already has a domain ID we can extract
+				if strings.Contains(valErr.Value, ".awsapps.com") {
+					// Extract domain ID from existing URL
+					parts := strings.Split(valErr.Value, "//")
+					if len(parts) > 1 {
+						domainPart := strings.Split(parts[1], ".awsapps.com")[0]
+						fmt.Printf("\nDetected domain ID: %s\n", domainPart)
+					}
+				}
+				fmt.Printf("\nEnter your AWS SSO domain ID (e.g., d-1234567890 or zsoftly): ")
+			}
+
+			newValue, _ = reader.ReadString('\n')
+			newValue = strings.TrimSpace(newValue)
+
+			if newValue == "" {
+				fmt.Println("Value cannot be empty. Please try again.")
+				continue
+			}
+
+			// Validate the new value
+			switch valErr.Field {
+			case "SSO region", "Default region":
+				if !aws.IsValidAWSRegion(newValue) {
+					fmt.Printf("'%s' is not a valid AWS region format. Expected format: xx-xxxx-n\n", newValue)
+					continue
+				}
+			case "SSO start URL":
+				// Build full URL from domain ID
+				if !strings.HasPrefix(newValue, "https://") {
+					newValue = fmt.Sprintf("https://%s.awsapps.com/start", newValue)
+				}
+				// Validate the constructed URL using the new validation function
+				if err := aws.ValidateSSOURL(newValue); err != nil {
+					fmt.Printf("Invalid SSO URL: %s\n", err)
+					continue
 				}
 			}
-			fmt.Printf("\nEnter your AWS SSO domain ID (e.g., d-1234567890 or zsoftly): ")
+
+			break
 		}
-
-		newValue, _ = reader.ReadString('\n')
-		newValue = strings.TrimSpace(newValue)
-
-		if newValue == "" {
-			fmt.Println("Value cannot be empty. Please try again.")
-			continue
-		}
-
-		// Validate the new value
-		switch valErr.Field {
-		case "SSO region", "Default region":
-			if !aws.IsValidAWSRegion(newValue) {
-				fmt.Printf("'%s' is not a valid AWS region format. Expected format: xx-xxxx-n\n", newValue)
-				continue
-			}
-		case "SSO start URL":
-			// Build full URL from domain ID
-			if !strings.HasPrefix(newValue, "https://") {
-				newValue = fmt.Sprintf("https://%s.awsapps.com/start", newValue)
-			}
-			// Validate the constructed URL
-			if !strings.HasPrefix(newValue, "https://") {
-				fmt.Println("Invalid SSO URL format")
-				continue
-			}
-		}
-
-		break
-	}
 
 	// Read and parse the config file using YAML parser
 	home, err := os.UserHomeDir()
