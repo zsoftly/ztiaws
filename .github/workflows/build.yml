@@ -117,7 +117,6 @@ jobs:
       uses: actions/setup-go@v4
       with:
         go-version: '1.25'
-        cache: false
         
     - name: Get dependencies
       working-directory: ./ztictl
@@ -221,7 +220,6 @@ jobs:
       uses: actions/setup-go@v4
       with:
         go-version: '1.25'
-        cache: false
         
     - name: Download dependencies
       working-directory: ./ztictl
@@ -412,7 +410,6 @@ jobs:
       uses: actions/setup-go@v4
       with:
         go-version: '1.25'
-        cache: false
         
     - name: Get dependencies
       working-directory: ./ztictl

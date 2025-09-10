@@ -65,9 +65,9 @@ func TestConfigValidationError(t *testing.T) {
 			err: ConfigValidationError{
 				Field:   "SSO start URL",
 				Value:   "not-a-url",
-				Message: "must start with http:// or https://",
+				Message: "must start with https://",
 			},
-			expected: "SSO start URL 'not-a-url' is invalid: must start with http:// or https://",
+			expected: "SSO start URL 'not-a-url' is invalid: must start with https://",
 		},
 	}
 
@@ -150,7 +150,7 @@ func TestValidateLoadedConfigDetailed(t *testing.T) {
 			want: &ConfigValidationError{
 				Field:   "SSO start URL",
 				Value:   "not-a-url",
-				Message: "must start with http:// or https://",
+				Message: "must start with https://",
 			},
 		},
 		{

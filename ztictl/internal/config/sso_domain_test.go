@@ -119,10 +119,10 @@ func TestValidateInput(t *testing.T) {
 			shouldError: false,
 		},
 		{
-			name:        "valid http URL",
+			name:        "invalid http URL (only https allowed)",
 			input:       "http://example.com",
 			inputType:   "url",
-			shouldError: false,
+			shouldError: true,
 		},
 		{
 			name:        "invalid URL without protocol",
