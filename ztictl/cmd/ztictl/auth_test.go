@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"ztictl/internal/testutil"
@@ -91,6 +92,21 @@ func TestAuthLoginCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Isolate test environment to avoid config file interference
+			tempDir := t.TempDir()
+
+			// Save original environment variables
+			var origHome, origUserProfile string
+			if runtime.GOOS == "windows" {
+				origUserProfile = os.Getenv("USERPROFILE")
+				os.Setenv("USERPROFILE", tempDir)
+				defer os.Setenv("USERPROFILE", origUserProfile)
+			} else {
+				origHome = os.Getenv("HOME")
+				os.Setenv("HOME", tempDir)
+				defer os.Setenv("HOME", origHome)
+			}
+
 			// Create isolated command for testing argument validation
 			cmd := &cobra.Command{
 				Use:  "login [profile]",
