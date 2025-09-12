@@ -159,7 +159,7 @@ func getUserHomeDir() (string, error) {
 			return home, nil
 		}
 	}
-	
+
 	// Fall back to os.UserHomeDir() for normal operation
 	return os.UserHomeDir()
 }

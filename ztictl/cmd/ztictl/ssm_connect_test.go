@@ -747,12 +747,12 @@ func TestConnectionSeparationOfConcerns(t *testing.T) {
 				// Create a context with timeout to prevent hanging
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 				defer cancel()
-				
+
 				done := make(chan error, 1)
 				go func() {
 					done <- performConnection(tc.regionCode, tc.instanceID)
 				}()
-				
+
 				select {
 				case err := <-done:
 					if tc.expectError && err == nil {
