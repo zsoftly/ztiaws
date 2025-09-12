@@ -180,6 +180,21 @@ func TestAuthLogoutCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Isolate test environment to avoid config file interference
+			tempDir := t.TempDir()
+
+			// Save original environment variables
+			var origHome, origUserProfile string
+			if runtime.GOOS == "windows" {
+				origUserProfile = os.Getenv("USERPROFILE")
+				os.Setenv("USERPROFILE", tempDir)
+				defer os.Setenv("USERPROFILE", origUserProfile)
+			} else {
+				origHome = os.Getenv("HOME")
+				os.Setenv("HOME", tempDir)
+				defer os.Setenv("HOME", origHome)
+			}
+
 			cmd := &cobra.Command{
 				Use:  "logout [profile]",
 				Args: cobra.MaximumNArgs(1),
@@ -244,6 +259,21 @@ func TestAuthProfilesCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Isolate test environment to avoid config file interference
+			tempDir := t.TempDir()
+
+			// Save original environment variables
+			var origHome, origUserProfile string
+			if runtime.GOOS == "windows" {
+				origUserProfile = os.Getenv("USERPROFILE")
+				os.Setenv("USERPROFILE", tempDir)
+				defer os.Setenv("USERPROFILE", origUserProfile)
+			} else {
+				origHome = os.Getenv("HOME")
+				os.Setenv("HOME", tempDir)
+				defer os.Setenv("HOME", origHome)
+			}
+
 			cmd := &cobra.Command{
 				Use: "profiles",
 				Run: func(cmd *cobra.Command, args []string) {
@@ -351,6 +381,21 @@ func TestAuthCredsCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Isolate test environment to avoid config file interference
+			tempDir := t.TempDir()
+
+			// Save original environment variables
+			var origHome, origUserProfile string
+			if runtime.GOOS == "windows" {
+				origUserProfile = os.Getenv("USERPROFILE")
+				os.Setenv("USERPROFILE", tempDir)
+				defer os.Setenv("USERPROFILE", origUserProfile)
+			} else {
+				origHome = os.Getenv("HOME")
+				os.Setenv("HOME", tempDir)
+				defer os.Setenv("HOME", origHome)
+			}
+
 			// Set environment variable for test
 			if tt.envProfile != "" {
 				_ = os.Setenv("AWS_PROFILE", tt.envProfile) // #nosec G104 - test setup

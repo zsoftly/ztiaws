@@ -162,7 +162,7 @@ func TestCompletionCommand(t *testing.T) {
 	// Check that install flag exists
 	installFlag := completionCmd.Flags().Lookup("install")
 	if installFlag == nil {
-		t.Error("install flag not found")
+		t.Fatal("install flag not found")
 	}
 	if installFlag.Shorthand != "i" {
 		t.Errorf("install flag shorthand = %q, want 'i'", installFlag.Shorthand)
