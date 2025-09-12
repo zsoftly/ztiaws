@@ -234,17 +234,33 @@ func checkRequirements(fix bool) error {
 	// Display configuration status
 	cfg := config.Get()
 	configExists := false
-	if cfg != nil && cfg.SSO.StartURL != "" {
-		logger.Info("✅ Configuration", "status", "Loaded", "sso_url", cfg.SSO.StartURL)
+	configValid := true
+
+	// First, try to load config with validation to check for errors
+	if err := config.Load(); err != nil {
+		logger.Error("❌ Configuration", "status", "Invalid configuration detected")
+		logger.Info("   💡", "fix", "Run 'ztictl config repair' to fix configuration issues")
+		configValid = false
+		configExists = true // Config file exists but has errors
+	} else if cfg != nil && cfg.SSO.StartURL != "" {
+		// Check if it's a placeholder URL
+		if aws.IsPlaceholderSSOURL(cfg.SSO.StartURL) {
+			logger.Error("❌ Configuration", "status", "Placeholder URL detected", "sso_url", cfg.SSO.StartURL)
+			logger.Info("   💡", "fix", "Run 'ztictl config init' to set up your actual SSO URL")
+			configValid = false
+		} else {
+			logger.Info("✅ Configuration", "status", "Loaded", "sso_url", cfg.SSO.StartURL)
+		}
 		configExists = true
 	} else {
 		logger.Error("❌ Configuration", "status", "Not found or incomplete")
 		logger.Info("   💡", "fix", "Run 'ztictl config init' to set up SSO configuration")
+		configValid = false
 	}
 
 	fmt.Println()
 
-	if allPassed && configExists {
+	if allPassed && configExists && configValid {
 		logger.Info("🎉 All requirements met! You're ready to use ztictl")
 		fmt.Println("\n📝 Next steps:")
 		fmt.Println("  1. Authenticate: ztictl auth login")
@@ -254,7 +270,7 @@ func checkRequirements(fix bool) error {
 	}
 
 	// Provide detailed action plan
-	if len(criticalFailures) > 0 || !configExists {
+	if len(criticalFailures) > 0 || !configExists || !configValid {
 		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 		fmt.Println("📋 ACTION REQUIRED - Follow these steps:")
 		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -474,9 +490,9 @@ func repairConfiguration() error {
 			if !strings.HasPrefix(newValue, "https://") {
 				newValue = fmt.Sprintf("https://%s.awsapps.com/start", newValue)
 			}
-			// Validate the constructed URL
-			if !strings.HasPrefix(newValue, "https://") {
-				fmt.Println("Invalid SSO URL format")
+			// Validate the constructed URL using the new validation function
+			if err := aws.ValidateSSOURL(newValue); err != nil {
+				fmt.Printf("Invalid SSO URL: %s\n", err)
 				continue
 			}
 		}

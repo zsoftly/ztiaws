@@ -658,11 +658,19 @@ func expandPath(path string) string {
 func validateLoadedConfigDetailed(cfg *Config) *ConfigValidationError {
 	// Validate SSO Start URL if provided
 	if cfg.SSO.StartURL != "" {
-		if !isValidURL(cfg.SSO.StartURL) {
+		if err := aws.ValidateSSOURL(cfg.SSO.StartURL); err != nil {
+			// Convert ValidationError to ConfigValidationError
+			if valErr, ok := err.(*aws.ValidationError); ok {
+				return &ConfigValidationError{
+					Field:   valErr.Field,
+					Value:   valErr.Value,
+					Message: valErr.Message,
+				}
+			}
 			return &ConfigValidationError{
 				Field:   "SSO start URL",
 				Value:   cfg.SSO.StartURL,
-				Message: "must start with http:// or https://",
+				Message: err.Error(),
 			}
 		}
 	}
@@ -707,8 +715,10 @@ func validateInput(input string, inputType string) error {
 
 	switch inputType {
 	case "url":
-		if input != "" && !isValidURL(input) {
-			return fmt.Errorf("invalid URL format. Must start with http:// or https://")
+		if input != "" {
+			if err := aws.ValidateSSOURL(input); err != nil {
+				return err
+			}
 		}
 	case "region":
 		if input != "" && !aws.IsValidAWSRegion(input) {

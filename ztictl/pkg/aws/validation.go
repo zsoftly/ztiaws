@@ -70,8 +70,8 @@ func IsValidAWSRegion(region string) bool {
 		}
 	}
 
-	// Third part: must be a number (1-99)
-	if len(parts[2]) < 1 || len(parts[2]) > 2 {
+	// Third part: must be a number (1-9)
+	if len(parts[2]) != 1 {
 		return false
 	}
 
@@ -88,6 +88,47 @@ func IsValidAWSRegion(region string) bool {
 	}
 
 	return true
+}
+
+// IsPlaceholderSSOURL checks if a URL is the default placeholder SSO URL
+func IsPlaceholderSSOURL(url string) bool {
+	return url == "https://d-xxxxxxxxxx.awsapps.com/start"
+}
+
+// ValidateSSOURL validates SSO start URL format and rejects placeholder URLs
+func ValidateSSOURL(url string) error {
+	if url == "" {
+		return &ValidationError{Field: "SSO start URL", Value: url, Message: "SSO start URL cannot be empty"}
+	}
+
+	// Check if it's the placeholder URL
+	if IsPlaceholderSSOURL(url) {
+		return &ValidationError{
+			Field:   "SSO start URL",
+			Value:   url,
+			Message: "placeholder URL detected - please run 'ztictl config init' to set up your actual SSO URL",
+		}
+	}
+
+	// Basic URL validation
+	if !strings.HasPrefix(url, "https://") {
+		return &ValidationError{
+			Field:   "SSO start URL",
+			Value:   url,
+			Message: "must start with https://",
+		}
+	}
+
+	// Check for valid AWS SSO URL format
+	if !strings.Contains(url, ".awsapps.com/start") {
+		return &ValidationError{
+			Field:   "SSO start URL",
+			Value:   url,
+			Message: "must be a valid AWS SSO URL ending with .awsapps.com/start",
+		}
+	}
+
+	return nil
 }
 
 // IsValidRegionShortcode checks if a string is a valid region shortcode
