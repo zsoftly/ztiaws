@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"ztictl/internal/config"
@@ -146,6 +147,23 @@ func initConfig() {
 	}
 }
 
+// getUserHomeDir returns the user home directory, respecting environment variables for testing
+func getUserHomeDir() (string, error) {
+	// Check environment variables first (for test isolation)
+	if runtime.GOOS == "windows" {
+		if userProfile := os.Getenv("USERPROFILE"); userProfile != "" {
+			return userProfile, nil
+		}
+	} else {
+		if home := os.Getenv("HOME"); home != "" {
+			return home, nil
+		}
+	}
+	
+	// Fall back to os.UserHomeDir() for normal operation
+	return os.UserHomeDir()
+}
+
 // setupConfiguration handles the actual configuration logic and returns errors
 // instead of calling os.Exit directly, improving testability and separation of concerns
 func setupConfiguration() error {
@@ -153,8 +171,8 @@ func setupConfiguration() error {
 		// Use config file from the flag.
 		viper.SetConfigFile(configFile)
 	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
+		// Find home directory, respecting environment variables for testing
+		home, err := getUserHomeDir()
 		if err != nil {
 			return fmt.Errorf("unable to find home directory: %w", err)
 		}
