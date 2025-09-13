@@ -144,6 +144,21 @@ func TestConfigurationSeparationOfConcerns(t *testing.T) {
 }
 
 func TestInitializeConfigFile(t *testing.T) {
+	// Isolate test environment to avoid config file interference
+	tempDir := t.TempDir()
+
+	// Save original environment variables
+	var origHome, origUserProfile string
+	if runtime.GOOS == "windows" {
+		origUserProfile = os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", tempDir)
+		defer os.Setenv("USERPROFILE", origUserProfile)
+	} else {
+		origHome = os.Getenv("HOME")
+		os.Setenv("HOME", tempDir)
+		defer os.Setenv("HOME", origHome)
+	}
+
 	// Save original state
 	originalConfigFile := configFile
 	originalDebug := debug
