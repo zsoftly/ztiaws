@@ -218,40 +218,46 @@ func runInteractiveConfig(configPath string) error {
 	fmt.Println("==================================")
 	fmt.Println("Let's configure ztictl with your AWS SSO settings.")
 
-	// Get SSO Start URL with validation
+	// Get SSO Domain ID and build the URL
 	var startURL string
 	for {
-		fmt.Print("Enter your AWS SSO start URL (e.g., https://yourcompany.awsapps.com/start): ")
+		fmt.Print("Enter your AWS SSO domain ID (e.g., d-1234567890 or company-name): ")
 		input, _ := reader.ReadString('\n')
-		startURL = strings.TrimSpace(input)
+		domainID := strings.TrimSpace(input)
 
-		if startURL == "" {
-			fmt.Println("❌ SSO start URL cannot be empty")
+		if domainID == "" {
+			fmt.Println("❌ Domain ID cannot be empty")
 			continue
 		}
 
-		if !strings.HasPrefix(startURL, "http://") && !strings.HasPrefix(startURL, "https://") {
-			fmt.Println("❌ Invalid URL format. Must start with http:// or https://")
+		// Build the full SSO URL from the domain ID
+		startURL = fmt.Sprintf("https://%s.awsapps.com/start", domainID)
+
+		// Validate the constructed URL
+		if strings.Contains(domainID, "//") || strings.Contains(domainID, ".") {
+			fmt.Println("❌ Invalid domain ID. Please enter only the domain identifier, not a full URL")
+			fmt.Println("   Example: 'd-1234567890' or 'mycompany', not 'https://mycompany.awsapps.com/start'")
 			continue
 		}
 
+		fmt.Printf("✅ SSO URL will be: %s\n", startURL)
 		break
 	}
 
 	// Get SSO Region with validation
 	var ssoRegion string
 	for {
-		fmt.Print("Enter your AWS SSO region (e.g., us-east-1) [us-east-1]: ")
+		fmt.Print("Enter your AWS SSO region [ca-central-1]: ")
 		input, _ := reader.ReadString('\n')
 		ssoRegion = strings.TrimSpace(input)
 		if ssoRegion == "" {
-			ssoRegion = "us-east-1"
+			ssoRegion = "ca-central-1"
 		}
 
 		// Validate region format (xx-xxxx-n)
 		if !isValidAWSRegion(ssoRegion) {
 			fmt.Printf("❌ Invalid AWS region format: %s\n", ssoRegion)
-			fmt.Println("Region format should be like: us-east-1, eu-west-2, ap-southeast-1")
+			fmt.Println("Region format should be like: us-east-1, ca-central-1, eu-west-2, ap-southeast-1")
 			continue
 		}
 		break
@@ -260,17 +266,17 @@ func runInteractiveConfig(configPath string) error {
 	// Get Default Region with validation
 	var defaultRegion string
 	for {
-		fmt.Print("Enter your default AWS region (e.g., us-east-1) [us-east-1]: ")
+		fmt.Print("Enter your default AWS region [ca-central-1]: ")
 		input, _ := reader.ReadString('\n')
 		defaultRegion = strings.TrimSpace(input)
 		if defaultRegion == "" {
-			defaultRegion = "us-east-1"
+			defaultRegion = "ca-central-1"
 		}
 
 		// Validate region format (xx-xxxx-n)
 		if !isValidAWSRegion(defaultRegion) {
 			fmt.Printf("❌ Invalid AWS region format: %s\n", defaultRegion)
-			fmt.Println("Region format should be like: us-east-1, eu-west-2, ap-southeast-1")
+			fmt.Println("Region format should be like: us-east-1, ca-central-1, eu-west-2, ap-southeast-1")
 			continue
 		}
 		break
