@@ -204,6 +204,7 @@ func checkRequirements(fix bool) error {
 	// Track failed requirements for summary
 	var criticalFailures []system.RequirementResult
 	var optionalFailures []system.RequirementResult
+	var warningFailures []system.RequirementResult
 
 	// Display results
 	allPassed := true
@@ -214,17 +215,27 @@ func checkRequirements(fix bool) error {
 				logger.Info("   Version", "version", result.Version)
 			}
 		} else {
-			logger.Error("❌", "check", result.Name, "error", result.Error)
-			if result.Suggestion != "" {
-				logger.Info("   💡", "fix", result.Suggestion)
-			}
-			allPassed = false
-
-			// Categorize failures
-			if result.Name == "Go Version" {
-				optionalFailures = append(optionalFailures, result)
+			// AWS Credentials is a warning, not an error
+			if result.Name == "AWS Credentials" {
+				logger.Warn("⚠️ ", "check", result.Name, "warning", result.Error)
+				if result.Suggestion != "" {
+					logger.Info("   💡", "fix", result.Suggestion)
+				}
+				warningFailures = append(warningFailures, result)
+				// Don't set allPassed to false for warnings
 			} else {
-				criticalFailures = append(criticalFailures, result)
+				logger.Error("❌", "check", result.Name, "error", result.Error)
+				if result.Suggestion != "" {
+					logger.Info("   💡", "fix", result.Suggestion)
+				}
+				allPassed = false
+
+				// Categorize failures
+				if result.Name == "Go Version" {
+					optionalFailures = append(optionalFailures, result)
+				} else {
+					criticalFailures = append(criticalFailures, result)
+				}
 			}
 		}
 	}
@@ -238,10 +249,18 @@ func checkRequirements(fix bool) error {
 
 	// First, try to load config with validation to check for errors
 	if err := config.Load(); err != nil {
-		logger.Error("❌ Configuration", "status", "Invalid configuration detected")
-		logger.Info("   💡", "fix", "Run 'ztictl config repair' to fix configuration issues")
-		configValid = false
-		configExists = true // Config file exists but has errors
+		// Check if this is a validation error vs a system/environment error
+		if strings.Contains(err.Error(), "invalid configuration") || strings.Contains(err.Error(), "placeholder") {
+			logger.Error("❌ Configuration", "status", "Invalid configuration detected")
+			logger.Info("   💡", "fix", "Run 'ztictl config repair' to fix configuration issues")
+			configValid = false
+			configExists = true // Config file exists but has errors
+		} else {
+			// System/environment error (e.g., CI environment, missing home dir)
+			// Treat as no config found and continue gracefully
+			configValid = false
+			configExists = false
+		}
 	} else if cfg != nil && cfg.SSO.StartURL != "" {
 		// Check if it's a placeholder URL
 		if aws.IsPlaceholderSSOURL(cfg.SSO.StartURL) {
@@ -321,16 +340,29 @@ func checkRequirements(fix bool) error {
 				fmt.Println("   Option B: Download binary")
 				fmt.Println("   Visit: https://stedolan.github.io/jq/download/")
 
-			case "AWS Credentials":
-				fmt.Println("   Your AWS credentials are missing or expired")
-				fmt.Println("   ")
-				fmt.Println("   Option A: Use ztictl (recommended)")
-				fmt.Println("   Run: ztictl auth login")
-				fmt.Println("   ")
-				fmt.Println("   Option B: Use AWS CLI")
-				fmt.Println("   Run: aws configure sso")
+				// AWS Credentials is now handled as a warning, not critical
 			}
 			stepNumber++
+		}
+
+		// Warnings (like AWS credentials)
+		if len(warningFailures) > 0 {
+			fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			fmt.Println("⚠️  WARNINGS (recommended but not required):")
+			fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+			for _, failure := range warningFailures {
+				if failure.Name == "AWS Credentials" {
+					fmt.Println("\n• AWS Credentials: Your AWS credentials are missing or expired")
+					fmt.Println("  ")
+					fmt.Println("  Option A: Use ztictl (recommended)")
+					fmt.Println("  Run: ztictl auth login")
+					fmt.Println("  ")
+					fmt.Println("  Option B: Use AWS CLI")
+					fmt.Println("  Run: aws configure sso")
+				} else {
+					fmt.Printf("\n• %s: %s\n", failure.Name, failure.Suggestion)
+				}
+			}
 		}
 
 		// Optional requirements
@@ -381,6 +413,30 @@ func checkRequirements(fix bool) error {
 		return fmt.Errorf("prerequisites not met - see action plan above")
 	}
 
+	// If we only have warnings (no critical failures), still show them but don't fail
+	if len(warningFailures) > 0 {
+		fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		fmt.Println("⚠️  WARNINGS (recommended but not required):")
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		for _, failure := range warningFailures {
+			if failure.Name == "AWS Credentials" {
+				fmt.Println("\n• AWS Credentials: Your AWS credentials are missing or expired")
+				fmt.Println("  ")
+				fmt.Println("  Option A: Use ztictl (recommended)")
+				fmt.Println("  Run: ztictl auth login")
+				fmt.Println("  ")
+				fmt.Println("  Option B: Use AWS CLI")
+				fmt.Println("  Run: aws configure sso")
+			} else {
+				fmt.Printf("\n• %s: %s\n", failure.Name, failure.Suggestion)
+			}
+		}
+		fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		fmt.Println("✅ All required checks passed! You can use ztictl")
+		fmt.Println("   Note: Address the warnings above for full functionality")
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	}
+
 	// All checks passed
 	return nil
 }
@@ -389,12 +445,29 @@ func checkRequirements(fix bool) error {
 func validateConfiguration() error {
 	logger.Info("Validating configuration...")
 
+	// Check if configuration file exists
+	if !config.Exists() {
+		home, _ := os.UserHomeDir()
+		configPath := filepath.Join(home, ".ztictl.yaml")
+		return fmt.Errorf("configuration file not found at %s - run 'ztictl config init' to create it", configPath)
+	}
+
 	// Re-load configuration to check for errors
 	if err := config.Load(); err != nil {
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
 
 	cfg := config.Get()
+
+	// Report configuration file location
+	home, _ := os.UserHomeDir()
+	configPath := filepath.Join(home, ".ztictl.yaml")
+	logger.Info("Configuration source", "file", configPath)
+
+	// Check if SSO configuration is properly set
+	if cfg.SSO.StartURL == "" {
+		return fmt.Errorf("SSO start URL is not configured - run 'ztictl config init' to set it up")
+	}
 
 	// Perform additional validation
 	var errors []string
@@ -403,7 +476,14 @@ func validateConfiguration() error {
 		if cfg.SSO.Region == "" {
 			errors = append(errors, "SSO region is required when SSO start URL is provided")
 		}
+		// Check if it's a placeholder URL
+		if aws.IsPlaceholderSSOURL(cfg.SSO.StartURL) {
+			errors = append(errors, fmt.Sprintf("SSO start URL is a placeholder value: %s", cfg.SSO.StartURL))
+		}
 	}
+
+	// Report loaded configuration
+	logger.Info("SSO configuration", "url", cfg.SSO.StartURL, "region", cfg.SSO.Region)
 
 	if len(errors) > 0 {
 		logger.Error("Configuration validation failed:")
@@ -467,7 +547,7 @@ func repairConfiguration() error {
 					fmt.Printf("\nDetected domain ID: %s\n", domainPart)
 				}
 			}
-			fmt.Printf("\nEnter your AWS SSO domain ID (e.g., d-1234567890 or zsoftly): ")
+			fmt.Printf("\nEnter your AWS SSO domain ID (e.g., d-1234567890 or company-name): ")
 		}
 
 		newValue, _ = reader.ReadString('\n')

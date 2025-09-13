@@ -11,7 +11,6 @@ import (
 
 	"ztictl/pkg/aws"
 	"ztictl/pkg/errors"
-	"ztictl/pkg/security"
 )
 
 // Config represents the application configuration
@@ -137,16 +136,6 @@ func loadConfigInternal(isFirstRun bool) (*ConfigValidationError, error) {
 		fmt.Printf("[DEBUG] Loading config internally, first run: %v\n", isFirstRun)
 	}
 
-	// Try to load from legacy .env file first (from the parent directory where authaws is)
-	envFilePath := filepath.Join("..", ".env")
-	envFileExists := false
-	if _, err := os.Stat(envFilePath); err == nil {
-		envFileExists = true
-		if err := LoadLegacyEnvFile(envFilePath); err != nil {
-			return nil, err
-		}
-	}
-
 	// If config file exists but viper didn't load it, try to read it manually
 	if !isFirstRun && viper.ConfigFileUsed() == "" {
 		configPath := getConfigPath()
@@ -168,8 +157,8 @@ func loadConfigInternal(isFirstRun bool) (*ConfigValidationError, error) {
 		}
 	}
 
-	// If this is first run and no .env file exists, we need user configuration
-	if isFirstRun && !envFileExists {
+	// If this is first run, we need user configuration
+	if isFirstRun {
 		// For first run without existing .env, create a minimal valid config with defaults
 		// The user can run 'ztictl config init' later to configure properly
 		cfg = &Config{
@@ -214,7 +203,7 @@ func loadConfigInternal(isFirstRun bool) (*ConfigValidationError, error) {
 	// Validate configuration (but allow empty SSO config for first run)
 	if err := validate(cfg); err != nil {
 		// If validation fails and it's first run, provide helpful guidance
-		if isFirstRun && !envFileExists {
+		if isFirstRun {
 			return nil, errors.NewValidationError("Configuration needed. Please run 'ztictl config init' to set up your AWS SSO settings")
 		}
 		return nil, err
@@ -280,74 +269,6 @@ func validate(cfg *Config) error {
 		if cfg.SSO.Region == "" {
 			return errors.NewValidationError("SSO region must be specified when SSO start URL is provided")
 		}
-	}
-
-	return nil
-}
-
-// LoadLegacyEnvFile loads configuration from the legacy .env file if present
-func LoadLegacyEnvFile(envFilePath string) error {
-	if _, err := os.Stat(envFilePath); os.IsNotExist(err) {
-		return nil // No .env file, not an error
-	}
-
-	// Validate file path to prevent directory traversal (G304 fix)
-	// Allow absolute paths and specific relative paths needed by the application
-	cleanPath, err := filepath.Abs(filepath.Clean(envFilePath))
-	if err != nil {
-		return errors.NewConfigError("failed to resolve .env file path", err)
-	}
-
-	// Only validate relative paths that could be dangerous (but allow ../.env which is used by design)
-	if !filepath.IsAbs(envFilePath) && envFilePath != "../.env" && !filepath.IsAbs(cleanPath) {
-		if err := security.ValidateFilePathWithWorkingDir(envFilePath); err != nil {
-			return errors.NewConfigError("invalid .env file path", err)
-		}
-	}
-	envFilePath = cleanPath
-
-	// Read .env file manually since viper doesn't handle bash-style env files well
-	envFile, err := os.Open(envFilePath)
-	if err != nil {
-		return errors.NewConfigError("failed to open .env file", err)
-	}
-	defer envFile.Close()
-
-	// Parse .env file and set viper values
-	scanner := bufio.NewScanner(envFile)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-
-		// Skip comments and empty lines
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		// Parse KEY=VALUE format
-		if parts := strings.SplitN(line, "=", 2); len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-
-			// Remove quotes if present
-			if (strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`)) ||
-				(strings.HasPrefix(value, `'`) && strings.HasSuffix(value, `'`)) {
-				value = value[1 : len(value)-1]
-			}
-
-			// Map legacy .env variables to new config structure
-			switch key {
-			case "SSO_START_URL":
-				viper.Set("sso.start_url", value)
-			case "SSO_REGION":
-				viper.Set("sso.region", value)
-			case "LOG_DIR":
-				viper.Set("logging.directory", value)
-			}
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return errors.NewConfigError("failed to parse .env file", err)
 	}
 
 	return nil
@@ -590,23 +511,24 @@ func writeInteractiveConfig(config *Config) error {
 
 # AWS SSO Configuration
 sso:
-  start_url: "%s"
-  region: "%s"
+  start_url: "%s"  # Your AWS SSO portal URL
+  region: "%s"      # AWS region where SSO is configured
 
 # Default AWS region for operations
 default_region: "%s"
 
 # Logging configuration
 logging:
-  directory: "%s"
-  file_logging: %t
-  level: "%s"
+  directory: "%s"     # Directory for log files
+  file_logging: %t    # Enable file logging (in addition to console)
+  level: "%s"         # Log level: debug, info, warn, error
 
 # System configuration
 system:
-  iam_propagation_delay: %d
-  file_size_threshold: %d
-  s3_bucket_prefix: "%s"
+  iam_propagation_delay: %d  # Seconds to wait for IAM changes to propagate
+  file_size_threshold: %d    # Bytes - files larger than this use S3 transfer
+  s3_bucket_prefix: "%s"     # S3 bucket prefix for file transfers
+  temp_directory: "%s"       # Temporary directory for file operations
 `,
 		config.SSO.StartURL,
 		config.SSO.Region,
@@ -617,6 +539,7 @@ system:
 		config.System.IAMPropagationDelay,
 		config.System.FileSizeThreshold,
 		config.System.S3BucketPrefix,
+		config.System.TempDirectory,
 	)
 
 	// Write to file
@@ -692,21 +615,6 @@ func validateLoadedConfigDetailed(cfg *Config) *ConfigValidationError {
 	}
 
 	return nil
-}
-
-// isValidURL checks if a string is a valid URL
-func isValidURL(s string) bool {
-	if s == "" {
-		return false
-	}
-	// Basic URL validation - must start with http:// or https:// and have something after
-	if strings.HasPrefix(s, "http://") {
-		return len(s) > 7 // More than just "http://"
-	}
-	if strings.HasPrefix(s, "https://") {
-		return len(s) > 8 // More than just "https://"
-	}
-	return false
 }
 
 // validateInput validates user input during interactive configuration

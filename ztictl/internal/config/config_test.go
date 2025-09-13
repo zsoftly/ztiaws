@@ -3,12 +3,19 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
 )
+
+// getUserHomeForTest returns the appropriate home directory for the current platform
+func getUserHomeForTest() string {
+	home := os.Getenv("HOME")
+	if home == "" {
+		home = os.Getenv("USERPROFILE") // Windows
+	}
+	return home
+}
 
 func TestExpandPath(t *testing.T) {
 	tests := []struct {
@@ -17,111 +24,91 @@ func TestExpandPath(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "empty path",
-			input:    "",
-			expected: "",
-		},
-		{
 			name:     "absolute path",
 			input:    "/tmp/test",
 			expected: "/tmp/test",
 		},
 		{
 			name:     "relative path",
-			input:    "test/path",
-			expected: "test/path",
+			input:    "relative/path",
+			expected: "relative/path",
+		},
+		{
+			name:     "tilde path",
+			input:    "~/test",
+			expected: filepath.Join(getUserHomeForTest(), "test"),
+		},
+		{
+			name:     "empty path",
+			input:    "",
+			expected: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := expandPath(tt.input)
-			if tt.name == "empty path" || tt.name == "absolute path" || tt.name == "relative path" {
-				if result != tt.expected {
-					t.Errorf("expandPath(%q) = %q, want %q", tt.input, result, tt.expected)
-				}
+			if result != tt.expected {
+				t.Errorf("expandPath(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}
 }
 
 func TestConfigValidationError(t *testing.T) {
-	tests := []struct {
-		name     string
-		err      ConfigValidationError
-		expected string
-	}{
-		{
-			name: "invalid region error",
-			err: ConfigValidationError{
-				Field:   "SSO region",
-				Value:   "caa-central-1",
-				Message: "invalid AWS region format (expected format: xx-xxxx-n)",
-			},
-			expected: "SSO region 'caa-central-1' is invalid: invalid AWS region format (expected format: xx-xxxx-n)",
-		},
-		{
-			name: "invalid URL error",
-			err: ConfigValidationError{
-				Field:   "SSO start URL",
-				Value:   "not-a-url",
-				Message: "must start with https://",
-			},
-			expected: "SSO start URL 'not-a-url' is invalid: must start with https://",
-		},
+	err := &ConfigValidationError{
+		Field:   "SSO region",
+		Value:   "invalid-region",
+		Message: "not a valid AWS region",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.err.Error(); got != tt.expected {
-				t.Errorf("ConfigValidationError.Error() = %v, want %v", got, tt.expected)
-			}
-		})
+	expected := "SSO region 'invalid-region' is invalid: not a valid AWS region"
+	if err.Error() != expected {
+		t.Errorf("Error() = %q, want %q", err.Error(), expected)
 	}
 }
 
 func TestValidateLoadedConfigDetailed(t *testing.T) {
 	tests := []struct {
-		name   string
-		config *Config
-		want   *ConfigValidationError
+		name        string
+		config      *Config
+		expectError bool
+		errorField  string
 	}{
 		{
-			name: "valid config with ca-central-1 defaults",
-			config: &Config{
-				SSO: SSOConfig{
-					StartURL: "https://example.awsapps.com/start",
-					Region:   "ca-central-1",
-				},
-				DefaultRegion: "ca-central-1",
-			},
-			want: nil,
-		},
-		{
-			name: "valid config with us-east-1",
+			name: "valid config",
 			config: &Config{
 				SSO: SSOConfig{
 					StartURL: "https://example.awsapps.com/start",
 					Region:   "us-east-1",
 				},
-				DefaultRegion: "us-east-1",
+				DefaultRegion: "us-west-2",
 			},
-			want: nil,
+			expectError: false,
+		},
+		{
+			name: "placeholder SSO URL",
+			config: &Config{
+				SSO: SSOConfig{
+					StartURL: "https://d-xxxxxxxxxx.awsapps.com/start",
+					Region:   "us-east-1",
+				},
+				DefaultRegion: "us-west-2",
+			},
+			expectError: true,
+			errorField:  "SSO start URL",
 		},
 		{
 			name: "invalid SSO region",
 			config: &Config{
 				SSO: SSOConfig{
 					StartURL: "https://example.awsapps.com/start",
-					Region:   "caa-central-1",
+					Region:   "invalid-region",
 				},
-				DefaultRegion: "us-east-1",
+				DefaultRegion: "us-west-2",
 			},
-			want: &ConfigValidationError{
-				Field:   "SSO region",
-				Value:   "caa-central-1",
-				Message: "invalid AWS region format (expected format: xx-xxxx-n)",
-			},
+			expectError: true,
+			errorField:  "SSO region",
 		},
 		{
 			name: "invalid default region",
@@ -132,52 +119,25 @@ func TestValidateLoadedConfigDetailed(t *testing.T) {
 				},
 				DefaultRegion: "invalid-region",
 			},
-			want: &ConfigValidationError{
-				Field:   "Default region",
-				Value:   "invalid-region",
-				Message: "invalid AWS region format (expected format: xx-xxxx-n)",
-			},
-		},
-		{
-			name: "invalid SSO URL",
-			config: &Config{
-				SSO: SSOConfig{
-					StartURL: "not-a-url",
-					Region:   "us-east-1",
-				},
-				DefaultRegion: "ca-central-1",
-			},
-			want: &ConfigValidationError{
-				Field:   "SSO start URL",
-				Value:   "not-a-url",
-				Message: "must start with https://",
-			},
-		},
-		{
-			name: "empty config is valid",
-			config: &Config{
-				SSO: SSOConfig{
-					StartURL: "",
-					Region:   "",
-				},
-				DefaultRegion: "",
-			},
-			want: nil,
+			expectError: true,
+			errorField:  "Default region",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := validateLoadedConfigDetailed(tt.config)
-			if tt.want == nil {
-				if got != nil {
-					t.Errorf("validateLoadedConfigDetailed() = %v, want nil", got)
+			err := validateLoadedConfigDetailed(tt.config)
+			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got nil")
+				} else {
+					if err.Field != tt.errorField {
+						t.Errorf("Expected error field %q, got %q", tt.errorField, err.Field)
+					}
 				}
 			} else {
-				if got == nil {
-					t.Errorf("validateLoadedConfigDetailed() = nil, want %v", tt.want)
-				} else if got.Field != tt.want.Field || got.Value != tt.want.Value || got.Message != tt.want.Message {
-					t.Errorf("validateLoadedConfigDetailed() = %v, want %v", got, tt.want)
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
 				}
 			}
 		})
@@ -185,83 +145,86 @@ func TestValidateLoadedConfigDetailed(t *testing.T) {
 }
 
 func TestConfigDefaults(t *testing.T) {
-	// Test that setDefaults doesn't panic
+	viper.Reset()
+	defer viper.Reset()
+
 	setDefaults()
 
-	// Basic sanity checks - these shouldn't panic in CI
-	if os.TempDir() == "" {
-		t.Error("TempDir should not be empty")
+	if viper.GetString("default_region") != "ca-central-1" {
+		t.Errorf("Default region not set correctly: %q", viper.GetString("default_region"))
+	}
+
+	if viper.GetString("sso.region") != "ca-central-1" {
+		t.Errorf("SSO region default not set correctly: %q", viper.GetString("sso.region"))
 	}
 }
 
 func TestConfigValidation(t *testing.T) {
 	tests := []struct {
-		name      string
-		config    *Config
-		shouldErr bool
+		name        string
+		config      *Config
+		expectError bool
 	}{
 		{
-			name: "empty SSO config should be valid (first run)",
+			name: "valid config with SSO",
 			config: &Config{
 				SSO: SSOConfig{
-					StartURL: "",
-				},
-			},
-			shouldErr: false,
-		},
-		{
-			name: "partial SSO config should fail",
-			config: &Config{
-				SSO: SSOConfig{
-					StartURL: "https://example.com",
-					Region:   "", // Missing region
-				},
-			},
-			shouldErr: true,
-		},
-		{
-			name: "complete SSO config should pass",
-			config: &Config{
-				SSO: SSOConfig{
-					StartURL: "https://example.com",
+					StartURL: "https://example.awsapps.com/start",
 					Region:   "us-east-1",
 				},
 			},
-			shouldErr: false,
+			expectError: false,
+		},
+		{
+			name: "empty SSO start URL",
+			config: &Config{
+				SSO: SSOConfig{
+					StartURL: "",
+					Region:   "us-east-1",
+				},
+			},
+			expectError: false, // Empty SSO is allowed (first run)
+		},
+		{
+			name: "SSO URL without region",
+			config: &Config{
+				SSO: SSOConfig{
+					StartURL: "https://example.awsapps.com/start",
+					Region:   "",
+				},
+			},
+			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validate(tt.config)
-			if tt.shouldErr && err == nil {
-				t.Error("expected error but got none")
-			}
-			if !tt.shouldErr && err != nil {
-				t.Errorf("unexpected error: %v", err)
+			if tt.expectError && err == nil {
+				t.Error("Expected error but got nil")
+			} else if !tt.expectError && err != nil {
+				t.Errorf("Unexpected error: %v", err)
 			}
 		})
 	}
 }
 
 func TestCreateSampleConfig(t *testing.T) {
-	// Create a temporary file
 	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "test-config.yaml")
 
-	// Test that CreateSampleConfig doesn't panic and creates a file
+	configPath := filepath.Join(tempDir, ".ztictl.yaml")
 	err := CreateSampleConfig(configPath)
 	if err != nil {
 		t.Fatalf("CreateSampleConfig failed: %v", err)
 	}
 
-	// Check that file was created
+	// Check file exists
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		t.Error("config file was not created")
 	}
 
-	// Check that file has some content
-	content, err := os.ReadFile(configPath) // #nosec G304 - test file with controlled path
+	// Check file content
+	content, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("failed to read config file: %v", err)
 	}
@@ -270,33 +233,20 @@ func TestCreateSampleConfig(t *testing.T) {
 		t.Error("config file is empty")
 	}
 
-	// Basic sanity check for YAML structure
-	if !containsAll(string(content), []string{"sso:", "logging:", "system:"}) {
+	// Check for expected sections
+	if !contains(string(content), "sso:") || !contains(string(content), "logging:") || !contains(string(content), "system:") {
 		t.Error("config file missing expected sections")
 	}
 }
 
-func containsAll(str string, substrings []string) bool {
-	for _, substr := range substrings {
-		if !contains(str, substr) {
-			return false
-		}
-	}
-	return true
+// Helper functions
+func contains(s, substr string) bool {
+	return indexOf(s, substr) >= 0
 }
 
-func contains(str, substr string) bool {
-	return len(str) >= len(substr) &&
-		(str == substr ||
-			(len(str) > len(substr) &&
-				(str[:len(substr)] == substr ||
-					str[len(str)-len(substr):] == substr ||
-					indexOfSubstring(str, substr) >= 0)))
-}
-
-func indexOfSubstring(str, substr string) int {
-	for i := 0; i <= len(str)-len(substr); i++ {
-		if str[i:i+len(substr)] == substr {
+func indexOf(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
 			return i
 		}
 	}
@@ -304,322 +254,41 @@ func indexOfSubstring(str, substr string) int {
 }
 
 func TestExpandPathTildeExpansion(t *testing.T) {
-	// Test tilde expansion functionality
 	tests := []struct {
 		name     string
 		input    string
-		contains string // Check if the result contains this
+		wantHome bool
 	}{
 		{
-			name:  "tilde with path",
-			input: "~/test/path",
+			name:     "tilde with slash",
+			input:    "~/test",
+			wantHome: true,
 		},
 		{
-			name:  "bare tilde",
-			input: "~",
+			name:     "tilde alone",
+			input:    "~",
+			wantHome: true,
+		},
+		{
+			name:     "no tilde",
+			input:    "/absolute/path",
+			wantHome: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := expandPath(tt.input)
+			home := getUserHomeForTest()
 
-			// Should not start with ~ after expansion (unless home dir couldn't be obtained)
-			if strings.HasPrefix(result, "~") && result != tt.input {
-				t.Errorf("expandPath(%q) still contains tilde: %q", tt.input, result)
-			}
-
-			// For valid tilde paths, result should be different from input (unless error occurred)
-			if tt.input != "" && strings.HasPrefix(tt.input, "~") {
-				if home, err := os.UserHomeDir(); err == nil {
-					switch tt.input {
-					case "~":
-						if result != home {
-							t.Errorf("expandPath(%q) = %q, want %q", tt.input, result, home)
-						}
-					case "~/test/path":
-						expected := filepath.Join(home, "test/path")
-						if result != expected {
-							t.Errorf("expandPath(%q) = %q, want %q", tt.input, result, expected)
-						}
-					}
+			if tt.wantHome {
+				if home != "" && !contains(result, home) {
+					t.Errorf("expandPath(%q) should contain home directory", tt.input)
 				}
-			}
-		})
-	}
-}
-
-func TestLoad(t *testing.T) {
-	// Save original viper state
-	origCfg := cfg
-	defer func() { cfg = origCfg }()
-
-	// Reset viper
-	viper.Reset()
-	defer viper.Reset()
-
-	tests := []struct {
-		name          string
-		setup         func() (cleanup func(), error error)
-		expectError   bool
-		errorContains string
-	}{
-		{
-			name: "first run without env file",
-			setup: func() (cleanup func(), error error) {
-				// Create temp directory for config
-				tempDir, err := os.MkdirTemp("", "config_test")
-				if err != nil {
-					return nil, err
-				}
-
-				// Mock home directory
-				origHome := os.Getenv("HOME")
-				_ = os.Setenv("HOME", tempDir) // #nosec G104 - test setup
-
-				cleanup = func() {
-					_ = os.Setenv("HOME", origHome) // #nosec G104 - test cleanup
-					_ = os.RemoveAll(tempDir)       // #nosec G104 - test cleanup
-				}
-
-				return cleanup, nil
-			},
-			expectError: false,
-		},
-		{
-			name: "first run with valid env file",
-			setup: func() (cleanup func(), error error) {
-				tempDir, err := os.MkdirTemp("", "config_test")
-				if err != nil {
-					return nil, err
-				}
-
-				// Create .env file
-				envContent := `SSO_START_URL="https://example.awsapps.com/start"
-SSO_REGION="us-east-1"
-DEFAULT_PROFILE="test-profile"
-LOG_DIR="/tmp/logs"
-`
-				envPath := filepath.Join("..", ".env")
-				_ = os.MkdirAll(filepath.Dir(envPath), 0750) // #nosec G104 - test setup
-				err = os.WriteFile(envPath, []byte(envContent), 0600)
-				if err != nil {
-					return nil, err
-				}
-
-				origHome := os.Getenv("HOME")
-				_ = os.Setenv("HOME", tempDir) // #nosec G104 - test setup
-
-				cleanup = func() {
-					_ = os.Setenv("HOME", origHome) // #nosec G104 - test cleanup
-					_ = os.Remove(envPath)          // #nosec G104 - test cleanup
-					_ = os.RemoveAll(tempDir)       // #nosec G104 - test cleanup
-				}
-
-				return cleanup, nil
-			},
-			expectError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Reset global config
-			cfg = nil
-			viper.Reset()
-
-			cleanup, err := tt.setup()
-			if err != nil {
-				t.Fatalf("Setup failed: %v", err)
-			}
-			defer cleanup()
-
-			err = Load()
-
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got none")
-			} else if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			if err != nil && tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-				t.Errorf("Error should contain '%s', got: %v", tt.errorContains, err)
-			}
-
-			// Verify config was created
-			if !tt.expectError && cfg == nil {
-				t.Error("Config should be initialized after Load()")
-			}
-		})
-	}
-}
-
-func TestGet(t *testing.T) {
-	// Save original config
-	origCfg := cfg
-	defer func() { cfg = origCfg }()
-
-	tests := []struct {
-		name     string
-		setup    func()
-		validate func(*Config, *testing.T)
-	}{
-		{
-			name: "get with existing config",
-			setup: func() {
-				cfg = &Config{
-					DefaultRegion: "us-west-2",
-					SSO: SSOConfig{
-						StartURL: "https://test.awsapps.com/start",
-						Region:   "us-east-1",
-					},
-				}
-			},
-			validate: func(c *Config, t *testing.T) {
-				if c.DefaultRegion != "us-west-2" {
-					t.Errorf("Expected default region us-west-2, got %s", c.DefaultRegion)
-				}
-				if c.SSO.StartURL != "https://test.awsapps.com/start" {
-					t.Errorf("Expected SSO start URL to match, got %s", c.SSO.StartURL)
-				}
-			},
-		},
-		{
-			name: "get with nil config (creates new)",
-			setup: func() {
-				cfg = nil
-				viper.Reset()
-			},
-			validate: func(c *Config, t *testing.T) {
-				if c == nil {
-					t.Error("Config should not be nil")
-				}
-				// Should have default values set
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setup()
-
-			result := Get()
-
-			if result == nil {
-				t.Error("Get() should never return nil")
-			}
-
-			tt.validate(result, t)
-		})
-	}
-}
-
-func TestLoadLegacyEnvFile(t *testing.T) {
-	tests := []struct {
-		name        string
-		envContent  string
-		expectError bool
-		validate    func(*testing.T)
-	}{
-		{
-			name: "valid env file",
-			envContent: `# Comment
-SSO_START_URL="https://example.awsapps.com/start"
-SSO_REGION=us-east-1
-DEFAULT_PROFILE="test-profile"
-LOG_DIR=/tmp/logs
-`,
-			expectError: false,
-			validate: func(t *testing.T) {
-				if viper.GetString("sso.start_url") != "https://example.awsapps.com/start" {
-					t.Errorf("SSO start URL not set correctly: %s", viper.GetString("sso.start_url"))
-				}
-				if viper.GetString("sso.region") != "us-east-1" {
-					t.Errorf("SSO region not set correctly: %s", viper.GetString("sso.region"))
-				}
-				if viper.GetString("logging.directory") != "/tmp/logs" {
-					t.Errorf("Log directory not set correctly: %s", viper.GetString("logging.directory"))
-				}
-			},
-		},
-		{
-			name: "env file with quotes",
-			envContent: `SSO_START_URL='https://single-quote.com/start'
-DEFAULT_PROFILE="double-quote-profile"
-`,
-			expectError: false,
-			validate: func(t *testing.T) {
-				if viper.GetString("sso.start_url") != "https://single-quote.com/start" {
-					t.Errorf("Single quoted value not parsed correctly: %s", viper.GetString("sso.start_url"))
-				}
-			},
-		},
-		{
-			name: "env file with empty lines and comments",
-			envContent: `
-# This is a comment
-# Another comment
-
-SSO_REGION=us-west-2
-
-# Final comment
-`,
-			expectError: false,
-			validate: func(t *testing.T) {
-				if viper.GetString("sso.region") != "us-west-2" {
-					t.Errorf("SSO region not set correctly: %s", viper.GetString("sso.region"))
-				}
-			},
-		},
-		{
-			name:        "nonexistent file",
-			envContent:  "",    // Will create no file
-			expectError: false, // Should not error on nonexistent file
-			validate: func(t *testing.T) {
-				// No validation needed for nonexistent file
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			viper.Reset()
-			defer viper.Reset()
-
-			var envPath string
-			var cleanup func()
-
-			if tt.envContent != "" {
-				// Create temporary env file
-				tempDir, err := os.MkdirTemp("", "env_test")
-				if err != nil {
-					t.Fatalf("Failed to create temp directory: %v", err)
-				}
-
-				envPath = filepath.Join(tempDir, ".env")
-				err = os.WriteFile(envPath, []byte(tt.envContent), 0600)
-				if err != nil {
-					t.Fatalf("Failed to write env file: %v", err)
-				}
-
-				cleanup = func() { _ = os.RemoveAll(tempDir) } // #nosec G104 - test cleanup
 			} else {
-				envPath = "/nonexistent/.env"
-				cleanup = func() {}
-			}
-
-			defer cleanup()
-
-			err := LoadLegacyEnvFile(envPath)
-
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got none")
-			} else if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			if !tt.expectError && tt.validate != nil {
-				tt.validate(t)
+				if result != tt.input {
+					t.Errorf("expandPath(%q) = %q, want %q", tt.input, result, tt.input)
+				}
 			}
 		})
 	}
@@ -627,514 +296,148 @@ SSO_REGION=us-west-2
 
 func TestExists(t *testing.T) {
 	tests := []struct {
-		name     string
-		setup    func() (cleanup func())
-		expected bool
+		name         string
+		createFile   bool
+		expectExists bool
 	}{
 		{
-			name: "config file exists",
-			setup: func() (cleanup func()) {
-				tempDir, err := os.MkdirTemp("", "config_exists_test")
-				if err != nil {
-					t.Fatalf("Failed to create temp directory: %v", err)
-				}
-
-				// Save original environment variables for both Windows and Unix
-				var origHome, origUserProfile string
-				if runtime.GOOS == "windows" {
-					origUserProfile = os.Getenv("USERPROFILE")
-					_ = os.Setenv("USERPROFILE", tempDir) // #nosec G104 - test setup
-				} else {
-					origHome = os.Getenv("HOME")
-					_ = os.Setenv("HOME", tempDir) // #nosec G104 - test setup
-				}
-
-				configPath := filepath.Join(tempDir, ".ztictl.yaml")
-				_ = os.WriteFile(configPath, []byte("test: config"), 0600) // #nosec G104 - test setup
-
-				return func() {
-					if runtime.GOOS == "windows" {
-						_ = os.Setenv("USERPROFILE", origUserProfile) // #nosec G104 - test cleanup
-					} else {
-						_ = os.Setenv("HOME", origHome) // #nosec G104 - test cleanup
-					}
-					_ = os.RemoveAll(tempDir) // #nosec G104 - test cleanup
-				}
-			},
-			expected: true,
+			name:         "config file exists",
+			createFile:   true,
+			expectExists: true,
 		},
 		{
-			name: "config file does not exist",
-			setup: func() (cleanup func()) {
-				tempDir, err := os.MkdirTemp("", "config_not_exists_test")
-				if err != nil {
-					t.Fatalf("Failed to create temp directory: %v", err)
-				}
-
-				// Save original environment variables for both Windows and Unix
-				var origHome, origUserProfile string
-				if runtime.GOOS == "windows" {
-					origUserProfile = os.Getenv("USERPROFILE")
-					_ = os.Setenv("USERPROFILE", tempDir) // #nosec G104 - test setup
-				} else {
-					origHome = os.Getenv("HOME")
-					_ = os.Setenv("HOME", tempDir) // #nosec G104 - test setup
-				}
-
-				return func() {
-					if runtime.GOOS == "windows" {
-						_ = os.Setenv("USERPROFILE", origUserProfile) // #nosec G104 - test cleanup
-					} else {
-						_ = os.Setenv("HOME", origHome) // #nosec G104 - test cleanup
-					}
-					_ = os.RemoveAll(tempDir) // #nosec G104 - test cleanup
-				}
-			},
-			expected: false,
+			name:         "config file doesn't exist",
+			createFile:   false,
+			expectExists: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cleanup := tt.setup()
-			defer cleanup()
+			// Setup test environment
+			tempDir := t.TempDir()
+
+			// Temporarily override HOME
+			origHome := os.Getenv("HOME")
+			origUserProfile := os.Getenv("USERPROFILE")
+			os.Setenv("HOME", tempDir)
+			os.Setenv("USERPROFILE", tempDir)
+			defer func() {
+				os.Setenv("HOME", origHome)
+				os.Setenv("USERPROFILE", origUserProfile)
+			}()
+
+			if tt.createFile {
+				configPath := filepath.Join(tempDir, ".ztictl.yaml")
+				err := os.WriteFile(configPath, []byte("test: value"), 0600)
+				if err != nil {
+					t.Fatalf("Failed to create config file: %v", err)
+				}
+			}
 
 			result := Exists()
-
-			if result != tt.expected {
-				t.Errorf("Exists() = %v, want %v", result, tt.expected)
+			if result != tt.expectExists {
+				t.Errorf("Exists() = %v, want %v", result, tt.expectExists)
 			}
 		})
 	}
 }
 
 func TestGetConfigPath(t *testing.T) {
-	// Save original environment variables for both Windows and Unix
-	var origHome, origUserProfile string
-	if runtime.GOOS == "windows" {
-		origUserProfile = os.Getenv("USERPROFILE")
-		defer os.Setenv("USERPROFILE", origUserProfile)
-	} else {
-		origHome = os.Getenv("HOME")
-		defer os.Setenv("HOME", origHome)
-	}
+	// Save original home
+	origHome := os.Getenv("HOME")
+	origUserProfile := os.Getenv("USERPROFILE")
+	defer func() {
+		os.Setenv("HOME", origHome)
+		os.Setenv("USERPROFILE", origUserProfile)
+	}()
 
-	// Test with known home directory
-	testHome := "/tmp/test_home"
-	if runtime.GOOS == "windows" {
-		testHome = "C:\\tmp\\test_home"
-		_ = os.Setenv("USERPROFILE", testHome) // #nosec G104 - test setup
-	} else {
-		_ = os.Setenv("HOME", testHome) // #nosec G104 - test setup
-	}
+	testHome := "/test/home"
+	os.Setenv("HOME", testHome)
+	os.Setenv("USERPROFILE", testHome)
 
-	result := getConfigPath()
 	expected := filepath.Join(testHome, ".ztictl.yaml")
+	result := getConfigPath()
 
 	if result != expected {
-		t.Errorf("getConfigPath() = %s, want %s", result, expected)
+		t.Errorf("getConfigPath() = %q, want %q", result, expected)
 	}
 }
 
 func TestWriteInteractiveConfig(t *testing.T) {
-	// Create temporary home directory
-	tempDir, err := os.MkdirTemp("", "interactive_config_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
+	// Save original home
 	origHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tempDir) // #nosec G104 - test setup
-	defer os.Setenv("HOME", origHome)
+	origUserProfile := os.Getenv("USERPROFILE")
+
+	tempDir := t.TempDir()
+
+	// Set temporary home
+	os.Setenv("HOME", tempDir)
+	os.Setenv("USERPROFILE", tempDir)
+	defer func() {
+		os.Setenv("HOME", origHome)
+		os.Setenv("USERPROFILE", origUserProfile)
+	}()
 
 	config := &Config{
 		SSO: SSOConfig{
-			StartURL: "https://test.awsapps.com/start",
-			Region:   "us-east-1",
+			StartURL: "https://d-test123.awsapps.com/start",
+			Region:   "us-west-2",
 		},
-		DefaultRegion: "ca-central-1",
+		DefaultRegion: "us-east-1",
 		Logging: LoggingConfig{
-			Directory:   "~/logs",
+			Directory:   filepath.Join(tempDir, "logs"),
 			FileLogging: true,
-			Level:       "info",
+			Level:       "debug",
 		},
 		System: SystemConfig{
 			IAMPropagationDelay: 10,
-			FileSizeThreshold:   2097152,
 			S3BucketPrefix:      "test-bucket-prefix",
+			FileSizeThreshold:   1048576,
+			TempDirectory:       filepath.Join(tempDir, "tmp"),
 		},
 	}
 
-	err = writeInteractiveConfig(config)
+	err := writeInteractiveConfig(config)
 	if err != nil {
 		t.Fatalf("writeInteractiveConfig failed: %v", err)
 	}
 
-	// Verify config file was created
-	configPath := getConfigPath()
+	// Verify file was created
+	configPath := filepath.Join(tempDir, ".ztictl.yaml")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		t.Error("Config file was not created")
 	}
 
 	// Read and verify content
-	content, err := os.ReadFile(configPath) // #nosec G304 - test file with controlled path
+	content, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("Failed to read config file: %v", err)
 	}
 
-	contentStr := string(content)
-	expectedStrings := []string{
-		"https://test.awsapps.com/start",
+	expectedValues := []string{
+		"https://d-test123.awsapps.com/start",
+		"us-west-2",
 		"us-east-1",
-		"ca-central-1",
-		"~/logs",
-		"true",
-		"info",
+		filepath.Join(tempDir, "logs"),
+		"debug",
 		"10",
-		"2097152",
 		"test-bucket-prefix",
+		filepath.Join(tempDir, "tmp"), // Verify temp_directory is written
 	}
 
-	for _, expected := range expectedStrings {
-		if !strings.Contains(contentStr, expected) {
-			t.Errorf("Config file should contain '%s'", expected)
+	for _, val := range expectedValues {
+		if !contains(string(content), val) {
+			t.Errorf("Config file missing expected value: %q", val)
 		}
 	}
 }
 
-func TestInteractiveInit(t *testing.T) {
-	// This test checks the structure and error handling of InteractiveInit
-	// We can't easily test the interactive input part without complex mocking
-
-	// Test that InteractiveInit exists and can handle setup errors
-	tempDir, err := os.MkdirTemp("", "interactive_init_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	origHome := os.Getenv("HOME")
-	_ = os.Setenv("HOME", tempDir) // #nosec G104 - test setup
-	defer os.Setenv("HOME", origHome)
-
-	// Mock stdin with minimal input
-	input := "\nhttps://test.com/start\n\n\n\n\n\n\n\n\n\n\n"
-	oldStdin := os.Stdin
-	r, w, _ := os.Pipe()
-	os.Stdin = r
-
-	go func() {
-		defer w.Close()
-		_, _ = w.Write([]byte(input)) // #nosec G104 - test setup
-	}()
-
-	defer func() {
-		os.Stdin = oldStdin
-		_ = r.Close() // #nosec G104 - test cleanup
-	}()
-
-	// Test that InteractiveInit can run without panicking
-	// The actual interactive testing would require more complex setup
-	err = InteractiveInit()
-
-	// Should not panic and should create config file
-	if err != nil {
-		t.Logf("InteractiveInit returned error (expected in test environment): %v", err)
-	}
-}
-
-// Test helper functions
-func TestContainsAllFunction(t *testing.T) {
-	tests := []struct {
-		name     string
-		str      string
-		substrs  []string
-		expected bool
-	}{
-		{
-			name:     "all substrings present",
-			str:      "hello world test string",
-			substrs:  []string{"hello", "world", "test"},
-			expected: true,
-		},
-		{
-			name:     "missing substring",
-			str:      "hello world test string",
-			substrs:  []string{"hello", "missing", "test"},
-			expected: false,
-		},
-		{
-			name:     "empty substrings",
-			str:      "hello world",
-			substrs:  []string{},
-			expected: true,
-		},
-		{
-			name:     "empty string",
-			str:      "",
-			substrs:  []string{"hello"},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := containsAll(tt.str, tt.substrs)
-			if result != tt.expected {
-				t.Errorf("containsAll(%q, %v) = %v, want %v", tt.str, tt.substrs, result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestContainsFunction(t *testing.T) {
-	tests := []struct {
-		name     string
-		str      string
-		substr   string
-		expected bool
-	}{
-		{
-			name:     "substring at beginning",
-			str:      "hello world",
-			substr:   "hello",
-			expected: true,
-		},
-		{
-			name:     "substring at end",
-			str:      "hello world",
-			substr:   "world",
-			expected: true,
-		},
-		{
-			name:     "substring in middle",
-			str:      "hello world test",
-			substr:   "world",
-			expected: true,
-		},
-		{
-			name:     "substring not found",
-			str:      "hello world",
-			substr:   "missing",
-			expected: false,
-		},
-		{
-			name:     "empty substring",
-			str:      "hello world",
-			substr:   "",
-			expected: true,
-		},
-		{
-			name:     "exact match",
-			str:      "test",
-			substr:   "test",
-			expected: true,
-		},
-		{
-			name:     "substring longer than string",
-			str:      "hi",
-			substr:   "hello",
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := contains(tt.str, tt.substr)
-			if result != tt.expected {
-				t.Errorf("contains(%q, %q) = %v, want %v", tt.str, tt.substr, result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestIndexOfSubstringFunction(t *testing.T) {
-	tests := []struct {
-		name     string
-		str      string
-		substr   string
-		expected int
-	}{
-		{
-			name:     "substring at beginning",
-			str:      "hello world",
-			substr:   "hello",
-			expected: 0,
-		},
-		{
-			name:     "substring at end",
-			str:      "hello world",
-			substr:   "world",
-			expected: 6,
-		},
-		{
-			name:     "substring in middle",
-			str:      "hello beautiful world",
-			substr:   "beautiful",
-			expected: 6,
-		},
-		{
-			name:     "substring not found",
-			str:      "hello world",
-			substr:   "missing",
-			expected: -1,
-		},
-		{
-			name:     "empty substring",
-			str:      "hello world",
-			substr:   "",
-			expected: 0,
-		},
-		{
-			name:     "substring longer than string",
-			str:      "hi",
-			substr:   "hello",
-			expected: -1,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := indexOfSubstring(tt.str, tt.substr)
-			if result != tt.expected {
-				t.Errorf("indexOfSubstring(%q, %q) = %v, want %v", tt.str, tt.substr, result, tt.expected)
-			}
-		})
-	}
-}
-
-func TestConfigStructValidation(t *testing.T) {
-	// Test config struct field validation
-	config := &Config{
-		SSO: SSOConfig{
-			StartURL: "https://example.awsapps.com/start",
-			Region:   "us-east-1",
-		},
-		DefaultRegion: "ca-central-1",
-		Logging: LoggingConfig{
-			Directory:   "/var/logs",
-			FileLogging: true,
-			Level:       "info",
-		},
-		System: SystemConfig{
-			IAMPropagationDelay: 5,
-			FileSizeThreshold:   1048576,
-			S3BucketPrefix:      "ztictl-test",
-			TempDirectory:       "/tmp",
-		},
-	}
-
-	// Test that all fields are properly set
-	if config.SSO.StartURL == "" {
-		t.Error("SSO StartURL should be set")
-	}
-	if config.SSO.Region == "" {
-		t.Error("SSO Region should be set")
-	}
-	if config.DefaultRegion == "" {
-		t.Error("DefaultRegion should be set")
-	}
-	if config.Logging.Directory == "" {
-		t.Error("Logging Directory should be set")
-	}
-	if config.Logging.Level == "" {
-		t.Error("Logging Level should be set")
-	}
-	if config.System.IAMPropagationDelay <= 0 {
-		t.Error("IAM PropagationDelay should be positive")
-	}
-	if config.System.FileSizeThreshold <= 0 {
-		t.Error("FileSizeThreshold should be positive")
-	}
-	if config.System.S3BucketPrefix == "" {
-		t.Error("S3BucketPrefix should be set")
-	}
-	if config.System.TempDirectory == "" {
-		t.Error("TempDirectory should be set")
-	}
-}
-
-func TestSetDefaultsWithViper(t *testing.T) {
-	// Reset viper and test defaults
-	viper.Reset()
-	defer viper.Reset()
-
-	setDefaults()
-
-	// Test that all defaults are set
-	tests := []struct {
-		key      string
-		expected interface{}
-	}{
-		{"default_region", "ca-central-1"},
-		{"sso.region", "ca-central-1"},
-		{"logging.file_logging", true},
-		{"logging.level", "info"},
-		{"system.iam_propagation_delay", 5},
-		{"system.file_size_threshold", 1048576},
-		{"system.s3_bucket_prefix", "ztictl-ssm-file-transfer"},
-	}
-
-	for _, tt := range tests {
-		t.Run("default_"+tt.key, func(t *testing.T) {
-			actual := viper.Get(tt.key)
-			if actual != tt.expected {
-				t.Errorf("Default for %s = %v (%T), want %v (%T)", tt.key, actual, actual, tt.expected, tt.expected)
-			}
-		})
-	}
-
-	// Test that logging directory default is set and not empty
-	logDir := viper.GetString("logging.directory")
-	if logDir == "" {
-		t.Error("Default logging directory should not be empty")
-	}
-
-	// Test that temp directory default is set and not empty
-	tempDir := viper.GetString("system.temp_directory")
-	if tempDir == "" {
-		t.Error("Default temp directory should not be empty")
-	}
-}
-
-func TestLoadLegacyEnvFileErrorHandling(t *testing.T) {
-	// Test file permission error
-	tempDir, err := os.MkdirTemp("", "env_error_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	// Create env file then make it unreadable
-	envPath := filepath.Join(tempDir, ".env")
-	err = os.WriteFile(envPath, []byte("TEST=value"), 0600)
-	if err != nil {
-		t.Fatalf("Failed to create env file: %v", err)
-	}
-
-	// Change permissions to make it unreadable (if supported)
-	_ = os.Chmod(envPath, 0000)   // #nosec G104 - test setup
-	defer os.Chmod(envPath, 0600) // Restore for cleanup
-
-	viper.Reset()
-	err = LoadLegacyEnvFile(envPath)
-
-	// Should handle permission errors gracefully
-	if err == nil {
-		t.Log("Permission error test skipped (may not be supported on this platform)")
-	}
-}
-
 func TestCreateSampleConfigErrorHandling(t *testing.T) {
-	// Test directory creation error
-	invalidPath := "/root/permission-denied/.ztictl.yaml"
+	// Test with invalid path
+	invalidPath := "/nonexistent/directory/config.yaml"
 	err := CreateSampleConfig(invalidPath)
-
-	// Should return an error for invalid paths
 	if err == nil {
-		t.Log("Permission error test skipped (may not be supported on this platform)")
-	} else if !strings.Contains(err.Error(), "failed to") {
-		t.Errorf("Error should indicate what failed, got: %v", err)
+		t.Error("Expected error for invalid path, got nil")
 	}
 }

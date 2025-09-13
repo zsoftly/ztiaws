@@ -149,6 +149,21 @@ func TestAuthLoginCmd(t *testing.T) {
 }
 
 func TestAuthLogoutCmd(t *testing.T) {
+	// Isolate test environment to avoid config file interference
+	tempDir := t.TempDir()
+
+	// Save original environment variables
+	var origHome, origUserProfile string
+	if runtime.GOOS == "windows" {
+		origUserProfile = os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", tempDir)
+		defer os.Setenv("USERPROFILE", origUserProfile)
+	} else {
+		origHome = os.Getenv("HOME")
+		os.Setenv("HOME", tempDir)
+		defer os.Setenv("HOME", origHome)
+	}
+
 	tests := []struct {
 		name     string
 		args     []string
@@ -223,6 +238,21 @@ func TestAuthLogoutCmd(t *testing.T) {
 }
 
 func TestAuthProfilesCmd(t *testing.T) {
+	// Isolate test environment to avoid config file interference
+	tempDir := t.TempDir()
+
+	// Save original environment variables
+	var origHome, origUserProfile string
+	if runtime.GOOS == "windows" {
+		origUserProfile = os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", tempDir)
+		defer os.Setenv("USERPROFILE", origUserProfile)
+	} else {
+		origHome = os.Getenv("HOME")
+		os.Setenv("HOME", tempDir)
+		defer os.Setenv("HOME", origHome)
+	}
+
 	tests := []struct {
 		name     string
 		args     []string
@@ -314,6 +344,21 @@ func TestAuthProfilesCmd(t *testing.T) {
 }
 
 func TestAuthCredsCmd(t *testing.T) {
+	// Isolate test environment to avoid config file interference
+	tempDir := t.TempDir()
+
+	// Save original environment variables
+	var origHome, origUserProfile string
+	if runtime.GOOS == "windows" {
+		origUserProfile = os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", tempDir)
+		defer os.Setenv("USERPROFILE", origUserProfile)
+	} else {
+		origHome = os.Getenv("HOME")
+		os.Setenv("HOME", tempDir)
+		defer os.Setenv("HOME", origHome)
+	}
+
 	// Save original environment
 	origProfile := os.Getenv("AWS_PROFILE")
 	defer os.Setenv("AWS_PROFILE", origProfile)
