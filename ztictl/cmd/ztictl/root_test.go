@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -137,6 +138,21 @@ func TestGlobalFlags(t *testing.T) {
 }
 
 func TestInitConfig(t *testing.T) {
+	// Isolate test environment to avoid config file interference
+	tempDir := t.TempDir()
+
+	// Save original environment variables
+	var origHome, origUserProfile string
+	if runtime.GOOS == "windows" {
+		origUserProfile = os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", tempDir)
+		defer os.Setenv("USERPROFILE", origUserProfile)
+	} else {
+		origHome = os.Getenv("HOME")
+		os.Setenv("HOME", tempDir)
+		defer os.Setenv("HOME", origHome)
+	}
+
 	// Save original viper state
 	viperInstance := viper.GetViper()
 	defer func() {
@@ -147,18 +163,11 @@ func TestInitConfig(t *testing.T) {
 		}
 	}()
 
-	// Create a temporary directory for testing
-	tempDir, err := os.MkdirTemp("", "ztictl_test")
-	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
 	// Create a test config file
 	configContent := `debug: true
 default_region: "us-west-2"`
 	configPath := filepath.Join(tempDir, ".ztictl.yaml")
-	err = os.WriteFile(configPath, []byte(configContent), 0600)
+	err := os.WriteFile(configPath, []byte(configContent), 0600)
 	if err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
 	}
