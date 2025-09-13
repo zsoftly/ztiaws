@@ -238,10 +238,18 @@ func checkRequirements(fix bool) error {
 
 	// First, try to load config with validation to check for errors
 	if err := config.Load(); err != nil {
-		logger.Error("❌ Configuration", "status", "Invalid configuration detected")
-		logger.Info("   💡", "fix", "Run 'ztictl config repair' to fix configuration issues")
-		configValid = false
-		configExists = true // Config file exists but has errors
+		// Check if this is a validation error vs a system/environment error
+		if strings.Contains(err.Error(), "invalid configuration") || strings.Contains(err.Error(), "placeholder") {
+			logger.Error("❌ Configuration", "status", "Invalid configuration detected")
+			logger.Info("   💡", "fix", "Run 'ztictl config repair' to fix configuration issues")
+			configValid = false
+			configExists = true // Config file exists but has errors
+		} else {
+			// System/environment error (e.g., CI environment, missing home dir)
+			// Treat as no config found and continue gracefully
+			configValid = false
+			configExists = false
+		}
 	} else if cfg != nil && cfg.SSO.StartURL != "" {
 		// Check if it's a placeholder URL
 		if aws.IsPlaceholderSSOURL(cfg.SSO.StartURL) {
