@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -13,6 +14,23 @@ import (
 	"ztictl/pkg/errors"
 	"ztictl/pkg/security"
 )
+
+// getUserHomeDir returns the user home directory, respecting environment variables for testing
+func getUserHomeDir() (string, error) {
+	// Check environment variables first (for test isolation)
+	if runtime.GOOS == "windows" {
+		if userProfile := os.Getenv("USERPROFILE"); userProfile != "" {
+			return userProfile, nil
+		}
+	} else {
+		if home := os.Getenv("HOME"); home != "" {
+			return home, nil
+		}
+	}
+
+	// Fall back to os.UserHomeDir() for normal operation
+	return os.UserHomeDir()
+}
 
 // Config represents the application configuration
 type Config struct {
@@ -255,7 +273,7 @@ func setDefaults() {
 	viper.SetDefault("sso.region", "ca-central-1")
 
 	// Logging defaults
-	home, _ := os.UserHomeDir()
+	home, _ := getUserHomeDir()
 	viper.SetDefault("logging.directory", filepath.Join(home, "logs"))
 	viper.SetDefault("logging.file_logging", true)
 	viper.SetDefault("logging.level", "info")
@@ -356,7 +374,7 @@ func LoadLegacyEnvFile(envFilePath string) error {
 // CreateSampleConfig creates a sample configuration file
 func CreateSampleConfig(configPath string) error {
 	// Get home directory for platform-compatible paths
-	home, err := os.UserHomeDir()
+	home, err := getUserHomeDir()
 	if err != nil {
 		return fmt.Errorf("unable to get home directory: %w", err)
 	}
@@ -425,7 +443,7 @@ system:
 
 // getConfigPath returns the default configuration file path
 func getConfigPath() string {
-	home, _ := os.UserHomeDir()
+	home, _ := getUserHomeDir()
 	return filepath.Join(home, ".ztictl.yaml")
 }
 
@@ -635,7 +653,7 @@ func expandPath(path string) string {
 
 	// Handle tilde expansion
 	if strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
+		home, err := getUserHomeDir()
 		if err != nil {
 			return path // Return original path if we can't get home dir
 		}
@@ -644,7 +662,7 @@ func expandPath(path string) string {
 
 	// Handle bare tilde
 	if path == "~" {
-		home, err := os.UserHomeDir()
+		home, err := getUserHomeDir()
 		if err != nil {
 			return path
 		}
