@@ -124,7 +124,15 @@ jobs:
     
     - name: Run tests
       working-directory: ./ztictl
-      run: go test -v ./...
+      timeout-minutes: 10
+      shell: bash
+      run: |
+        set -e
+        go test -v -timeout=8m -parallel=4 ./...
+        if [ $? -ne 0 ]; then
+          echo "Tests failed with exit code $?"
+          exit 1
+        fi
         
     - name: Run go vet
       working-directory: ./ztictl

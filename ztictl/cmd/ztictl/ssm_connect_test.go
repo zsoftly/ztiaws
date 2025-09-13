@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	"ztictl/pkg/logging"
+
+	"github.com/spf13/cobra"
 )
 
 func TestSsmConnectCmd(t *testing.T) {
@@ -745,7 +746,7 @@ func TestConnectionSeparationOfConcerns(t *testing.T) {
 		for _, tc := range errorCases {
 			t.Run(tc.name, func(t *testing.T) {
 				// Create a context with timeout to prevent hanging
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 				defer cancel()
 
 				done := make(chan error, 1)
