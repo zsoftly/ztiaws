@@ -12,6 +12,7 @@ import (
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"ztictl/pkg/logging"
 )
 
 // MockSSMClient for testing SSM operations
@@ -78,7 +79,7 @@ func TestDetectPlatformFromSSM(t *testing.T) {
 	t.Run("Windows detection from SSM", func(t *testing.T) {
 		mockSSM := &MockSSMClient{}
 		mockEC2 := &MockEC2Client{}
-		detector := NewDetector(mockSSM, mockEC2)
+		detector := NewDetector(mockSSM, mockEC2, logging.NewNoOpLogger())
 
 		mockSSM.On("DescribeInstanceInformation", ctx, mock.Anything).Return(
 			&ssm.DescribeInstanceInformationOutput{
@@ -108,7 +109,7 @@ func TestDetectPlatformFromSSM(t *testing.T) {
 	t.Run("Linux detection from SSM", func(t *testing.T) {
 		mockSSM := &MockSSMClient{}
 		mockEC2 := &MockEC2Client{}
-		detector := NewDetector(mockSSM, mockEC2)
+		detector := NewDetector(mockSSM, mockEC2, logging.NewNoOpLogger())
 
 		mockSSM.On("DescribeInstanceInformation", ctx, mock.Anything).Return(
 			&ssm.DescribeInstanceInformationOutput{
@@ -142,7 +143,7 @@ func TestDetectPlatformFromEC2(t *testing.T) {
 	t.Run("Windows detection from EC2", func(t *testing.T) {
 		mockSSM := &MockSSMClient{}
 		mockEC2 := &MockEC2Client{}
-		detector := NewDetector(mockSSM, mockEC2)
+		detector := NewDetector(mockSSM, mockEC2, logging.NewNoOpLogger())
 
 		// SSM fails
 		mockSSM.On("DescribeInstanceInformation", ctx, mock.Anything).Return(
@@ -182,7 +183,7 @@ func TestDetectPlatformFromEC2(t *testing.T) {
 	t.Run("Linux detection from EC2 (empty platform)", func(t *testing.T) {
 		mockSSM := &MockSSMClient{}
 		mockEC2 := &MockEC2Client{}
-		detector := NewDetector(mockSSM, mockEC2)
+		detector := NewDetector(mockSSM, mockEC2, logging.NewNoOpLogger())
 
 		// SSM fails
 		mockSSM.On("DescribeInstanceInformation", ctx, mock.Anything).Return(
@@ -226,7 +227,7 @@ func TestDetectPlatformFallback(t *testing.T) {
 	t.Run("Fallback to default when all APIs fail", func(t *testing.T) {
 		mockSSM := &MockSSMClient{}
 		mockEC2 := &MockEC2Client{}
-		detector := NewDetector(mockSSM, mockEC2)
+		detector := NewDetector(mockSSM, mockEC2, logging.NewNoOpLogger())
 
 		// Both SSM and EC2 fail
 		mockSSM.On("DescribeInstanceInformation", ctx, mock.Anything).Return(
@@ -257,7 +258,7 @@ func TestCaching(t *testing.T) {
 	t.Run("Cache hit prevents API calls", func(t *testing.T) {
 		mockSSM := &MockSSMClient{}
 		mockEC2 := &MockEC2Client{}
-		detector := NewDetector(mockSSM, mockEC2)
+		detector := NewDetector(mockSSM, mockEC2, logging.NewNoOpLogger())
 
 		// First call - APIs are invoked
 		mockSSM.On("DescribeInstanceInformation", ctx, mock.Anything).Return(
@@ -289,7 +290,7 @@ func TestCaching(t *testing.T) {
 	t.Run("Cache expiry causes new API call", func(t *testing.T) {
 		mockSSM := &MockSSMClient{}
 		mockEC2 := &MockEC2Client{}
-		detector := NewDetector(mockSSM, mockEC2)
+		detector := NewDetector(mockSSM, mockEC2, logging.NewNoOpLogger())
 		detector.SetCacheTTL(100 * time.Millisecond) // Short TTL for testing
 
 		// Expect two calls to SSM
@@ -324,7 +325,7 @@ func TestCaching(t *testing.T) {
 	t.Run("ClearCache removes all cached entries", func(t *testing.T) {
 		mockSSM := &MockSSMClient{}
 		mockEC2 := &MockEC2Client{}
-		detector := NewDetector(mockSSM, mockEC2)
+		detector := NewDetector(mockSSM, mockEC2, logging.NewNoOpLogger())
 
 		// Expect two calls to SSM
 		mockSSM.On("DescribeInstanceInformation", ctx, mock.Anything).Return(

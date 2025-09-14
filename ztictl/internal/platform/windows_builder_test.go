@@ -167,10 +167,11 @@ func TestWindowsBuilder_BuildFileWriteCommand(t *testing.T) {
 	builder := NewWindowsBuilder()
 
 	tests := []struct {
-		name       string
-		path       string
-		base64Data string
-		checkFor   []string
+		name        string
+		path        string
+		base64Data  string
+		checkFor    []string
+		expectError bool
 	}{
 		{
 			name:       "Small data",
@@ -181,6 +182,7 @@ func TestWindowsBuilder_BuildFileWriteCommand(t *testing.T) {
 				"[System.IO.File]::WriteAllBytes",
 				"C:\\temp\\test.txt",
 			},
+			expectError: false,
 		},
 		{
 			name:       "Large data",
@@ -192,14 +194,88 @@ func TestWindowsBuilder_BuildFileWriteCommand(t *testing.T) {
 				"[Convert]::FromBase64String($base64)",
 				"[System.IO.File]::WriteAllBytes",
 			},
+			expectError: false,
+		},
+		{
+			name:        "Invalid here-string terminator",
+			path:        "C:\\temp\\test.txt",
+			base64Data:  "SGVsbG8'@V29ybGQ=",
+			checkFor:    []string{},
+			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := builder.BuildFileWriteCommand(tt.path, tt.base64Data)
-			for _, check := range tt.checkFor {
-				assert.Contains(t, result, check)
+			result, err := builder.BuildFileWriteCommand(tt.path, tt.base64Data)
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "here-string")
+			} else {
+				assert.NoError(t, err)
+				for _, check := range tt.checkFor {
+					assert.Contains(t, result, check)
+				}
+			}
+		})
+	}
+}
+
+func TestWindowsBuilder_BuildFileAppendCommand(t *testing.T) {
+	builder := NewWindowsBuilder()
+
+	tests := []struct {
+		name        string
+		path        string
+		base64Data  string
+		checkFor    []string
+		expectError bool
+	}{
+		{
+			name:       "Small data append",
+			path:       "C:\\temp\\test.txt",
+			base64Data: "SGVsbG8gV29ybGQ=", // "Hello World"
+			checkFor: []string{
+				"[Convert]::FromBase64String('SGVsbG8gV29ybGQ=')",
+				"[System.IO.File]::Open",
+				"[System.IO.FileMode]::Append",
+				"C:\\temp\\test.txt",
+			},
+			expectError: false,
+		},
+		{
+			name:       "Large data append",
+			path:       "C:\\temp\\test.txt",
+			base64Data: strings.Repeat("B", 5000),
+			checkFor: []string{
+				"$base64 = @'",
+				"'@",
+				"[Convert]::FromBase64String($base64)",
+				"[System.IO.File]::Open",
+				"[System.IO.FileMode]::Append",
+			},
+			expectError: false,
+		},
+		{
+			name:        "Invalid here-string terminator in append",
+			path:        "C:\\temp\\test.txt",
+			base64Data:  "SGVsbG8'@V29ybGQ=",
+			checkFor:    []string{},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := builder.BuildFileAppendCommand(tt.path, tt.base64Data)
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "here-string")
+			} else {
+				assert.NoError(t, err)
+				for _, check := range tt.checkFor {
+					assert.Contains(t, result, check)
+				}
 			}
 		})
 	}
@@ -209,36 +285,82 @@ func TestWindowsBuilder_NormalizePath(t *testing.T) {
 	builder := NewWindowsBuilder()
 
 	tests := []struct {
-		name     string
-		input    string
-		expected string
+		name        string
+		input       string
+		expected    string
+		expectError bool
 	}{
 		{
-			name:     "Windows path unchanged",
-			input:    "C:\\Users\\file.txt",
-			expected: "C:\\Users\\file.txt",
+			name:        "Windows path unchanged",
+			input:       "C:\\Users\\file.txt",
+			expected:    "C:\\Users\\file.txt",
+			expectError: false,
 		},
 		{
-			name:     "Unix path converted",
-			input:    "C:/Users/file.txt",
-			expected: "C:\\Users\\file.txt",
+			name:        "Unix path converted",
+			input:       "C:/Users/file.txt",
+			expected:    "C:\\Users\\file.txt",
+			expectError: false,
 		},
 		{
-			name:     "UNC path unchanged",
-			input:    "\\\\server\\share\\file.txt",
-			expected: "\\\\server\\share\\file.txt",
+			name:        "UNC path valid",
+			input:       "\\\\server\\share\\file.txt",
+			expected:    "\\\\server\\share\\file.txt",
+			expectError: false,
 		},
 		{
-			name:     "Mixed separators",
-			input:    "C:/Users\\Documents/file.txt",
-			expected: "C:\\Users\\Documents\\file.txt",
+			name:        "Invalid UNC path - too short",
+			input:       `\\s`,
+			expected:    "",
+			expectError: true,
+		},
+		{
+			name:        "Invalid UNC path - no share",
+			input:       `\\server`,
+			expected:    "",
+			expectError: true,
+		},
+		{
+			name:        "Invalid UNC server - dots",
+			input:       `\\..server\share`,
+			expected:    "",
+			expectError: true,
+		},
+		{
+			name:        "Invalid UNC share - special chars",
+			input:       `\\server\share:bad`,
+			expected:    "",
+			expectError: true,
+		},
+		{
+			name:        "Invalid drive letter",
+			input:       "9:\\Users\\file.txt",
+			expected:    "",
+			expectError: true,
+		},
+		{
+			name:        "Path traversal attempt",
+			input:       "C:\\\\Users\\\\..\\\\..\\\\Windows",
+			expected:    "",
+			expectError: true,
+		},
+		{
+			name:        "Mixed separators",
+			input:       "C:/Users\\Documents/file.txt",
+			expected:    "C:\\Users\\Documents\\file.txt",
+			expectError: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := builder.NormalizePath(tt.input)
-			assert.Equal(t, tt.expected, result)
+			result, err := builder.NormalizePath(tt.input)
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
 		})
 	}
 }

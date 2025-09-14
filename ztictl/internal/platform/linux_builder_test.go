@@ -178,7 +178,8 @@ func TestLinuxBuilder_BuildFileWriteCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := builder.BuildFileWriteCommand(tt.path, tt.base64Data)
+			result, err := builder.BuildFileWriteCommand(tt.path, tt.base64Data)
+			assert.NoError(t, err)
 			for _, check := range tt.checkFor {
 				assert.Contains(t, result, check)
 			}
@@ -213,7 +214,8 @@ func TestLinuxBuilder_NormalizePath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := builder.NormalizePath(tt.input)
+			result, err := builder.NormalizePath(tt.input)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

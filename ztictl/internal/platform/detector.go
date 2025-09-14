@@ -14,33 +14,23 @@ import (
 	"ztictl/pkg/logging"
 )
 
-// Platform represents the operating system platform
 type Platform string
 
 const (
-	// PlatformLinux represents Linux/Unix systems
-	PlatformLinux Platform = "Linux"
-	// PlatformWindows represents Windows systems
+	PlatformLinux   Platform = "Linux"
 	PlatformWindows Platform = "Windows"
-	// PlatformUnknown represents unknown platform
 	PlatformUnknown Platform = "Unknown"
 )
 
-// DetectionConfidence represents the confidence level of platform detection
 type DetectionConfidence int
 
 const (
-	// ConfidenceNone indicates no confidence in detection
 	ConfidenceNone DetectionConfidence = iota
-	// ConfidenceLow indicates low confidence (default fallback)
 	ConfidenceLow
-	// ConfidenceMedium indicates medium confidence (EC2 metadata)
 	ConfidenceMedium
-	// ConfidenceHigh indicates high confidence (SSM data)
 	ConfidenceHigh
 )
 
-// DetectionResult contains platform detection information
 type DetectionResult struct {
 	Platform        Platform
 	Confidence      DetectionConfidence
@@ -50,46 +40,45 @@ type DetectionResult struct {
 	PlatformVersion string
 }
 
-// Detector handles platform detection with caching
 type Detector struct {
 	ssmClient SSMClient
 	ec2Client EC2Client
 	cache     map[string]*DetectionResult
 	cacheMu   sync.RWMutex
 	cacheTTL  time.Duration
+	logger    *logging.Logger
 }
 
-// NewDetector creates a new platform detector
-func NewDetector(ssmClient SSMClient, ec2Client EC2Client) *Detector {
+func NewDetector(ssmClient SSMClient, ec2Client EC2Client, logger *logging.Logger) *Detector {
 	return &Detector{
 		ssmClient: ssmClient,
 		ec2Client: ec2Client,
 		cache:     make(map[string]*DetectionResult),
 		cacheTTL:  15 * time.Minute,
+		logger:    logger,
 	}
 }
 
-// DetectPlatform detects the platform of an instance with hierarchical fallback
 func (d *Detector) DetectPlatform(ctx context.Context, instanceID string) (*DetectionResult, error) {
-	// Check cache first
 	if result := d.getCachedResult(instanceID); result != nil {
-		logging.LogDebug("Using cached platform for instance %s: %s", instanceID, result.Platform)
+		d.logger.Debug("Using cached platform for instance", "instanceID", instanceID, "platform", result.Platform)
 		return result, nil
 	}
 
-	// Try SSM first (highest confidence)
 	if result, err := d.detectFromSSM(ctx, instanceID); err == nil && result.Confidence == ConfidenceHigh {
 		d.cacheResult(instanceID, result)
 		return result, nil
+	} else if err != nil {
+		d.logger.Debug("SSM detection failed", "instanceID", instanceID, "error", err)
 	}
 
-	// Try EC2 (medium confidence)
 	if result, err := d.detectFromEC2(ctx, instanceID); err == nil && result.Confidence >= ConfidenceMedium {
 		d.cacheResult(instanceID, result)
 		return result, nil
+	} else if err != nil {
+		d.logger.Debug("EC2 detection failed", "instanceID", instanceID, "error", err)
 	}
 
-	// Default fallback
 	result := &DetectionResult{
 		Platform:   PlatformLinux,
 		Confidence: ConfidenceLow,
@@ -97,11 +86,10 @@ func (d *Detector) DetectPlatform(ctx context.Context, instanceID string) (*Dete
 		DetectedAt: time.Now(),
 	}
 	d.cacheResult(instanceID, result)
-	logging.LogWarn("Using default platform (Linux) for instance %s", instanceID)
+	d.logger.Warn("Using default platform for instance", "instanceID", instanceID, "platform", "Linux")
 	return result, nil
 }
 
-// detectFromSSM uses SSM to detect platform
 func (d *Detector) detectFromSSM(ctx context.Context, instanceID string) (*DetectionResult, error) {
 	if d.ssmClient == nil {
 		return nil, fmt.Errorf("SSM client not available")
@@ -137,13 +125,15 @@ func (d *Detector) detectFromSSM(ctx context.Context, instanceID string) (*Detec
 		PlatformVersion: aws.ToString(info.PlatformVersion),
 	}
 
-	logging.LogDebug("Detected platform from SSM for %s: %s (%s %s)",
-		instanceID, platform, result.PlatformName, result.PlatformVersion)
+	d.logger.Debug("Detected platform from SSM",
+		"instanceID", instanceID,
+		"platform", platform,
+		"platformName", result.PlatformName,
+		"platformVersion", result.PlatformVersion)
 
 	return result, nil
 }
 
-// detectFromEC2 uses EC2 metadata to detect platform
 func (d *Detector) detectFromEC2(ctx context.Context, instanceID string) (*DetectionResult, error) {
 	if d.ec2Client == nil {
 		return nil, fmt.Errorf("EC2 client not available")
@@ -166,7 +156,6 @@ func (d *Detector) detectFromEC2(ctx context.Context, instanceID string) (*Detec
 	platformStr := string(instance.Platform)
 
 	if platformStr == "" {
-		// If platform is empty, it's likely Linux
 		platformStr = "Linux"
 	}
 
@@ -179,12 +168,11 @@ func (d *Detector) detectFromEC2(ctx context.Context, instanceID string) (*Detec
 		DetectedAt: time.Now(),
 	}
 
-	logging.LogDebug("Detected platform from EC2 for %s: %s", instanceID, platform)
+	d.logger.Debug("Detected platform from EC2", "instanceID", instanceID, "platform", platform)
 
 	return result, nil
 }
 
-// normalizePlatform converts various platform strings to standardized Platform type
 func (d *Detector) normalizePlatform(platform string) Platform {
 	normalized := strings.ToLower(platform)
 
@@ -203,13 +191,12 @@ func (d *Detector) normalizePlatform(platform string) Platform {
 	}
 
 	if platform == "" {
-		return PlatformLinux // Default to Linux for empty platform
+		return PlatformLinux
 	}
 
 	return PlatformUnknown
 }
 
-// getCachedResult retrieves a cached result if still valid
 func (d *Detector) getCachedResult(instanceID string) *DetectionResult {
 	d.cacheMu.RLock()
 	defer d.cacheMu.RUnlock()
@@ -226,21 +213,18 @@ func (d *Detector) getCachedResult(instanceID string) *DetectionResult {
 	return result
 }
 
-// cacheResult stores a detection result in cache
 func (d *Detector) cacheResult(instanceID string, result *DetectionResult) {
 	d.cacheMu.Lock()
 	defer d.cacheMu.Unlock()
 	d.cache[instanceID] = result
 }
 
-// ClearCache clears the platform detection cache
 func (d *Detector) ClearCache() {
 	d.cacheMu.Lock()
 	defer d.cacheMu.Unlock()
 	d.cache = make(map[string]*DetectionResult)
 }
 
-// SetCacheTTL sets the cache time-to-live duration
 func (d *Detector) SetCacheTTL(ttl time.Duration) {
 	d.cacheTTL = ttl
 }

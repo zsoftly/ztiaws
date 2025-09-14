@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // CommandBuilder defines the interface for platform-specific command construction
@@ -28,13 +29,13 @@ type CommandBuilder interface {
 	BuildFileReadCommand(path string) string
 
 	// BuildFileWriteCommand creates a command to write base64 data to a file
-	BuildFileWriteCommand(path string, base64Data string) string
+	BuildFileWriteCommand(path string, base64Data string) (string, error)
 
 	// BuildFileAppendCommand creates a command to append base64 data to a file
-	BuildFileAppendCommand(path string, base64Data string) string
+	BuildFileAppendCommand(path string, base64Data string) (string, error)
 
-	// NormalizePath converts a path to the platform's format
-	NormalizePath(path string) string
+	// NormalizePath converts a path to the platform's format with validation
+	NormalizePath(path string) (string, error)
 
 	// ParseExitCode extracts the exit code from command output
 	ParseExitCode(output string) (int, error)
@@ -96,6 +97,10 @@ func (b *BaseBuilder) SanitizePath(path string) string {
 	// Normalize path separators
 	path = filepath.Clean(path)
 
+	// Note: Path validation for security (traversal, etc.) is handled
+	// in the platform-specific NormalizePath methods which understand
+	// platform-specific conventions like Windows UNC paths
+
 	return path
 }
 
@@ -119,6 +124,7 @@ type BuilderManager struct {
 	detector *Detector
 	factory  *BuilderFactory
 	builders map[string]CommandBuilder // Cache builders by instance ID
+	mu       sync.RWMutex              // Protects builders map for concurrent access
 }
 
 // NewBuilderManager creates a new BuilderManager
@@ -132,10 +138,13 @@ func NewBuilderManager(detector *Detector) *BuilderManager {
 
 // GetBuilder gets or creates a CommandBuilder for an instance
 func (m *BuilderManager) GetBuilder(ctx context.Context, instanceID string) (CommandBuilder, error) {
-	// Check cache
+	// Check cache with read lock
+	m.mu.RLock()
 	if builder, exists := m.builders[instanceID]; exists {
+		m.mu.RUnlock()
 		return builder, nil
 	}
+	m.mu.RUnlock()
 
 	// Detect platform
 	result, err := m.detector.DetectPlatform(ctx, instanceID)
@@ -149,13 +158,17 @@ func (m *BuilderManager) GetBuilder(ctx context.Context, instanceID string) (Com
 		return nil, fmt.Errorf("failed to create builder: %w", err)
 	}
 
-	// Cache for future use
+	// Cache for future use with write lock
+	m.mu.Lock()
 	m.builders[instanceID] = builder
+	m.mu.Unlock()
 
 	return builder, nil
 }
 
 // ClearCache clears the builder cache
 func (m *BuilderManager) ClearCache() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.builders = make(map[string]CommandBuilder)
 }

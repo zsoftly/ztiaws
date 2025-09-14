@@ -21,14 +21,10 @@ import (
 	"ztictl/pkg/security"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 // Compiled regex patterns for input validation (performance optimization)
@@ -47,6 +43,7 @@ type Manager struct {
 	s3LifecycleManager *S3LifecycleManager
 	platformDetector   *platform.Detector
 	builderManager     *platform.BuilderManager
+	clientPool         *ClientPool
 }
 
 // Instance represents an EC2 instance with SSM information
@@ -98,10 +95,11 @@ type FileTransferOperation struct {
 
 // NewManager creates a new SSM manager
 func NewManager(logger *logging.Logger) *Manager {
-	// Note: Platform detector and builder manager will be initialized lazily
-	// when needed with appropriate AWS clients
+	// Note: Platform detector and builder manager are not initialized here.
+	// They will be initialized on first use via initializePlatformComponents()
 	return &Manager{
-		logger: logger,
+		logger:     logger,
+		clientPool: NewClientPool(),
 	}
 }
 
@@ -111,22 +109,13 @@ func (m *Manager) initializePlatformComponents(ctx context.Context, region strin
 		return nil // Already initialized
 	}
 
-	// Load AWS config
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(region),
-	)
+	// Get clients from pool
+	ssmClient, ec2Client, err := m.clientPool.GetPlatformClients(ctx, region)
 	if err != nil {
-		return fmt.Errorf("failed to load AWS config: %w", err)
+		return fmt.Errorf("failed to get AWS clients from pool: %w", err)
 	}
 
-	// Create AWS clients for platform detection
-	ssmClient := ssm.NewFromConfig(cfg)
-	ec2Client := ec2.NewFromConfig(cfg)
-
-	// Initialize platform detector
-	m.platformDetector = platform.NewDetector(ssmClient, ec2Client)
-
-	// Initialize builder manager
+	m.platformDetector = platform.NewDetector(ssmClient, ec2Client, m.logger)
 	m.builderManager = platform.NewBuilderManager(m.platformDetector)
 
 	return nil
@@ -142,27 +131,21 @@ func getAWSCommand() string {
 
 // initializeManagers initializes the IAM and S3 lifecycle managers
 func (m *Manager) initializeManagers(ctx context.Context, region string) error {
-	// Load AWS configuration
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	// Get clients from pool
+	clients, err := m.clientPool.GetClients(ctx, region)
 	if err != nil {
-		return fmt.Errorf("unable to load SDK config: %w", err)
+		return fmt.Errorf("failed to get AWS clients from pool: %w", err)
 	}
 
-	// Create AWS service clients
-	iamClient := iam.NewFromConfig(cfg)
-	ec2Client := ec2.NewFromConfig(cfg)
-	s3Client := s3.NewFromConfig(cfg)
-	stsClient := sts.NewFromConfig(cfg)
-
 	// Initialize IAM manager
-	iamManager, err := NewIAMManager(m.logger, iamClient, ec2Client)
+	iamManager, err := NewIAMManager(m.logger, clients.IAMClient, clients.EC2Client)
 	if err != nil {
 		return fmt.Errorf("failed to create IAM manager: %w", err)
 	}
 	m.iamManager = iamManager
 
 	// Initialize S3 lifecycle manager
-	m.s3LifecycleManager = NewS3LifecycleManager(m.logger, s3Client, stsClient)
+	m.s3LifecycleManager = NewS3LifecycleManager(m.logger, clients.S3Client, clients.STSClient)
 
 	return nil
 }
@@ -214,14 +197,13 @@ func (m *Manager) StartSession(ctx context.Context, instanceIdentifier, region s
 func (m *Manager) ListInstances(ctx context.Context, region string, filters *ListFilters) ([]Instance, error) {
 	m.logger.Debug("Listing all EC2 instances with SSM status in region", "region", region)
 
-	// Load AWS config
-	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	// Get clients from pool
+	ec2Client, err := m.clientPool.GetEC2Client(ctx, region)
 	if err != nil {
-		return nil, errors.NewAWSError("failed to load AWS config", err)
+		return nil, errors.NewAWSError("failed to get EC2 client", err)
 	}
 
 	// Get all EC2 instances first
-	ec2Client := ec2.NewFromConfig(awsCfg)
 	allInstances, err := m.getAllEC2Instances(ctx, ec2Client, filters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get EC2 instances: %w", err)
@@ -232,7 +214,10 @@ func (m *Manager) ListInstances(ctx context.Context, region string, filters *Lis
 	}
 
 	// Get SSM status information
-	ssmClient := ssm.NewFromConfig(awsCfg)
+	ssmClient, err := m.clientPool.GetSSMClient(ctx, region)
+	if err != nil {
+		return nil, errors.NewAWSError("failed to get SSM client", err)
+	}
 	ssmStatusMap, err := m.getSSMStatusMap(ctx, ssmClient)
 	if err != nil {
 		m.logger.Warn("Failed to get SSM status information", "error", err)
@@ -309,13 +294,11 @@ func (m *Manager) ExecuteCommand(ctx context.Context, instanceIdentifier, region
 		return nil, fmt.Errorf("failed to get command builder: %w", err)
 	}
 
-	// Load AWS config
-	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	// Get SSM client from pool
+	ssmClient, err := m.clientPool.GetSSMClient(ctx, region)
 	if err != nil {
-		return nil, errors.NewAWSError("failed to load AWS config", err)
+		return nil, errors.NewAWSError("failed to get SSM client", err)
 	}
-
-	ssmClient := ssm.NewFromConfig(awsCfg)
 
 	// Send command
 	if comment == "" {
@@ -483,13 +466,11 @@ func (m *Manager) GetInstanceStatus(ctx context.Context, instanceIdentifier, reg
 		return nil, fmt.Errorf("failed to resolve instance: %w", err)
 	}
 
-	// Load AWS config
-	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	// Get SSM client from pool
+	ssmClient, err := m.clientPool.GetSSMClient(ctx, region)
 	if err != nil {
-		return nil, errors.NewAWSError("failed to load AWS config", err)
+		return nil, errors.NewAWSError("failed to get SSM client", err)
 	}
-
-	ssmClient := ssm.NewFromConfig(awsCfg)
 
 	// Get SSM instance information
 	resp, err := ssmClient.DescribeInstanceInformation(ctx, &ssm.DescribeInstanceInformationInput{
@@ -521,13 +502,11 @@ func (m *Manager) GetInstanceStatus(ctx context.Context, instanceIdentifier, reg
 
 // ListInstanceStatuses lists SSM status for all instances in a region
 func (m *Manager) ListInstanceStatuses(ctx context.Context, region string) ([]Instance, error) {
-	// Load AWS config
-	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	// Get SSM client from pool
+	ssmClient, err := m.clientPool.GetSSMClient(ctx, region)
 	if err != nil {
-		return nil, errors.NewAWSError("failed to load AWS config", err)
+		return nil, errors.NewAWSError("failed to get SSM client", err)
 	}
-
-	ssmClient := ssm.NewFromConfig(awsCfg)
 
 	// Get all SSM instances
 	resp, err := ssmClient.DescribeInstanceInformation(ctx, &ssm.DescribeInstanceInformationInput{})
@@ -607,12 +586,10 @@ func (m *Manager) resolveInstanceIdentifier(ctx context.Context, identifier, reg
 
 // validateInstanceID validates that an instance ID exists
 func (m *Manager) validateInstanceID(ctx context.Context, instanceID, region string) error {
-	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	ec2Client, err := m.clientPool.GetEC2Client(ctx, region)
 	if err != nil {
 		return err
 	}
-
-	ec2Client := ec2.NewFromConfig(awsCfg)
 
 	_, err = ec2Client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
 		InstanceIds: []string{instanceID},
@@ -627,12 +604,10 @@ func (m *Manager) validateInstanceID(ctx context.Context, instanceID, region str
 
 // findInstanceByName finds an instance by its Name tag
 func (m *Manager) findInstanceByName(ctx context.Context, name, region string) (string, error) {
-	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	ec2Client, err := m.clientPool.GetEC2Client(ctx, region)
 	if err != nil {
 		return "", err
 	}
-
-	ec2Client := ec2.NewFromConfig(awsCfg)
 
 	resp, err := ec2Client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
 		Filters: []types.Filter{
@@ -756,7 +731,10 @@ func (m *Manager) uploadFileSmall(ctx context.Context, instanceID, region, local
 	encoded := base64.StdEncoding.EncodeToString(content)
 
 	// Create platform-specific upload command
-	command := builder.BuildFileWriteCommand(remotePath, encoded)
+	command, err := builder.BuildFileWriteCommand(remotePath, encoded)
+	if err != nil {
+		return fmt.Errorf("failed to build file write command: %w", err)
+	}
 
 	// Execute via SSM
 	result, err := m.ExecuteCommand(ctx, instanceID, region, command, "File upload via ztictl")
@@ -791,7 +769,13 @@ func (m *Manager) downloadFileSmall(ctx context.Context, instanceID, region, rem
 		return fmt.Errorf("failed to check file existence: %w", err)
 	}
 
-	exists, err := builder.ParseFileExists(checkResult.Output, 0)
+	// Use actual exit code from the command result
+	actualExitCode := 0
+	if checkResult.ExitCode != nil {
+		actualExitCode = int(*checkResult.ExitCode)
+	}
+
+	exists, err := builder.ParseFileExists(checkResult.Output, actualExitCode)
 	if err != nil {
 		return fmt.Errorf("failed to parse file existence: %w", err)
 	}
