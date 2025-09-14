@@ -434,10 +434,27 @@ func TestWriteInteractiveConfig(t *testing.T) {
 }
 
 func TestCreateSampleConfigErrorHandling(t *testing.T) {
-	// Test with invalid path
-	invalidPath := "/nonexistent/directory/config.yaml"
-	err := CreateSampleConfig(invalidPath)
+	// Create a read-only directory to ensure write fails
+	tempDir := t.TempDir()
+	readOnlyDir := filepath.Join(tempDir, "readonly")
+
+	// Create the directory
+	err := os.Mkdir(readOnlyDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create test directory: %v", err)
+	}
+
+	// Create a file where we expect a directory (this will cause MkdirAll to fail)
+	conflictPath := filepath.Join(readOnlyDir, "subdir")
+	err = os.WriteFile(conflictPath, []byte("test"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create conflict file: %v", err)
+	}
+
+	// Try to create config in a path where a file exists (expecting directory)
+	invalidPath := filepath.Join(conflictPath, "config.yaml")
+	err = CreateSampleConfig(invalidPath)
 	if err == nil {
-		t.Error("Expected error for invalid path, got nil")
+		t.Error("Expected error for invalid path (file exists where directory expected), got nil")
 	}
 }
