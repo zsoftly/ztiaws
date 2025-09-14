@@ -135,7 +135,6 @@ func (b *WindowsBuilder) NormalizePath(path string) (string, error) {
 		share := parts[1]
 
 		// Server and share validation checks for:
-		// Server and share validation checks for:
 		// Validate UNC server and share names according to Windows naming rules:
 		// - Server and share names must not be empty.
 		// - Server name must not start or end with a dot, or contain double dots (traversal).
