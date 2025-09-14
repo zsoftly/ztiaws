@@ -49,6 +49,10 @@ type Detector struct {
 	logger    *logging.Logger
 }
 
+// NewDetector creates a new platform detector
+// BREAKING CHANGE: v2.1.0 - Logger is now a required parameter for better observability.
+// This change ensures consistent logging across all components. All callers have been
+// updated to provide a logger instance (use logging.NewNoOpLogger() for tests).
 func NewDetector(ssmClient SSMClient, ec2Client EC2Client, logger *logging.Logger) *Detector {
 	return &Detector{
 		ssmClient: ssmClient,

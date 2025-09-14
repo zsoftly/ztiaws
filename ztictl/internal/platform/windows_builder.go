@@ -55,12 +55,14 @@ func (b *WindowsBuilder) BuildFileReadCommand(path string) string {
 }
 
 func (b *WindowsBuilder) validateBase64ForHereString(base64Data string) error {
+	// PowerShell here-strings are terminated by "'@" on a new line.
+	// This validation ensures that the base64 data does not contain the "'@" sequence,
+	// which could prematurely terminate the here-string and break the script.
 	if strings.Contains(base64Data, "'@") {
 		return fmt.Errorf("base64 data contains invalid sequence \"'@\" which could break here-string")
 	}
 	return nil
 }
-
 func (b *WindowsBuilder) BuildFileWriteCommand(path string, base64Data string) (string, error) {
 	safePath := b.EscapePowerShellArg(b.SanitizePath(path))
 
@@ -110,8 +112,13 @@ $stream.Close()`, base64Data, safePath), nil
 }
 
 func (b *WindowsBuilder) NormalizePath(path string) (string, error) {
-	normalized := strings.ReplaceAll(path, "/", "\\")
+	// Path validation occurs at multiple levels:
+	// 1. SanitizePath() removes null bytes and control characters before normalization.
+	// 2. security.ContainsUnsafePath() checks both original and normalized forms for unsafe patterns.
+	// 3. UNC paths receive additional validation for server/share components.
+	// The validation order is: sanitize, normalize, then validate.
 
+	normalized := strings.ReplaceAll(path, "/", "\\")
 	isUNC := strings.HasPrefix(normalized, "\\\\")
 	if isUNC {
 		// Validate UNC path structure
@@ -127,6 +134,14 @@ func (b *WindowsBuilder) NormalizePath(path string) (string, error) {
 		server := parts[0]
 		share := parts[1]
 
+		// Server and share validation checks for:
+		// Server and share validation checks for:
+		// Validate UNC server and share names according to Windows naming rules:
+		// - Server and share names must not be empty.
+		// - Server name must not start or end with a dot, or contain double dots (traversal).
+		// - Server and share names must not contain invalid Windows filename characters.
+		// - Additional security checks (e.g., command injection) are handled elsewhere.
+		// This validation focuses on Windows naming rules.
 		if server == "" || strings.HasPrefix(server, ".") || strings.HasSuffix(server, ".") ||
 			strings.Contains(server, "..") || strings.ContainsAny(server, "/:<>|\"?*") {
 			return "", fmt.Errorf("invalid UNC server name: %s", server)

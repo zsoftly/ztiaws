@@ -29,9 +29,15 @@ type CommandBuilder interface {
 	BuildFileReadCommand(path string) string
 
 	// BuildFileWriteCommand creates a command to write base64 data to a file
+	// BREAKING CHANGE: v2.1.0 - Returns (string, error) instead of string to handle validation errors.
+	// This is necessary for security validation of PowerShell here-strings on Windows.
+	// All callers have been updated to handle the error return value.
 	BuildFileWriteCommand(path string, base64Data string) (string, error)
 
 	// BuildFileAppendCommand creates a command to append base64 data to a file
+	// BREAKING CHANGE: v2.1.0 - Returns (string, error) instead of string to handle validation errors.
+	// This is necessary for security validation of PowerShell here-strings on Windows.
+	// All callers have been updated to handle the error return value.
 	BuildFileAppendCommand(path string, base64Data string) (string, error)
 
 	// NormalizePath converts a path to the platform's format with validation
