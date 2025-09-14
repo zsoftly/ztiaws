@@ -3,12 +3,28 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"ztictl/pkg/logging"
 )
 
 func TestSetupConfiguration(t *testing.T) {
+	// Isolate test environment to avoid config file interference
+	tempDir := t.TempDir()
+
+	// Save original environment variables
+	var origHome, origUserProfile string
+	if runtime.GOOS == "windows" {
+		origUserProfile = os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", tempDir)
+		defer os.Setenv("USERPROFILE", origUserProfile)
+	} else {
+		origHome = os.Getenv("HOME")
+		os.Setenv("HOME", tempDir)
+		defer os.Setenv("HOME", origHome)
+	}
+
 	// Initialize a no-op logger for test to avoid noisy output
 	if logger == nil {
 		logger = logging.NewNoOpLogger()
@@ -86,6 +102,21 @@ func TestConfigurationSeparationOfConcerns(t *testing.T) {
 	// This test verifies that setupConfiguration doesn't call os.Exit
 	// and can be tested without terminating the test process
 
+	// Isolate test environment to avoid config file interference
+	tempDir := t.TempDir()
+
+	// Save original environment variables
+	var origHome, origUserProfile string
+	if runtime.GOOS == "windows" {
+		origUserProfile = os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", tempDir)
+		defer os.Setenv("USERPROFILE", origUserProfile)
+	} else {
+		origHome = os.Getenv("HOME")
+		os.Setenv("HOME", tempDir)
+		defer os.Setenv("HOME", origHome)
+	}
+
 	// Initialize a no-op logger for test to avoid noisy output
 	if logger == nil {
 		logger = logging.NewNoOpLogger()
@@ -113,6 +144,21 @@ func TestConfigurationSeparationOfConcerns(t *testing.T) {
 }
 
 func TestInitializeConfigFile(t *testing.T) {
+	// Isolate test environment to avoid config file interference
+	tempDir := t.TempDir()
+
+	// Save original environment variables
+	var origHome, origUserProfile string
+	if runtime.GOOS == "windows" {
+		origUserProfile = os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", tempDir)
+		defer os.Setenv("USERPROFILE", origUserProfile)
+	} else {
+		origHome = os.Getenv("HOME")
+		os.Setenv("HOME", tempDir)
+		defer os.Setenv("HOME", origHome)
+	}
+
 	// Save original state
 	originalConfigFile := configFile
 	originalDebug := debug
@@ -147,6 +193,21 @@ func TestInitializeConfigFile(t *testing.T) {
 }
 
 func TestCheckRequirements(t *testing.T) {
+	// Isolate test environment to avoid config file interference
+	tempDir := t.TempDir()
+
+	// Save original environment variables
+	var origHome, origUserProfile string
+	if runtime.GOOS == "windows" {
+		origUserProfile = os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", tempDir)
+		defer os.Setenv("USERPROFILE", origUserProfile)
+	} else {
+		origHome = os.Getenv("HOME")
+		os.Setenv("HOME", tempDir)
+		defer os.Setenv("HOME", origHome)
+	}
+
 	t.Run("handles requirements check gracefully", func(t *testing.T) {
 		// This test verifies that checkRequirements returns an error
 		// instead of calling os.Exit when there are system issues
@@ -171,6 +232,21 @@ func TestCheckRequirements(t *testing.T) {
 }
 
 func TestValidateConfiguration(t *testing.T) {
+	// Isolate test environment to avoid config file interference
+	tempDir := t.TempDir()
+
+	// Save original environment variables
+	var origHome, origUserProfile string
+	if runtime.GOOS == "windows" {
+		origUserProfile = os.Getenv("USERPROFILE")
+		os.Setenv("USERPROFILE", tempDir)
+		defer os.Setenv("USERPROFILE", origUserProfile)
+	} else {
+		origHome = os.Getenv("HOME")
+		os.Setenv("HOME", tempDir)
+		defer os.Setenv("HOME", origHome)
+	}
+
 	t.Run("handles validation gracefully", func(t *testing.T) {
 		// This test verifies that the function returns an error
 		// instead of calling os.Exit when there are validation issues

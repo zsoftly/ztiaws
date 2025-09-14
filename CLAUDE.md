@@ -177,6 +177,36 @@ ssm --help
 - Located in: `cmd/ztictl/init_test.go`, `internal/ssm/init_test.go`, `internal/system/init_test.go`
 - Makefile also sets these environment variables for `make test` command
 
+**Cross-Platform Test Writing Guidelines**:
+**CRITICAL**: All tests MUST be platform-agnostic and work on Unix (Linux/macOS) AND Windows:
+- **File Paths**: 
+  - ALWAYS use `filepath.Join()` instead of hardcoding paths with `/` or `\`
+  - NEVER use absolute Unix paths like `/tmp` or `/var/log` - use `t.TempDir()` or `os.TempDir()`
+  - NEVER use Windows-specific paths like `C:\` or `D:\`
+- **Path Separators**:
+  - Use `filepath.Separator` when you need the OS-specific separator
+  - Use `filepath.ToSlash()` to convert paths to forward slashes for URLs/YAML
+  - Use `filepath.FromSlash()` to convert from forward slashes to OS format
+- **Invalid Path Testing**:
+  - Don't rely on Unix-specific invalid paths like `/nonexistent` 
+  - Create reliably invalid paths by placing files where directories are expected
+  - Use permission-based failures cautiously as they behave differently across OS
+- **Home Directory**:
+  - Use `os.UserHomeDir()` instead of relying on `$HOME` (Unix) or `%USERPROFILE%` (Windows)
+  - When testing with environment variables, check both `HOME` and `USERPROFILE`
+- **File Permissions**:
+  - Be aware that Windows doesn't support Unix permission bits the same way
+  - Read-only directories behave differently on Windows
+- **Test Examples**:
+  ```go
+  // BAD - Unix-specific path
+  invalidPath := "/nonexistent/directory/config.yaml"
+  
+  // GOOD - Platform-agnostic approach
+  invalidPath := filepath.Join(t.TempDir(), "subdir", "config.yaml")
+  // Then create a file at "subdir" to make the path invalid
+  ```
+
 ## Test File Management Guidelines
 **IMPORTANT**: When creating test files or scripts during development:
 
