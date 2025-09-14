@@ -30,29 +30,47 @@ exit $EXIT_CODE`, command)
 }
 
 func (b *LinuxBuilder) BuildFileExistsCommand(path string) string {
-	safePath := b.EscapeShellArg(b.SanitizePath(path))
+	sanitized := b.SanitizePath(path)
+	// Ensure Unix-style paths regardless of host OS
+	sanitized = strings.ReplaceAll(sanitized, "\\", "/")
+	safePath := b.EscapeShellArg(sanitized)
 	return fmt.Sprintf("test -e %s && echo 'EXISTS' || echo 'NOT_EXISTS'", safePath)
 }
 
 func (b *LinuxBuilder) BuildFileSizeCommand(path string) string {
-	safePath := b.EscapeShellArg(b.SanitizePath(path))
+	sanitized := b.SanitizePath(path)
+	// Ensure Unix-style paths regardless of host OS
+	sanitized = strings.ReplaceAll(sanitized, "\\", "/")
+	safePath := b.EscapeShellArg(sanitized)
 	return fmt.Sprintf("stat -c '%%s' %s 2>/dev/null || stat -f '%%z' %s 2>/dev/null", safePath, safePath)
 }
 
 func (b *LinuxBuilder) BuildDirectoryCreateCommand(path string) string {
-	safePath := b.EscapeShellArg(b.SanitizePath(path))
+	sanitized := b.SanitizePath(path)
+	// Ensure Unix-style paths regardless of host OS
+	sanitized = strings.ReplaceAll(sanitized, "\\", "/")
+	safePath := b.EscapeShellArg(sanitized)
 	return fmt.Sprintf("mkdir -p %s", safePath)
 }
 
 func (b *LinuxBuilder) BuildFileReadCommand(path string) string {
-	safePath := b.EscapeShellArg(b.SanitizePath(path))
+	sanitized := b.SanitizePath(path)
+	// Ensure Unix-style paths regardless of host OS
+	sanitized = strings.ReplaceAll(sanitized, "\\", "/")
+	safePath := b.EscapeShellArg(sanitized)
 	return fmt.Sprintf("base64 -w 0 %s 2>/dev/null || base64 %s", safePath, safePath)
 }
 
 func (b *LinuxBuilder) BuildFileWriteCommand(path string, base64Data string) (string, error) {
-	safePath := b.EscapeShellArg(b.SanitizePath(path))
+	sanitized := b.SanitizePath(path)
+	// Ensure Unix-style paths regardless of host OS
+	sanitized = strings.ReplaceAll(sanitized, "\\", "/")
+	safePath := b.EscapeShellArg(sanitized)
 
-	dirPath := b.EscapeShellArg(b.SanitizePath(filepath.Dir(path)))
+	// Get directory using Unix-style path operations
+	dirSanitized := b.SanitizePath(filepath.Dir(path))
+	dirSanitized = strings.ReplaceAll(dirSanitized, "\\", "/")
+	dirPath := b.EscapeShellArg(dirSanitized)
 
 	const chunkSize = 4096
 	if len(base64Data) > chunkSize {
@@ -69,9 +87,15 @@ echo '%s' | base64 -d > %s`, dirPath, base64Data, safePath), nil
 }
 
 func (b *LinuxBuilder) BuildFileAppendCommand(path string, base64Data string) (string, error) {
-	safePath := b.EscapeShellArg(b.SanitizePath(path))
+	sanitized := b.SanitizePath(path)
+	// Ensure Unix-style paths regardless of host OS
+	sanitized = strings.ReplaceAll(sanitized, "\\", "/")
+	safePath := b.EscapeShellArg(sanitized)
 
-	dirPath := b.EscapeShellArg(b.SanitizePath(filepath.Dir(path)))
+	// Get directory using Unix-style path operations
+	dirSanitized := b.SanitizePath(filepath.Dir(path))
+	dirSanitized = strings.ReplaceAll(dirSanitized, "\\", "/")
+	dirPath := b.EscapeShellArg(dirSanitized)
 
 	const chunkSize = 4096
 	if len(base64Data) > chunkSize {
