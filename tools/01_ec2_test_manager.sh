@@ -28,12 +28,11 @@ fi
 init_logging "ec2-manager" "${ENABLE_EC2_MANAGER_LOGGING:-false}"
 
 # Configuration
-# AMI ID for the EC2 instances. Default is Amazon Linux 2023 in ca-central-1 (ami-08379337a6fc559cd).
-# Override by setting the AMI_ID environment variable.
-# WARNING: This AMI ID is region-specific and may become outdated. Verify availability before use.
-# To find the latest Amazon Linux 2023 AMI ID for your region, use:
-# aws ec2 describe-images --owners amazon --filters "Name=name,Values=al2023-ami-*" --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text
-AMI_ID="${AMI_ID:-ami-08379337a6fc559cd}"
+# AMI ID for the EC2 instances. Leave empty for auto-detection (recommended).
+# Override by setting the AMI_ID environment variable to force a specific AMI for all instances.
+# When AMI_ID is set, the same AMI will be used for both Linux and Windows instances.
+# For mixed OS deployments, leave AMI_ID unset to enable per-OS auto-detection.
+AMI_ID="${AMI_ID:-}"
 
 INSTANCE_TYPE="t2.micro"
 
@@ -62,35 +61,42 @@ OS_TYPE="both"  # Options: linux, windows, both
 # Auto-detect latest AMI IDs for Linux and Windows
 get_latest_linux_ami() {
     local ami_id
+    # Use Amazon Linux 2023 FULL AMI (not minimal) which has SSM agent pre-installed
+    # The standard AL2023 AMI pattern excludes minimal versions
     ami_id=$(aws ec2 describe-images \
         --owners amazon \
-        --filters "Name=name,Values=al2023-ami-*" "Name=architecture,Values=x86_64" \
+        --filters "Name=name,Values=al2023-ami-2*kernel*" "Name=architecture,Values=x86_64" "Name=state,Values=available" \
         --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' \
         --output text 2>/dev/null)
     
     if [[ "$ami_id" != "None" && -n "$ami_id" ]]; then
+        log_info "Found latest Amazon Linux 2023 AMI with SSM: $ami_id"
         echo "$ami_id"
         return 0
     else
-        log_error "Failed to detect latest Linux AMI. Using fallback."
-        echo "ami-08379337a6fc559cd"  # Fallback for ca-central-1
-        return 1
+        log_warn "Failed to detect latest Linux AMI. Using fallback AMI for ca-central-1."
+        echo "ami-08379337a6fc559cd"  # Fallback Amazon Linux 2023 for ca-central-1
+        return 0
     fi
 }
 
 get_latest_windows_ami() {
     local ami_id
+    # Use Windows Server 2022 which has SSM agent pre-installed
     ami_id=$(aws ec2 describe-images \
         --owners amazon \
-        --filters "Name=name,Values=Windows_Server-2022-English-Full-Base-*" "Name=architecture,Values=x86_64" \
+        --filters "Name=name,Values=Windows_Server-2022-English-Full-Base-*" "Name=architecture,Values=x86_64" "Name=state,Values=available" \
         --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' \
         --output text 2>/dev/null)
     
     if [[ "$ami_id" != "None" && -n "$ami_id" ]]; then
+        log_info "Found latest Windows Server 2022 AMI with SSM: $ami_id"
         echo "$ami_id"
         return 0
     else
-        log_error "Failed to detect latest Windows AMI. Please check your AWS region and permissions."
+        log_error "Failed to detect Windows Server 2022 AMI in current region."
+        log_info "Windows AMIs may not be available in all regions. To find available Windows AMIs:"
+        log_info "aws ec2 describe-images --owners amazon --filters \"Name=platform,Values=windows\" --query 'Images[*].{Name:Name,ImageId:ImageId}' --output table"
         return 1
     fi
 }
@@ -367,7 +373,7 @@ create_instances() {
                 --security-group-ids "$SECURITY_GROUP" \
                 --no-associate-public-ip-address \
                 --iam-instance-profile Name="$IAM_INSTANCE_PROFILE" \
-                --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$name},{Key=Owner,Value=$OWNER},{Key=ManagedBy,Value=ec2-manager},{Key=OSType,Value=$os_type}]" \
+                --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$name},{Key=Owner,Value=$OWNER},{Key=ManagedBy,Value=ec2-manager},{Key=OSType,Value=$os_type},{Key=Platform,Value=$os_type},{Key=Environment,Value=testing},{Key=SSMEnabled,Value=true}]" \
                 --credit-specification CpuCredits=standard \
                 --metadata-options HttpTokens=required \
                 --output json 2>/dev/null) || { log_error "Failed to create instance $name"; continue; }
