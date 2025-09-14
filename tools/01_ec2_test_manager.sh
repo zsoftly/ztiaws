@@ -2,6 +2,14 @@
 
 # Efficient EC2 Test Instance Manager
 # Usage: ./tools/01_ec2_test_manager.sh [create|verify|delete] [options]
+# 
+# Enhanced Features:
+# - Auto-detects latest Linux (Amazon Linux 2023) and Windows (Server 2022) AMIs
+# - Supports creating both Linux and Windows instances by default
+# - Automatically upgrades Windows instances to t3.small for better performance
+# - OS type selection: linux, windows, both (default: both)
+# - Improved instance naming with OS type identification
+# - Enhanced verification display with OS type column
 
 # Get script directory and source utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,6 +57,60 @@ INSTANCE_FILE="ec2-instances.txt"
 COUNT=1
 OWNER=""
 NAME_PREFIX="web-server"
+OS_TYPE="both"  # Options: linux, windows, both
+
+# Auto-detect latest AMI IDs for Linux and Windows
+get_latest_linux_ami() {
+    local ami_id
+    ami_id=$(aws ec2 describe-images \
+        --owners amazon \
+        --filters "Name=name,Values=al2023-ami-*" "Name=architecture,Values=x86_64" \
+        --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' \
+        --output text 2>/dev/null)
+    
+    if [[ "$ami_id" != "None" && -n "$ami_id" ]]; then
+        echo "$ami_id"
+        return 0
+    else
+        log_error "Failed to detect latest Linux AMI. Using fallback."
+        echo "ami-08379337a6fc559cd"  # Fallback for ca-central-1
+        return 1
+    fi
+}
+
+get_latest_windows_ami() {
+    local ami_id
+    ami_id=$(aws ec2 describe-images \
+        --owners amazon \
+        --filters "Name=name,Values=Windows_Server-2022-English-Full-Base-*" "Name=architecture,Values=x86_64" \
+        --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' \
+        --output text 2>/dev/null)
+    
+    if [[ "$ami_id" != "None" && -n "$ami_id" ]]; then
+        echo "$ami_id"
+        return 0
+    else
+        log_error "Failed to detect latest Windows AMI. Please check your AWS region and permissions."
+        return 1
+    fi
+}
+
+# Get AMI ID based on OS type
+get_ami_for_os() {
+    local os_type="$1"
+    case "$os_type" in
+        linux)
+            get_latest_linux_ami
+            ;;
+        windows)
+            get_latest_windows_ami
+            ;;
+        *)
+            log_error "Invalid OS type: $os_type. Use 'linux' or 'windows'"
+            return 1
+            ;;
+    esac
+}
 
 show_help() {
     cat << EOF
@@ -65,7 +127,8 @@ Options:
   -c, --count NUMBER       Number of instances to create (default: 1)
   -o, --owner NAME         Set owner tag (required for create, used as name prefix)
   -n, --name-prefix NAME   Instance name suffix (default: web-server)
-  -a, --ami-id AMI_ID      AMI ID to use (default: $AMI_ID)
+  -t, --os-type TYPE       OS type: linux, windows, both (default: both)
+  -a, --ami-id AMI_ID      AMI ID to use (overrides auto-detection)
   -s, --subnet-id SUBNET   Subnet ID to use (default: $SUBNET_ID)
   -g, --security-group SG  Security Group ID to use (default: $SECURITY_GROUP)
   -h, --help              Show this help
@@ -80,15 +143,22 @@ Compatibility:
   Requires bash 4.0+ and standard Unix utilities (grep, awk, jq).
 
 Examples:
-  $0 create --count 3 --owner John    # Creates: John-web-server-1, John-web-server-2, John-web-server-3
-  $0 create --owner Alice --subnet-id subnet-123abc --security-group sg-456def
-  SUBNET_ID=subnet-123abc SECURITY_GROUP=sg-456def $0 create --owner Bob
+  $0 create --count 3 --owner John    # Creates: John-web-server-linux-1, John-web-server-windows-1, etc.
+  $0 create --owner Alice --os-type linux --count 2  # Creates only Linux instances
+  $0 create --owner Bob --os-type windows  # Creates only Windows instances
+  $0 create --owner Carol --os-type both --count 1  # Creates one Linux and one Windows instance
+  $0 create --owner Dave --subnet-id subnet-123abc --security-group sg-456def
+  SUBNET_ID=subnet-123abc SECURITY_GROUP=sg-456def $0 create --owner Eve
   $0 verify
   $0 delete
 
 Finding AWS Resources:
   # Find latest Amazon Linux 2023 AMI:
   aws ec2 describe-images --owners amazon --filters "Name=name,Values=al2023-ami-*" \\
+    --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text
+  
+  # Find latest Windows Server 2022 AMI:
+  aws ec2 describe-images --owners amazon --filters "Name=name,Values=Windows_Server-2022-English-Full-Base-*" \\
     --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text
   
   # List available subnets:
@@ -110,12 +180,14 @@ check_prereq() {
 validate_aws_resources() {
     log_info "Validating AWS resources..."
     
-    # Check if AMI exists and is available
-    if ! aws ec2 describe-images --image-ids "$AMI_ID" --query 'Images[0].State' --output text 2>/dev/null | grep -q "available"; then
-        log_error "AMI $AMI_ID is not available or doesn't exist in this region"
-        log_info "To find the latest Amazon Linux 2023 AMI, run:"
-        log_info "aws ec2 describe-images --owners amazon --filters \"Name=name,Values=al2023-ami-*\" --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text"
-        exit 1
+    # Check if manually specified AMI exists and is available (skip if auto-detecting)
+    if [[ -n "$AMI_ID" ]]; then
+        if ! aws ec2 describe-images --image-ids "$AMI_ID" --query 'Images[0].State' --output text 2>/dev/null | grep -q "available"; then
+            log_error "Manually specified AMI $AMI_ID is not available or doesn't exist in this region"
+            log_info "To find the latest Amazon Linux 2023 AMI, run:"
+            log_info "aws ec2 describe-images --owners amazon --filters \"Name=name,Values=al2023-ami-*\" --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text"
+            exit 1
+        fi
     fi
     
     # Check if subnet exists
@@ -229,45 +301,92 @@ create_instances() {
         log_warn "Using default security group for ca-central-1. For other regions, set SECURITY_GROUP environment variable or use --security-group option."
     fi
     
-    if [[ "$AMI_ID" == "ami-08379337a6fc559cd" ]]; then
-        log_warn "Using default AMI ID for Amazon Linux 2023 in ca-central-1. This may become outdated. Consider updating or using --ami-id option."
-    fi
-    
     # Validate AWS resources before proceeding
     validate_aws_resources
-    
     ensure_iam
-    log_info "Creating $COUNT instance(s)..."
+    
+    # Determine which OS types to create
+    local os_types=()
+    case "$OS_TYPE" in
+        linux)
+            os_types=("linux")
+            ;;
+        windows)
+            os_types=("windows")
+            ;;
+        both)
+            os_types=("linux" "windows")
+            ;;
+    esac
+    
+    # Calculate total instances to create
+    local total_instances=$((COUNT * ${#os_types[@]}))
+    log_info "Creating $total_instances instance(s) ($COUNT per OS type: ${os_types[*]})"
     
     # Prepare batch creation
     local instances=()
-    for i in $(seq 1 "$COUNT"); do
-        local name="$OWNER-$NAME_PREFIX"
-        [[ $COUNT -gt 1 ]] && name="$name-$i"
+    local counter=1
+    
+    for os_type in "${os_types[@]}"; do
+        # Get AMI ID for this OS type (unless manually specified)
+        local ami_id="$AMI_ID"
+        if [[ -z "$AMI_ID" ]]; then
+            log_info "Auto-detecting latest $os_type AMI..."
+            ami_id=$(get_ami_for_os "$os_type")
+            if [[ $? -ne 0 || -z "$ami_id" ]]; then
+                log_error "Failed to get AMI for $os_type"
+                continue
+            fi
+            log_info "Using $os_type AMI: $ami_id"
+        fi
         
-        # Create instance
-        local result
-        result=$(aws ec2 run-instances \
-            --image-id "$AMI_ID" \
-            --instance-type "$INSTANCE_TYPE" \
-            --count 1 \
-            --subnet-id "$SUBNET_ID" \
-            --security-group-ids "$SECURITY_GROUP" \
-            --no-associate-public-ip-address \
-            --iam-instance-profile Name="$IAM_INSTANCE_PROFILE" \
-            --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$name},{Key=Owner,Value=$OWNER},{Key=ManagedBy,Value=ec2-manager}]" \
-            --credit-specification CpuCredits=standard \
-            --metadata-options HttpTokens=required \
-            --output json 2>/dev/null) || { log_error "Failed to create instance $name"; exit 1; }
-        
-        local instance_id
-        instance_id=$(echo "$result" | jq -r '.Instances[0].InstanceId')
-        instances+=("$instance_id")
-        echo "$instance_id" >> "$INSTANCE_FILE"
-        log_info "$name: $instance_id"
+        # Create instances for this OS type
+        for i in $(seq 1 "$COUNT"); do
+            local name="$OWNER-$NAME_PREFIX-$os_type"
+            if [[ $COUNT -gt 1 ]]; then
+                name="$name-$i"
+            elif [[ "${#os_types[@]}" -gt 1 ]]; then
+                # When creating both OS types with count=1, still append counter for uniqueness
+                name="$name-$counter"
+            fi
+            
+            # Set instance type based on OS (Windows typically needs more resources)
+            local instance_type="$INSTANCE_TYPE"
+            if [[ "$os_type" == "windows" && "$INSTANCE_TYPE" == "t2.micro" ]]; then
+                instance_type="t3.small"  # Windows needs more resources than t2.micro
+                log_info "Using $instance_type for Windows instance (upgraded from t2.micro)"
+            fi
+            
+            # Create instance
+            local result
+            result=$(aws ec2 run-instances \
+                --image-id "$ami_id" \
+                --instance-type "$instance_type" \
+                --count 1 \
+                --subnet-id "$SUBNET_ID" \
+                --security-group-ids "$SECURITY_GROUP" \
+                --no-associate-public-ip-address \
+                --iam-instance-profile Name="$IAM_INSTANCE_PROFILE" \
+                --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$name},{Key=Owner,Value=$OWNER},{Key=ManagedBy,Value=ec2-manager},{Key=OSType,Value=$os_type}]" \
+                --credit-specification CpuCredits=standard \
+                --metadata-options HttpTokens=required \
+                --output json 2>/dev/null) || { log_error "Failed to create instance $name"; continue; }
+            
+            local instance_id
+            instance_id=$(echo "$result" | jq -r '.Instances[0].InstanceId')
+            instances+=("$instance_id")
+            echo "$instance_id" >> "$INSTANCE_FILE"
+            log_info "$name ($os_type): $instance_id"
+            
+            ((counter++))
+        done
     done
     
-    log_info "Created ${#instances[@]} instance(s)"
+    log_info "Created ${#instances[@]} instance(s) successfully"
+    if [[ ${#instances[@]} -lt $total_instances ]]; then
+        log_warn "Some instances failed to create. Check the logs above."
+    fi
+    
     verify_instances
 }
 
@@ -287,18 +406,20 @@ verify_instances() {
     # The backticks here are part of AWS CLI's JMESPath syntax, not shell command substitution
     result=$(aws ec2 describe-instances \
         --instance-ids "${INSTANCE_IDS[@]}" \
-        --query 'Reservations[].Instances[].[InstanceId,State.Name,Tags[?Key==`Name`].Value|[0],Tags[?Key==`Owner`].Value|[0]]' \
+        --query 'Reservations[].Instances[].[InstanceId,State.Name,Tags[?Key==`Name`].Value|[0],Tags[?Key==`Owner`].Value|[0],Tags[?Key==`OSType`].Value|[0]]' \
         --output json 2>/dev/null)
     
     if [[ $? -eq 0 && "$result" != "null" ]]; then
-        echo "$result" | jq -r '.[] | @tsv' | while IFS=$'\t' read -r id state name owner; do
+        printf "%-19s %-12s %-30s %-15s %s\n" "INSTANCE-ID" "STATE" "NAME" "OWNER" "OS-TYPE"
+        printf "%-19s %-12s %-30s %-15s %s\n" "-------------------" "------------" "------------------------------" "---------------" "-------"
+        echo "$result" | jq -r '.[] | @tsv' | while IFS=$'\t' read -r id state name owner ostype; do
             local status_color=""
             case "$state" in
                 running) status_color="$GREEN" ;;
                 pending) status_color="$YELLOW" ;;
                 terminated|terminating) status_color="$RED" ;;
             esac
-            printf "%-19s ${status_color}%-12s${NC} %-20s %s\n" "$id" "$state" "${name:-N/A}" "${owner:-N/A}"
+            printf "%-19s ${status_color}%-12s${NC} %-30s %-15s %s\n" "$id" "$state" "${name:-N/A}" "${owner:-N/A}" "${ostype:-N/A}"
         done
     else
         log_warn "Failed to get instance details"
@@ -352,6 +473,10 @@ parse_args() {
                 shift 2 ;;
             -n|--name-prefix)
                 NAME_PREFIX="$2"
+                shift 2 ;;
+            -t|--os-type)
+                OS_TYPE="$2"
+                [[ "$OS_TYPE" =~ ^(linux|windows|both)$ ]] || { log_error "Invalid OS type: $OS_TYPE. Use 'linux', 'windows', or 'both'"; exit 1; }
                 shift 2 ;;
             -a|--ami-id)
                 AMI_ID="$2"

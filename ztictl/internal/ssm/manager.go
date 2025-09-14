@@ -11,11 +11,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
 	appconfig "ztictl/internal/config"
+	"ztictl/internal/platform"
 	"ztictl/pkg/errors"
 	"ztictl/pkg/logging"
 	"ztictl/pkg/security"
@@ -45,6 +45,8 @@ type Manager struct {
 	logger             *logging.Logger
 	iamManager         *IAMManager
 	s3LifecycleManager *S3LifecycleManager
+	platformDetector   *platform.Detector
+	builderManager     *platform.BuilderManager
 }
 
 // Instance represents an EC2 instance with SSM information
@@ -96,9 +98,38 @@ type FileTransferOperation struct {
 
 // NewManager creates a new SSM manager
 func NewManager(logger *logging.Logger) *Manager {
+	// Note: Platform detector and builder manager will be initialized lazily
+	// when needed with appropriate AWS clients
 	return &Manager{
 		logger: logger,
 	}
+}
+
+// initializePlatformComponents initializes platform detection components if not already done
+func (m *Manager) initializePlatformComponents(ctx context.Context, region string) error {
+	if m.platformDetector != nil && m.builderManager != nil {
+		return nil // Already initialized
+	}
+
+	// Load AWS config
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(region),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to load AWS config: %w", err)
+	}
+
+	// Create AWS clients for platform detection
+	ssmClient := ssm.NewFromConfig(cfg)
+	ec2Client := ec2.NewFromConfig(cfg)
+
+	// Initialize platform detector
+	m.platformDetector = platform.NewDetector(ssmClient, ec2Client)
+
+	// Initialize builder manager
+	m.builderManager = platform.NewBuilderManager(m.platformDetector)
+
+	return nil
 }
 
 // getAWSCommand returns the platform-appropriate AWS CLI command name
@@ -267,6 +298,17 @@ func (m *Manager) ExecuteCommand(ctx context.Context, instanceIdentifier, region
 
 	m.logger.Info("Executing command on instance", "instanceID", instanceID, "command", command)
 
+	// Initialize platform components if needed
+	if err := m.initializePlatformComponents(ctx, region); err != nil {
+		return nil, fmt.Errorf("failed to initialize platform components: %w", err)
+	}
+
+	// Get command builder for the instance platform
+	builder, err := m.builderManager.GetBuilder(ctx, instanceID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get command builder: %w", err)
+	}
+
 	// Load AWS config
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
@@ -282,11 +324,17 @@ func (m *Manager) ExecuteCommand(ctx context.Context, instanceIdentifier, region
 
 	startTime := time.Now()
 
+	// Get the appropriate SSM document for the platform
+	documentName := builder.GetSSMDocument()
+
+	// Build the command with platform-specific wrapper
+	wrappedCommand := builder.BuildExecCommand(command)
+
 	sendResp, err := ssmClient.SendCommand(ctx, &ssm.SendCommandInput{
-		DocumentName: aws.String("AWS-RunShellScript"),
+		DocumentName: aws.String(documentName),
 		InstanceIds:  []string{instanceID},
 		Parameters: map[string][]string{
-			"commands": {command},
+			"commands": {wrappedCommand},
 		},
 		Comment: aws.String(comment),
 	})
@@ -693,11 +741,22 @@ func (m *Manager) uploadFileSmall(ctx context.Context, instanceID, region, local
 		return fmt.Errorf("failed to read local file: %w", err)
 	}
 
+	// Initialize platform components if needed
+	if err := m.initializePlatformComponents(ctx, region); err != nil {
+		return fmt.Errorf("failed to initialize platform components: %w", err)
+	}
+
+	// Get command builder for the instance platform
+	builder, err := m.builderManager.GetBuilder(ctx, instanceID)
+	if err != nil {
+		return fmt.Errorf("failed to get command builder: %w", err)
+	}
+
 	// Encode content as base64
 	encoded := base64.StdEncoding.EncodeToString(content)
 
-	// Create upload command
-	command := fmt.Sprintf(`echo '%s' | base64 -d > '%s'`, encoded, remotePath)
+	// Create platform-specific upload command
+	command := builder.BuildFileWriteCommand(remotePath, encoded)
 
 	// Execute via SSM
 	result, err := m.ExecuteCommand(ctx, instanceID, region, command, "File upload via ztictl")
@@ -714,8 +773,34 @@ func (m *Manager) uploadFileSmall(ctx context.Context, instanceID, region, local
 
 func (m *Manager) downloadFileSmall(ctx context.Context, instanceID, region, remotePath, localPath string) error {
 	// Note: File path validation is performed in DownloadFile() caller
-	// Create download command
-	command := fmt.Sprintf(`if [ -f '%s' ]; then cat '%s' | base64; else echo "FILE_NOT_FOUND"; fi`, remotePath, remotePath)
+	// Initialize platform components if needed
+	if err := m.initializePlatformComponents(ctx, region); err != nil {
+		return fmt.Errorf("failed to initialize platform components: %w", err)
+	}
+
+	// Get command builder for the instance platform
+	builder, err := m.builderManager.GetBuilder(ctx, instanceID)
+	if err != nil {
+		return fmt.Errorf("failed to get command builder: %w", err)
+	}
+
+	// First check if file exists
+	checkCommand := builder.BuildFileExistsCommand(remotePath)
+	checkResult, err := m.ExecuteCommand(ctx, instanceID, region, checkCommand, "Check file existence via ztictl")
+	if err != nil {
+		return fmt.Errorf("failed to check file existence: %w", err)
+	}
+
+	exists, err := builder.ParseFileExists(checkResult.Output, 0)
+	if err != nil {
+		return fmt.Errorf("failed to parse file existence: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("remote file not found: %s", remotePath)
+	}
+
+	// Create platform-specific download command
+	command := builder.BuildFileReadCommand(remotePath)
 
 	// Execute via SSM
 	result, err := m.ExecuteCommand(ctx, instanceID, region, command, "File download via ztictl")
@@ -725,10 +810,6 @@ func (m *Manager) downloadFileSmall(ctx context.Context, instanceID, region, rem
 
 	if result.Status != "Success" {
 		return fmt.Errorf("download failed: %s", result.ErrorOutput)
-	}
-
-	if strings.TrimSpace(result.Output) == "FILE_NOT_FOUND" {
-		return fmt.Errorf("remote file not found: %s", remotePath)
 	}
 
 	// Decode content
@@ -997,8 +1078,19 @@ func (m *Manager) Cleanup(ctx context.Context, region string) error {
 }
 
 func (m *Manager) getRemoteFileSize(ctx context.Context, instanceID, region, remotePath string) (int64, error) {
-	// Get file size using stat command
-	command := fmt.Sprintf(`stat -c %%s '%s' 2>/dev/null || echo "0"`, remotePath)
+	// Initialize platform components if needed
+	if err := m.initializePlatformComponents(ctx, region); err != nil {
+		return 0, fmt.Errorf("failed to initialize platform components: %w", err)
+	}
+
+	// Get command builder for the instance platform
+	builder, err := m.builderManager.GetBuilder(ctx, instanceID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get command builder: %w", err)
+	}
+
+	// Build platform-specific command to get file size
+	command := builder.BuildFileSizeCommand(remotePath)
 
 	result, err := m.ExecuteCommand(ctx, instanceID, region, command, "Get file size via ztictl")
 	if err != nil {
@@ -1009,7 +1101,8 @@ func (m *Manager) getRemoteFileSize(ctx context.Context, instanceID, region, rem
 		return 0, fmt.Errorf("failed to get file size: %s", result.ErrorOutput)
 	}
 
-	size, err := strconv.ParseInt(strings.TrimSpace(result.Output), 10, 64)
+	// Parse the file size using the platform-specific parser
+	size, err := builder.ParseFileSize(result.Output)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse file size: %w", err)
 	}
