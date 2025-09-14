@@ -16,15 +16,25 @@
 ## Why ztictl?
 
 ### 🎯 **Enhanced Features**
+- **🖥️ Multi-OS instance support**: Full Linux (bash) and Windows Server (PowerShell) command execution
+- **🤖 Automatic platform detection**: Detects instance OS via SSM/EC2 APIs and adapts commands
+- **🛡️ Advanced security**: PowerShell injection protection, UNC path validation, path traversal prevention  
 - **Advanced file transfers**: Intelligent routing (direct <1MB, S3 ≥1MB) with automatic cleanup
 - **Comprehensive IAM management**: Temporary policies with lifecycle tracking and emergency cleanup
 - **S3 lifecycle integration**: Automatic bucket management with expiration policies
 - **Robust error handling**: Detailed logging and graceful recovery procedures
 
 ### 🌍 **Cross-Platform Support**
+
+**Client Platforms** (where ztictl runs):
 - **Linux**: AMD64 and ARM64 (Intel/AMD and ARM processors)
 - **macOS**: Intel and Apple Silicon (M1/M2/M3)
 - **Windows**: AMD64 and ARM64 architectures
+
+**Target Instance Support** (what instances you can manage):
+- **✅ Linux instances**: Amazon Linux, Ubuntu, RHEL, CentOS, SUSE (bash commands)
+- **✅ Windows instances**: Windows Server 2016/2019/2022 (PowerShell commands)
+- **🤖 Auto-detection**: Automatically detects instance OS and uses appropriate command syntax
 
 ### ⚡ **Performance Benefits**
 - **Native binaries**: No runtime dependencies or script interpretation
@@ -78,10 +88,25 @@ See [Configuration Guide](../docs/CONFIGURATION.md) for detailed configuration o
 ztictl auth login
 ztictl auth whoami
 
-# Instance operations  
+# Instance operations with auto-platform detection
 ztictl ssm list --region cac1
+# Output shows: Platform column (Linux/UNIX, Windows Server 2022, etc.)
+
 ztictl ssm connect i-1234567890abcdef0 --region use1
 ztictl ssm exec --tags "Environment=prod" "uptime" --region euw1
+
+# Cross-platform commands (auto-adapts to instance OS)
+# Linux instances - bash commands
+ztictl ssm exec cac1 i-linux123 "ps aux | grep nginx"
+ztictl ssm exec cac1 i-linux123 "cat /var/log/app.log | tail -10"
+
+# Windows instances - PowerShell commands  
+ztictl ssm exec cac1 i-windows456 "Get-Process | Where-Object {$_.Name -like '*iis*'}"
+ztictl ssm exec cac1 i-windows456 "Get-EventLog -LogName Application -Newest 10"
+
+# Cross-platform file operations
+ztictl ssm transfer upload i-linux123 config.yml /etc/app/config.yml
+ztictl ssm transfer upload i-windows456 config.xml C:\inetpub\config.xml
 
 # Power management (v2.4+)
 ztictl ssm start i-1234567890abcdef0 --region cac1

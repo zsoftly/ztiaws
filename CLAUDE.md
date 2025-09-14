@@ -259,3 +259,41 @@ ssm --help
   // GOOD - Just remove it completely with no trace
   ```
 - **Principal**: When deprecating/removing code, act as a principal engineer - leave the codebase cleaner with no remnants of removed functionality
+
+## Security Validation Guidelines
+**IMPORTANT**: Security validations must be comprehensive:
+- **Path Traversal Protection**: 
+  - **Use `ztictl/pkg/security` package**: The project has a comprehensive security package
+  - Call `security.ContainsUnsafePath()` for path validation
+  - Call `security.ValidateFilePath()` for directory-scoped validation
+  - The security package handles all patterns: `../`, `/..`, `..\\`, `\\..`, null bytes, etc.
+  - Special handling needed for Windows UNC paths (validate after server/share prefix)
+- **Command Injection Prevention**:
+  - Validate all user inputs against strict patterns
+  - Use parameterized commands where possible
+  - Escape shell arguments properly for each platform
+- **Here-String Validation**:
+  - Check for terminator sequences like `'@` in PowerShell here-strings
+  - Validate base64 data before embedding in commands
+
+## Logging Best Practices
+**CRITICAL**: Proper logging configuration:
+- **Logger Instances**: 
+  - Use dependency injection for loggers (pass them as parameters)
+  - Never hardcode debug levels in production code
+  - Provide factory methods like `NewDetectorWithLogger()` for custom loggers
+- **Sensitive Data**:
+  - Never log full commands at Info level (may contain secrets)
+  - Use Debug level for detailed command logging
+  - Log command length or hash at Info level instead
+
+## Resource Management
+**IMPORTANT**: Prevent resource leaks:
+- **AWS Client Pooling**:
+  - Reuse AWS clients across operations
+  - Implement client pools with proper synchronization
+  - Cache clients by region to avoid recreation
+- **Thread Safety**:
+  - Always use mutexes for shared map access
+  - Prefer RWMutex for read-heavy operations
+  - Lock before checking and modifying shared state
