@@ -18,8 +18,11 @@
 
 **ztictl (Primary Tool):**
 - **🌍 Cross-platform**: Native binaries for Linux, macOS, and Windows
+- **🖥️ Multi-OS support**: Full Linux (bash) and Windows Server (PowerShell) command execution
+- **🤖 Smart platform detection**: Automatically detects instance OS and adapts commands accordingly
 - **⚡ Smart file transfers**: Automatic S3 routing for large files with lifecycle management  
 - **🔒 Advanced IAM management**: Temporary policies with automatic cleanup
+- **🛡️ Enhanced security**: PowerShell injection protection, path traversal prevention, UNC validation
 - **🔋 Power management**: Start, stop, and reboot EC2 instances individually or in bulk via tags
 - **🛠️ Modern CLI**: Flag-based interface with comprehensive help and validation
 - **📊 Professional logging**: Thread-safe, timestamped logs with debug capabilities
@@ -324,12 +327,23 @@ This will display your AWS access key, secret key, and session token for the spe
 # Check system requirements
 ztictl config check
 
-# List instances and connect
+# List instances (shows OS type detection)
 ztictl ssm list --region ca-central-1
+# Output shows: Linux/UNIX, Windows Server 2022, etc.
+
+# Connect to any instance (Linux or Windows)
 ztictl ssm connect i-1234567890abcdef0 --region ca-central-1
 
-# Advanced file transfers with S3 routing
-ztictl ssm transfer upload i-1234567890abcdef0 large-file.zip /opt/data.zip
+# Execute commands (automatically adapts to OS)
+# Linux instance - uses bash
+ztictl ssm exec ca-central-1 i-linux123 "echo 'Hello Linux'; uname -a"
+
+# Windows instance - uses PowerShell  
+ztictl ssm exec ca-central-1 i-windows456 "Write-Output 'Hello Windows'; Get-ComputerInfo"
+
+# Cross-platform file transfers
+ztictl ssm transfer upload i-linux123 file.txt /tmp/file.txt
+ztictl ssm transfer upload i-windows456 file.txt C:\temp\file.txt
 ```
 
 **📚 Complete Documentation:** [ztictl/README.md](ztictl/README.md) | [Installation Guide](INSTALLATION.md) | [Release Process](RELEASE.md)
