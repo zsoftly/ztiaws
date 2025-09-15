@@ -1,5 +1,35 @@
 # Changelog
 
+## [v2.8.0] - 2025-09-15
+
+### Added
+- feat: enhance multi-OS support and automatic platform detection in ztictl
+- feat: enhance Windows command validation and update breaking changes in platform builders
+- Implement Linux and Windows command builders for platform-specific operations
+- feat: add cross-platform test writing guidelines and improve error handling in sample config tests
+
+### Fixed
+- fix: update AMI ID handling and improve logging for EC2 instance creation
+- fix: ensure Unix-style path handling in LinuxBuilder commands
+- fix: Resolve Windows test isolation issues in TestAuthLoginCmd
+- fix: Resolve formatting issues in ztictl
+- fixed pipeline failure issure
+- fix: disable Go module caching in CI to resolve go.sum path issue
+- fix: Resolve config validation issues in ztictl
+
+### Changed
+- refactor: remove outdated breaking change comments and improve code clarity
+- Refactor SSM client management and enhance platform builders
+- Refactor config tests for improved clarity and coverage
+- Fix Windows CI: Add timeout and environment isolation to TestExecCommandSeparationOfConcerns
+- Fix Windows CI: Add environment isolation to TestInitializeConfigFile
+- Fix Windows CI: Complete environment isolation for config tests
+- Fix Windows CI: Add timeout and environment isolation to TestConnectionSeparationOfConcerns
+- Fix Windows CI: Add getUserHomeDir() to root.go for complete environment isolation
+- Fix Windows CI: Add missing test isolation to auth tests
+- Fix Windows CI: Handle config loading gracefully in CI environments
+
+
 ## [v2.7.0] - 2025-09-10
 
 ### Added

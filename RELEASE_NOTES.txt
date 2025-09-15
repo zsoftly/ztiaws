@@ -1,8 +1,8 @@
-# ztictl v2.7.0 Release Notes
+# ztictl v2.8.0 Release Notes
 
-**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.7.0/INSTALLATION.md)
+**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.8.0/INSTALLATION.md)
 
-**Release Date:** September 10, 2025
+**Release Date:** September 15, 2025
 
 ## Overview
 
@@ -10,85 +10,43 @@ ztictl is a unified AWS SSM management tool that provides both Go binary and bas
 
 **Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
 
-## 🎯 Key Features in v2.7.0
+## New Features
 
-### 1. **Multi-Region Command Execution** 🌍
-Execute commands across multiple AWS regions simultaneously with the new `ssm exec-multi` command:
-```bash
-ztictl ssm exec-multi --regions us-east-1,eu-west-1 --command "df -h"
-```
-- Parallel execution across regions for faster results
-- Aggregated output with clear region identification
-- Support for all standard SSM exec options
+### Enhanced Cross-Platform Support
+* **Native Windows support**: Full Windows compatibility with platform-specific command generation
+* **Automatic platform detection**: Smart detection of operating system for optimal command execution
+* **Cross-platform file operations**: Improved file transfer with proper path handling across Windows and Unix systems
 
-### 2. **Shell Completion Support** 🚀
-Full bash and zsh completion for all ztictl commands:
-```bash
-# Install completion for bash
-ztictl completion bash
+### Improved SSM Operations
+* **Client connection pooling**: Optimized AWS SSM client management for better performance across multiple regions
+* **Enhanced session management**: More reliable connection handling for SSM sessions
+* **Better error handling**: Improved error reporting and recovery for SSM operations
 
-# Install completion for zsh  
-ztictl completion zsh
-```
-- Tab completion for commands, flags, and arguments
-- Automatic instance ID completion
-- System-wide or user-specific installation options
+### Configuration Enhancements
+* **Robust config validation**: Enhanced configuration validation with better error messages
+* **Environment detection**: Improved handling of different environment configurations
+* **Path resolution**: Better handling of home directories and config file paths across platforms
 
-### 3. **Simplified SSO Configuration** ⚙️
-Streamlined AWS SSO setup process:
-- Now only requires domain ID (e.g., `d-1234567890` or `zsoftly`)
-- Automatic URL construction from domain ID
-- Default region set to `ca-central-1` for consistency
-- Interactive configuration wizard with validation
+## Bug Fixes
 
-### 4. **Enhanced Documentation** 📚
-Comprehensive new documentation:
-- [COMMANDS.md](docs/COMMANDS.md) - Complete command reference
-- [CONFIGURATION.md](docs/CONFIGURATION.md) - Detailed configuration guide
-- [MULTI_REGION.md](docs/MULTI_REGION.md) - Multi-region operations guide
+### Core Functionality
+* **AMI ID validation**: Fixed AMI ID handling and improved logging for EC2 operations
+* **Path normalization**: Resolved path handling issues for cross-platform compatibility
+* **Configuration loading**: Fixed startup issues related to configuration validation
 
-### 5. **Improved Developer Experience** 🛠️
-- Automated version updates during release process
-- Centralized test credentials management
-- Enhanced AWS region validation
-- Better error messages and debugging output
+### Platform-Specific Fixes
+* **Windows compatibility**: Resolved Windows-specific issues with file paths and environment variables
+* **Authentication flow**: Fixed authentication command execution on different platforms
+* **Connection stability**: Improved connection reliability across different operating systems
 
-## Breaking Changes
+## What's New in v2.8.0
 
-None - This release maintains full backward compatibility.
+**🌐 True Cross-Platform**: ztictl now provides native support for Windows alongside Unix systems, with automatic platform detection and optimized command execution.
 
-## Upgrade Instructions
+**⚡ Performance Improvements**: New SSM client pooling reduces connection overhead and improves performance when working with multiple AWS regions.
 
-### Binary Installation
-```bash
-# Download latest release
-curl -L https://github.com/zsoftly/ztiaws/releases/download/v2.7.0/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m) -o ztictl
-chmod +x ztictl
-sudo mv ztictl /usr/local/bin/
-```
+**🔧 Enhanced Reliability**: Better error handling, improved configuration validation, and more robust file operations across all supported platforms.
 
-### Enable Shell Completion (Optional)
-```bash
-# For bash
-ztictl completion install bash
+**🛠️ Improved User Experience**: Cleaner configuration management, better error messages, and more reliable authentication flows.
 
-# For zsh
-ztictl completion install zsh
-```
-
-## Requirements
-
-- AWS CLI version 2.x
-- AWS Session Manager Plugin
-- Valid AWS credentials or SSO configuration
-
-## Support
-
-For issues or questions, please visit: https://github.com/zsoftly/ztiaws/issues
-
-## What's Next
-
-Future releases will focus on:
-- Enhanced monitoring and logging capabilities
-- Additional multi-region operations
-- Performance optimizations for large-scale deployments
+This release maintains full backward compatibility while significantly enhancing cross-platform capabilities.
