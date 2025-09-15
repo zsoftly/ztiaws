@@ -1,8 +1,8 @@
-# ztictl v2.7.0 Release Notes
+# ztictl v2.8.0 Release Notes
 
-**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.7.0/INSTALLATION.md)
+**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.8.0/INSTALLATION.md)
 
-**Release Date:** September 10, 2025
+**Release Date:** September 15, 2025
 
 ## Overview
 
@@ -10,85 +10,29 @@ ztictl is a unified AWS SSM management tool that provides both Go binary and bas
 
 **Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
 
-## 🎯 Key Features in v2.7.0
+## New Features
+* feat: enhance multi-OS support and automatic platform detection in ztictl
+* feat: enhance Windows command validation and update breaking changes in platform builders
+* Implement Linux and Windows command builders for platform-specific operations
+* feat: add cross-platform test writing guidelines and improve error handling in sample config tests
 
-### 1. **Multi-Region Command Execution** 🌍
-Execute commands across multiple AWS regions simultaneously with the new `ssm exec-multi` command:
-```bash
-ztictl ssm exec-multi --regions us-east-1,eu-west-1 --command "df -h"
-```
-- Parallel execution across regions for faster results
-- Aggregated output with clear region identification
-- Support for all standard SSM exec options
+## Bug Fixes
+* fix: update AMI ID handling and improve logging for EC2 instance creation
+* fix: ensure Unix-style path handling in LinuxBuilder commands
+* fix: Resolve Windows test isolation issues in TestAuthLoginCmd
+* fix: Resolve formatting issues in ztictl
+* fixed pipeline failure issure
+* fix: disable Go module caching in CI to resolve go.sum path issue
+* fix: Resolve config validation issues in ztictl
 
-### 2. **Shell Completion Support** 🚀
-Full bash and zsh completion for all ztictl commands:
-```bash
-# Install completion for bash
-ztictl completion bash
-
-# Install completion for zsh  
-ztictl completion zsh
-```
-- Tab completion for commands, flags, and arguments
-- Automatic instance ID completion
-- System-wide or user-specific installation options
-
-### 3. **Simplified SSO Configuration** ⚙️
-Streamlined AWS SSO setup process:
-- Now only requires domain ID (e.g., `d-1234567890` or `zsoftly`)
-- Automatic URL construction from domain ID
-- Default region set to `ca-central-1` for consistency
-- Interactive configuration wizard with validation
-
-### 4. **Enhanced Documentation** 📚
-Comprehensive new documentation:
-- [COMMANDS.md](docs/COMMANDS.md) - Complete command reference
-- [CONFIGURATION.md](docs/CONFIGURATION.md) - Detailed configuration guide
-- [MULTI_REGION.md](docs/MULTI_REGION.md) - Multi-region operations guide
-
-### 5. **Improved Developer Experience** 🛠️
-- Automated version updates during release process
-- Centralized test credentials management
-- Enhanced AWS region validation
-- Better error messages and debugging output
-
-## Breaking Changes
-
-None - This release maintains full backward compatibility.
-
-## Upgrade Instructions
-
-### Binary Installation
-```bash
-# Download latest release
-curl -L https://github.com/zsoftly/ztiaws/releases/download/v2.7.0/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m) -o ztictl
-chmod +x ztictl
-sudo mv ztictl /usr/local/bin/
-```
-
-### Enable Shell Completion (Optional)
-```bash
-# For bash
-ztictl completion install bash
-
-# For zsh
-ztictl completion install zsh
-```
-
-## Requirements
-
-- AWS CLI version 2.x
-- AWS Session Manager Plugin
-- Valid AWS credentials or SSO configuration
-
-## Support
-
-For issues or questions, please visit: https://github.com/zsoftly/ztiaws/issues
-
-## What's Next
-
-Future releases will focus on:
-- Enhanced monitoring and logging capabilities
-- Additional multi-region operations
-- Performance optimizations for large-scale deployments
+## Other Changes
+* refactor: remove outdated breaking change comments and improve code clarity
+* Refactor SSM client management and enhance platform builders
+* Refactor config tests for improved clarity and coverage
+* Fix Windows CI: Add timeout and environment isolation to TestExecCommandSeparationOfConcerns
+* Fix Windows CI: Add environment isolation to TestInitializeConfigFile
+* Fix Windows CI: Complete environment isolation for config tests
+* Fix Windows CI: Add timeout and environment isolation to TestConnectionSeparationOfConcerns
+* Fix Windows CI: Add getUserHomeDir() to root.go for complete environment isolation
+* Fix Windows CI: Add missing test isolation to auth tests
+* Fix Windows CI: Handle config loading gracefully in CI environments
