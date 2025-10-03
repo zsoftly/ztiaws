@@ -11,6 +11,7 @@ import (
 	"ztictl/internal/config"
 	"ztictl/internal/splash"
 	"ztictl/pkg/logging"
+	"ztictl/pkg/version"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -20,7 +21,7 @@ var (
 	// Version represents the current version of ztictl
 	// This can be set at build time using -ldflags "-X main.version=X.Y.Z"
 	// Default version is "2.5.0"; override at build time with -ldflags "-X main.Version=X.Y.Z"
-	Version    = "2.8.0"
+	Version    = "2.8.1"
 	configFile string
 	debug      bool
 	showSplash bool
@@ -44,9 +45,16 @@ Features:
 - Port forwarding through SSM tunnels
 - Multi-region support`,
 	Version: Version,
+	Run: func(cmd *cobra.Command, args []string) {
+		if v, _ := cmd.Flags().GetBool("version"); v {
+			version.PrintVersionWithCheck(Version)
+			return
+		}
+		_ = cmd.Help()
+	},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Skip splash for help and version commands
-		if cmd.Name() == "help" || cmd.Name() == "version" || cmd.Parent() == nil {
+		if cmd.Name() == "help" || cmd.Name() == "version" || cmd.Name() == cobra.ShellCompRequestCmd || cmd.Parent() == nil {
 			return
 		}
 
@@ -183,7 +191,7 @@ func setupConfiguration() error {
 			logger.Error("Error reading config file", "error", err)
 		}
 	} else {
-		logger.Info("Using config file", "file", viper.ConfigFileUsed())
+		logger.Debug("Using config file", "file", viper.ConfigFileUsed())
 	}
 
 	// Load configuration
