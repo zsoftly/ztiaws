@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -67,13 +68,59 @@ func CheckLatestVersion(currentVersion string) (isOutdated bool, latestVersion s
 
 // compareVersions returns true if current is older than latest
 func compareVersions(current, latest string) bool {
-	// Strip git hash from current version (e.g., "2.8.0-abaf1976" -> "2.8.0")
-	if idx := strings.Index(current, "-"); idx != -1 {
-		current = current[:idx]
+	// Clean both versions (trim v/V prefix and strip pre-release/build suffixes like -rc1 or +build)
+	current = cleanVersion(current)
+	latest = cleanVersion(latest)
+
+	// Parse versions as major.minor.patch
+	currentParts := parseVersion(current)
+	latestParts := parseVersion(latest)
+
+	// Compare major.minor.patch numerically
+	for i := 0; i < 3; i++ {
+		if currentParts[i] < latestParts[i] {
+			return true
+		}
+		if currentParts[i] > latestParts[i] {
+			return false
+		}
 	}
 
-	// Simple string comparison for semantic versions
-	return current < latest
+	return false // versions are equal
+}
+
+// cleanVersion normalizes a version string by removing leading 'v'/'V' and
+// stripping any pre-release (e.g., -rc1) or build metadata (e.g., +build.1)
+// to leave only the numeric major.minor.patch portion for comparison.
+func cleanVersion(v string) string {
+	// Trim optional leading 'v' or 'V' character (if present)
+	if len(v) > 0 {
+		if v[0] == 'v' || v[0] == 'V' {
+			v = v[1:]
+		}
+	}
+
+	// Strip at first '-' or '+' (pre-release or build metadata)
+	if idx := strings.IndexAny(v, "-+"); idx != -1 {
+		v = v[:idx]
+	}
+
+	return v
+}
+
+// parseVersion parses a semantic version string into [major, minor, patch]
+func parseVersion(v string) [3]int {
+	parts := strings.Split(v, ".")
+	result := [3]int{0, 0, 0}
+
+	for i := 0; i < len(parts) && i < 3; i++ {
+		// Parse as int; on error, leave as 0 (invalid or empty segments default to 0)
+		if num, err := strconv.Atoi(parts[i]); err == nil {
+			result[i] = num
+		}
+	}
+
+	return result
 }
 
 // getCacheFilePath returns the path to the version cache file

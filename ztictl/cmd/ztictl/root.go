@@ -53,7 +53,7 @@ Features:
 		_ = cmd.Help()
 	},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Skip splash for help and version commands
+		// Skip splash for help, version, and completion commands
 		if cmd.Name() == "help" || cmd.Name() == "version" || cmd.Name() == cobra.ShellCompRequestCmd || cmd.Parent() == nil {
 			return
 		}
