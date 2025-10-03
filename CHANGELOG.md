@@ -1,5 +1,12 @@
 # Changelog
 
+## [v2.8.1] - 2025-10-03
+
+### Added
+- feat: enhance version comparison logic and add comprehensive tests
+- feat: update version to 2.8.1 and add version checking functionality
+
+
 ## [v2.8.0] - 2025-09-15
 
 ### Added
