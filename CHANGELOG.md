@@ -3,8 +3,13 @@
 ## [v2.8.1] - 2025-10-03
 
 ### Added
-- feat: enhance version comparison logic and add comprehensive tests
-- feat: update version to 2.8.1 and add version checking functionality
+- feat: add automatic version update check (queries GitHub for latest release)
+- feat: implement 24-hour version check caching to reduce API calls
+
+### Fixed
+- fix: correct semantic version comparison by numerically comparing major.minor.patch (e.g., 2.10.0 > 2.2.0)
+- fix: clean shell completion output by skipping splash/log output during completion requests
+- fix: change "Using config file" log message from Info to Debug level to prevent unwanted output
 
 
 ## [v2.8.0] - 2025-09-15

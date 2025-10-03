@@ -11,11 +11,12 @@ ztictl is a unified AWS SSM management tool that provides both Go binary and bas
 **Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
 
 ## New Features
-* feat: enhance version comparison logic and add comprehensive tests
-* feat: update version to 2.8.1 and add version checking functionality
+* Automatic version update check: ztictl now checks GitHub for the latest release when printing the version
+* Version check caching: results are cached for 24 hours to minimize API usage
 
 ## Bug Fixes
-* No bug fixes in this release
+* Correct semantic version comparison to use numeric major.minor.patch comparison (fixes issues like 2.10.0 vs 2.2.0)
+* Prevent splash/log output during shell completion requests to keep completion output clean
 
 ## Other Changes
-* No other changes in this release
+* Adjust logging: move "Using config file" message from Info to Debug level
