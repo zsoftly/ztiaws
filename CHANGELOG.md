@@ -1,5 +1,20 @@
 # Changelog
 
+## [v2.8.2] - 2025-10-07
+
+### Added
+- AWS SSO pagination support: Fetch all available accounts and roles instead of only first page (5-10 items)
+- Users can now search and select from complete account/role inventory using fuzzy finder
+- Comprehensive pagination tests covering single/multiple pages, empty results, and error scenarios
+- Modern Go error handling patterns using `errors.As()` throughout codebase
+
+### Fixed
+- Session Manager Plugin detection: Correctly validate exit code 255 instead of accepting any exit error
+- Authentication error handling: Return `(false, nil)` on config errors to maintain function contract
+- Import ordering: Standardized to stdlib, external, internal per Go conventions
+- Code quality: Removed empty else blocks, improved error wrapping with `%w` format verb
+
+
 ## [v2.8.1] - 2025-10-03
 
 ### Added
