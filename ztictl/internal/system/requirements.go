@@ -133,7 +133,7 @@ func (c *RequirementsChecker) checkSSMPlugin() RequirementResult {
 	// session-manager-plugin returns exit code 255 when called without arguments, but that means it's installed
 	if err != nil {
 		exitError := &exec.ExitError{}
-		if errors.As(err, &exitError) {
+		if errors.As(err, &exitError) && exitError.ExitCode() == 255 {
 			result.Passed = true
 			return result
 		}

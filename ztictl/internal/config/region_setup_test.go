@@ -196,7 +196,7 @@ func TestSaveRegionConfig(t *testing.T) {
 		// Write initial config
 		data, err := yaml.Marshal(existingConfig)
 		require.NoError(t, err)
-		err = os.WriteFile(configPath, data, 0644)
+		err = os.WriteFile(configPath, data, 0600)
 		require.NoError(t, err)
 
 		// Update with regions
@@ -257,6 +257,6 @@ func saveConfigForTest(t *testing.T, configPath string, enabledRegions []string,
 	data, err := yaml.Marshal(existingConfig)
 	require.NoError(t, err)
 
-	err = os.WriteFile(configPath, data, 0644)
+	err = os.WriteFile(configPath, data, 0600)
 	require.NoError(t, err)
 }

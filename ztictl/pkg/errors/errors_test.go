@@ -293,7 +293,7 @@ func TestZtiErrorWithContext(t *testing.T) {
 	}
 
 	// Test chaining context
-	err.WithContext("operation", "login").WithContext("retry", 3)
+	err = err.WithContext("operation", "login").WithContext("retry", 3)
 
 	if len(err.Context) != 3 {
 		t.Errorf("Expected 3 context entries, got %d", len(err.Context))
@@ -330,11 +330,11 @@ func TestZtiErrorGetContext(t *testing.T) {
 	}
 
 	// Add context and test retrieval
-	err.WithContext("region", "us-east-1")
-	err.WithContext("service", "ec2")
-	err.WithContext("count", 42)
-	err.WithContext("enabled", true)
-	err.WithContext("data", nil) // Test nil value
+	err = err.WithContext("region", "us-east-1").
+		WithContext("service", "ec2").
+		WithContext("count", 42).
+		WithContext("enabled", true).
+		WithContext("data", nil) // Test nil value
 
 	tests := []struct {
 		key      string
@@ -466,7 +466,7 @@ func TestContextTypes(t *testing.T) {
 
 	// Add all context values
 	for key, value := range testCases {
-		err.WithContext(key, value)
+		err = err.WithContext(key, value)
 	}
 
 	// Verify all values

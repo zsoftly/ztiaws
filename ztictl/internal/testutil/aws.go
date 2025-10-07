@@ -6,8 +6,8 @@ import "os"
 // These are well-known example credentials from AWS documentation
 // See: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html
 const (
-	MockAWSAccessKeyID     = "AKIAIOSFODNN7EXAMPLE"
-	MockAWSSecretAccessKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+	MockAWSAccessKeyID     = "AKIAIOSFODNN7EXAMPLE"                     // #nosec G101
+	MockAWSSecretAccessKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" // #nosec G101
 	MockAWSSessionToken    = "test-session-token"
 	MockAWSRegion          = "ca-central-1"
 )

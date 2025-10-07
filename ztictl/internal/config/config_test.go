@@ -446,7 +446,7 @@ func TestCreateSampleConfigErrorHandling(t *testing.T) {
 
 	// Create a file where we expect a directory (this will cause MkdirAll to fail)
 	conflictPath := filepath.Join(readOnlyDir, "subdir")
-	err = os.WriteFile(conflictPath, []byte("test"), 0644)
+	err = os.WriteFile(conflictPath, []byte("test"), 0600)
 	if err != nil {
 		t.Fatalf("Failed to create conflict file: %v", err)
 	}
