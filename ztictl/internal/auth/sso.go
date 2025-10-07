@@ -1303,7 +1303,7 @@ func (m *Manager) isProfileAuthenticated(ctx context.Context, profileName string
 	// Fallback to trying AWS API call
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(profileName))
 	if err != nil {
-		return false, err
+		return false, nil
 	}
 
 	stsClient := sts.NewFromConfig(awsCfg)
