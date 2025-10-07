@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
 	"ztictl/pkg/aws"
 	"ztictl/pkg/colors"
+
+	"gopkg.in/yaml.v3"
 )
 
 // InteractiveRegionSetup prompts the user to configure regions interactively

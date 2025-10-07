@@ -7,8 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/fatih/color"
 	"ztictl/pkg/security"
+
+	"github.com/fatih/color"
 )
 
 const (

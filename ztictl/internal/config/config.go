@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +11,7 @@ import (
 	"github.com/spf13/viper"
 
 	"ztictl/pkg/aws"
-	"ztictl/pkg/errors"
+	zti_errors "ztictl/pkg/errors"
 )
 
 // Config represents the application configuration
@@ -182,7 +183,7 @@ func loadConfigInternal(isFirstRun bool) (*ConfigValidationError, error) {
 	} else {
 		// Try to load from config file (normal operation)
 		if err := viper.Unmarshal(cfg); err != nil {
-			return nil, errors.NewConfigError("failed to unmarshal configuration", err)
+			return nil, zti_errors.NewConfigError("failed to unmarshal configuration", err)
 		}
 
 		// Log raw values for debugging
@@ -204,7 +205,7 @@ func loadConfigInternal(isFirstRun bool) (*ConfigValidationError, error) {
 	if err := validate(cfg); err != nil {
 		// If validation fails and it's first run, provide helpful guidance
 		if isFirstRun {
-			return nil, errors.NewValidationError("Configuration needed. Please run 'ztictl config init' to set up your AWS SSO settings")
+			return nil, zti_errors.NewValidationError("Configuration needed. Please run 'ztictl config init' to set up your AWS SSO settings")
 		}
 		return nil, err
 	}
@@ -267,7 +268,7 @@ func validate(cfg *Config) error {
 	// Validate SSO configuration if provided
 	if cfg.SSO.StartURL != "" {
 		if cfg.SSO.Region == "" {
-			return errors.NewValidationError("SSO region must be specified when SSO start URL is provided")
+			return zti_errors.NewValidationError("SSO region must be specified when SSO start URL is provided")
 		}
 	}
 
@@ -333,12 +334,12 @@ system:
 	// Create directory if it doesn't exist
 	configDir := filepath.Dir(configPath)
 	if err := os.MkdirAll(configDir, 0750); err != nil {
-		return errors.NewConfigError("failed to create config directory", err)
+		return zti_errors.NewConfigError("failed to create config directory", err)
 	}
 
 	// Write sample config
 	if err := os.WriteFile(configPath, []byte(sampleConfig), 0600); err != nil {
-		return errors.NewConfigError("failed to write sample config", err)
+		return zti_errors.NewConfigError("failed to write sample config", err)
 	}
 
 	return nil
@@ -583,7 +584,8 @@ func validateLoadedConfigDetailed(cfg *Config) *ConfigValidationError {
 	if cfg.SSO.StartURL != "" {
 		if err := aws.ValidateSSOURL(cfg.SSO.StartURL); err != nil {
 			// Convert ValidationError to ConfigValidationError
-			if valErr, ok := err.(*aws.ValidationError); ok {
+			valErr := &aws.ValidationError{}
+			if errors.As(err, &valErr) {
 				return &ConfigValidationError{
 					Field:   valErr.Field,
 					Value:   valErr.Value,

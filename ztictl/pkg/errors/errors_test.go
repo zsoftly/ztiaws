@@ -185,7 +185,7 @@ func TestWrap(t *testing.T) {
 		t.Errorf("Expected message %s, got %s", message, err.Message)
 	}
 
-	if err.Underlying != originalErr {
+	if !errors.Is(err.Underlying, originalErr) {
 		t.Error("Wrap should preserve underlying error")
 	}
 
@@ -264,7 +264,7 @@ func TestZtiErrorUnwrap(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.err.Unwrap()
-			if result != tt.expected {
+			if !errors.Is(result, tt.expected) {
 				t.Errorf("Unwrap() = %v, want %v", result, tt.expected)
 			}
 		})
@@ -390,7 +390,7 @@ func TestNewAWSError(t *testing.T) {
 			}
 
 			if tt.shouldWrap {
-				if err.Underlying != tt.underlying {
+				if !errors.Is(err.Underlying, tt.underlying) {
 					t.Error("Should wrap underlying error")
 				}
 			} else {
@@ -494,7 +494,8 @@ func TestErrorInterfaceCompliance(t *testing.T) {
 	}
 
 	// Test type assertion
-	ztiErr, ok := err.(*ZtiError)
+	ztiErr := &ZtiError{}
+	ok := errors.As(err, &ztiErr)
 	if !ok {
 		t.Error("Should be able to type assert to *ZtiError")
 	}

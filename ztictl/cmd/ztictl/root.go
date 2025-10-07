@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -185,7 +186,8 @@ func setupConfiguration() error {
 		// Log the error but don't fail - config.Load() will handle missing config
 		logger.Debug("Could not read config file", "error", err)
 		// Try to be more specific about what went wrong
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if errors.As(err, &configFileNotFoundError) {
 			logger.Debug("Config file not found in expected locations")
 		} else {
 			logger.Error("Error reading config file", "error", err)

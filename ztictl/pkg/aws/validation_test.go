@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"errors"
 	"testing"
 )
 
@@ -120,7 +121,8 @@ func TestValidateSSOURL(t *testing.T) {
 					return
 				}
 
-				if valErr, ok := err.(*ValidationError); ok {
+				valErr := &ValidationError{}
+				if errors.As(err, &valErr) {
 					if valErr.Field != tt.errorField {
 						t.Errorf("ValidateSSOURL(%q) error field = %q, expected %q", tt.url, valErr.Field, tt.errorField)
 					}

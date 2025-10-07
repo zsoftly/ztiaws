@@ -317,6 +317,7 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 		Region:      cfg.SSO.Region,
 		Credentials: aws.AnonymousCredentials{},
 	}
+	ssoClient := sso.NewFromConfig(awsCfg)
 
 	// Step 3: Check for valid cached token
 	token, err := m.getCachedToken(cfg.SSO.StartURL)
@@ -338,7 +339,7 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 	}
 
 	// Step 4: Get available accounts
-	accounts, err := m.listAccounts(ctx, token.AccessToken)
+	accounts, err := m.listAccounts(ctx, ssoClient, token.AccessToken)
 	if err != nil {
 		return fmt.Errorf("failed to list accounts: %w", err)
 	}
@@ -352,7 +353,7 @@ func (m *Manager) Login(ctx context.Context, profileName string) error {
 	logging.LogInfo("Selected account | id=%s name=%s", selectedAccount.AccountID, selectedAccount.AccountName)
 
 	// Step 6: Get available roles for the selected account
-	roles, err := m.listAccountRoles(ctx, token.AccessToken, selectedAccount.AccountID)
+	roles, err := m.listAccountRoles(ctx, ssoClient, token.AccessToken, selectedAccount.AccountID)
 	if err != nil {
 		return fmt.Errorf("failed to list roles: %w", err)
 	}
@@ -489,7 +490,6 @@ func (m *Manager) configureProfile(profileName string, cfg *appconfig.Config) er
 	// #nosec G304
 	if existing, err := os.ReadFile(configPath); err == nil {
 		content = string(existing)
-	} else {
 	}
 
 	// Update or add profile configuration
@@ -541,19 +541,22 @@ func (m *Manager) getCachedToken(startURL string) (*SSOToken, error) {
 	var tokenFile string
 	err = filepath.WalkDir(cacheDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			logging.LogWarn("Error walking cache directory at %s: %v", path, err)
 			return nil // Continue walking
 		}
 
 		if !d.IsDir() && strings.HasSuffix(path, ".json") {
 			// Validate file path to prevent directory traversal attacks
 			if validateErr := security.ValidateFilePath(path, cacheDir); validateErr != nil {
+				logging.LogWarn("Invalid cache file path found and skipped: %s", path)
 				// Skip invalid paths but continue walking
-				return nil
+				return nil //nolint:nilerr
 			}
 
 			// Check if this file contains our start URL
 			content, readErr := os.ReadFile(path) // #nosec G304
 			if readErr != nil {
+				logging.LogWarn("Could not read cache file %s: %v", path, readErr)
 				return nil
 			}
 
@@ -756,31 +759,24 @@ func (m *Manager) saveTokenToCache(tokenResp *ssooidc.CreateTokenOutput, startUR
 }
 
 // listAccounts retrieves available AWS accounts from SSO
-func (m *Manager) listAccounts(ctx context.Context, accessToken string) ([]Account, error) {
-	cfg := appconfig.Get()
-
-	// Create a completely isolated config for SSO operations
-	ssoConfig := aws.Config{
-		Region:      cfg.SSO.Region,
-		Credentials: aws.AnonymousCredentials{},
-	}
-
-	// Create SSO client with explicit configuration
-	ssoClient := sso.NewFromConfig(ssoConfig)
-
-	resp, err := ssoClient.ListAccounts(ctx, &sso.ListAccountsInput{
+func (m *Manager) listAccounts(ctx context.Context, client sso.ListAccountsAPIClient, accessToken string) ([]Account, error) {
+	var accounts []Account
+	paginator := sso.NewListAccountsPaginator(client, &sso.ListAccountsInput{
 		AccessToken: aws.String(accessToken),
 	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list accounts: %w", err)
-	}
 
-	accounts := make([]Account, len(resp.AccountList))
-	for i, acc := range resp.AccountList {
-		accounts[i] = Account{
-			AccountID:    aws.ToString(acc.AccountId),
-			AccountName:  aws.ToString(acc.AccountName),
-			EmailAddress: aws.ToString(acc.EmailAddress),
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list accounts: %w", err)
+		}
+
+		for _, acc := range page.AccountList {
+			accounts = append(accounts, Account{
+				AccountID:    aws.ToString(acc.AccountId),
+				AccountName:  aws.ToString(acc.AccountName),
+				EmailAddress: aws.ToString(acc.EmailAddress),
+			})
 		}
 	}
 
@@ -870,31 +866,24 @@ func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
 }
 
 // listAccountRoles retrieves available roles for an account
-func (m *Manager) listAccountRoles(ctx context.Context, accessToken, accountID string) ([]Role, error) {
-	cfg := appconfig.Get()
-
-	// Create a completely isolated config for SSO operations
-	ssoConfig := aws.Config{
-		Region:      cfg.SSO.Region,
-		Credentials: aws.AnonymousCredentials{},
-	}
-
-	// Create SSO client with explicit configuration
-	ssoClient := sso.NewFromConfig(ssoConfig)
-
-	resp, err := ssoClient.ListAccountRoles(ctx, &sso.ListAccountRolesInput{
+func (m *Manager) listAccountRoles(ctx context.Context, client sso.ListAccountRolesAPIClient, accessToken, accountID string) ([]Role, error) {
+	var roles []Role
+	paginator := sso.NewListAccountRolesPaginator(client, &sso.ListAccountRolesInput{
 		AccessToken: aws.String(accessToken),
 		AccountId:   aws.String(accountID),
 	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list account roles: %w", err)
-	}
 
-	roles := make([]Role, len(resp.RoleList))
-	for i, role := range resp.RoleList {
-		roles[i] = Role{
-			RoleName:  aws.ToString(role.RoleName),
-			AccountID: accountID,
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list account roles: %w", err)
+		}
+
+		for _, role := range page.RoleList {
+			roles = append(roles, Role{
+				RoleName:  aws.ToString(role.RoleName),
+				AccountID: accountID,
+			})
 		}
 	}
 
@@ -1314,7 +1303,7 @@ func (m *Manager) isProfileAuthenticated(ctx context.Context, profileName string
 	// Fallback to trying AWS API call
 	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(profileName))
 	if err != nil {
-		return false, nil
+		return false, err
 	}
 
 	stsClient := sts.NewFromConfig(awsCfg)

@@ -7,11 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 	"ztictl/internal/config"
 	"ztictl/internal/system"
 	"ztictl/pkg/aws"
+
+	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 // configCmd represents the config command

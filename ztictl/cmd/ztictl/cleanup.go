@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/spf13/cobra"
 	"ztictl/internal/ssm"
+
+	"github.com/spf13/cobra"
 )
 
 var cleanupCmd = &cobra.Command{

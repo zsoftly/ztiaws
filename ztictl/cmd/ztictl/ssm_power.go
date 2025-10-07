@@ -564,7 +564,7 @@ func resolveInstanceID(ctx context.Context, awsClient *aws.Client, instanceIdent
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to describe instances: %v", err)
+		return "", fmt.Errorf("failed to describe instances: %w", err)
 	}
 
 	if len(result.Reservations) == 0 {
@@ -601,7 +601,7 @@ func getInstanceIDsByTags(ctx context.Context, awsClient *aws.Client, tagsFlag s
 		Filters: filters,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to describe instances: %v", err)
+		return nil, fmt.Errorf("failed to describe instances: %w", err)
 	}
 
 	var instanceIDs []string
