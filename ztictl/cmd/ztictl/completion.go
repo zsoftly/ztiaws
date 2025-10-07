@@ -85,7 +85,7 @@ func detectShell() string {
 	if runtime.GOOS != "windows" {
 		ppid := os.Getppid()
 		if ppid > 0 {
-			cmd := exec.Command("ps", "-p", fmt.Sprintf("%d", ppid), "-o", "comm=")
+			cmd := exec.Command("ps", "-p", fmt.Sprintf("%d", ppid), "-o", "comm=") // #nosec G204
 			if output, err := cmd.Output(); err == nil {
 				shellName := strings.TrimSpace(string(output))
 				switch {
@@ -369,7 +369,9 @@ func installBashCompletion() error {
 			// Fall back to user directory
 			home, _ := os.UserHomeDir()
 			completionDir := filepath.Join(home, ".local", "share", "bash-completion", "completions")
-			os.MkdirAll(completionDir, 0755)
+			if err := os.MkdirAll(completionDir, 0755); err != nil {
+				return fmt.Errorf("failed to create bash completion directory: %w", err)
+			}
 			installPath = filepath.Join(completionDir, "ztictl")
 		}
 	}
@@ -459,7 +461,7 @@ func installBashCompletion() error {
 			fmt.Printf("⚠️  Warning: Could not set permissions on %s\n", installPath)
 		}
 	} else {
-		if err := os.WriteFile(installPath, []byte(completionScript.String()), 0644); err != nil {
+		if err := os.WriteFile(installPath, []byte(completionScript.String()), 0600); err != nil {
 			return fmt.Errorf("failed to write completion file: %w", err)
 		}
 	}
@@ -481,10 +483,12 @@ func installZshCompletion() error {
 	if _, err := os.Stat(filepath.Join(home, ".oh-my-zsh")); err == nil {
 		// Install to Oh My Zsh custom plugins
 		pluginDir := filepath.Join(home, ".oh-my-zsh", "custom", "plugins", "ztictl")
-		os.MkdirAll(pluginDir, 0755)
+		if err := os.MkdirAll(pluginDir, 0755); err != nil {
+			return fmt.Errorf("failed to create oh-my-zsh plugin directory: %w", err)
+		}
 
 		completionPath := filepath.Join(pluginDir, "_ztictl")
-		if err := os.WriteFile(completionPath, []byte(completionScript.String()), 0644); err != nil {
+		if err := os.WriteFile(completionPath, []byte(completionScript.String()), 0600); err != nil {
 			return fmt.Errorf("failed to write completion file: %w", err)
 		}
 
@@ -550,10 +554,12 @@ func installFishCompletion() error {
 
 	home, _ := os.UserHomeDir()
 	completionDir := filepath.Join(home, ".config", "fish", "completions")
-	os.MkdirAll(completionDir, 0755)
+	if err := os.MkdirAll(completionDir, 0755); err != nil {
+		return fmt.Errorf("failed to create fish completion directory: %w", err)
+	}
 
 	completionPath := filepath.Join(completionDir, "ztictl.fish")
-	if err := os.WriteFile(completionPath, []byte(completionScript.String()), 0644); err != nil {
+	if err := os.WriteFile(completionPath, []byte(completionScript.String()), 0600); err != nil {
 		return fmt.Errorf("failed to write completion file: %w", err)
 	}
 

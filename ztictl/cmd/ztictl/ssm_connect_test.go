@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	"ztictl/pkg/logging"
+
+	"github.com/spf13/cobra"
 )
 
 func TestSsmConnectCmd(t *testing.T) {

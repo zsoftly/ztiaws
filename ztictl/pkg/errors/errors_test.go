@@ -185,7 +185,7 @@ func TestWrap(t *testing.T) {
 		t.Errorf("Expected message %s, got %s", message, err.Message)
 	}
 
-	if err.Underlying != originalErr {
+	if !errors.Is(err.Underlying, originalErr) {
 		t.Error("Wrap should preserve underlying error")
 	}
 
@@ -264,7 +264,7 @@ func TestZtiErrorUnwrap(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.err.Unwrap()
-			if result != tt.expected {
+			if !errors.Is(result, tt.expected) {
 				t.Errorf("Unwrap() = %v, want %v", result, tt.expected)
 			}
 		})
@@ -293,7 +293,7 @@ func TestZtiErrorWithContext(t *testing.T) {
 	}
 
 	// Test chaining context
-	err.WithContext("operation", "login").WithContext("retry", 3)
+	err = err.WithContext("operation", "login").WithContext("retry", 3)
 
 	if len(err.Context) != 3 {
 		t.Errorf("Expected 3 context entries, got %d", len(err.Context))
@@ -330,11 +330,11 @@ func TestZtiErrorGetContext(t *testing.T) {
 	}
 
 	// Add context and test retrieval
-	err.WithContext("region", "us-east-1")
-	err.WithContext("service", "ec2")
-	err.WithContext("count", 42)
-	err.WithContext("enabled", true)
-	err.WithContext("data", nil) // Test nil value
+	err = err.WithContext("region", "us-east-1").
+		WithContext("service", "ec2").
+		WithContext("count", 42).
+		WithContext("enabled", true).
+		WithContext("data", nil) // Test nil value
 
 	tests := []struct {
 		key      string
@@ -390,7 +390,7 @@ func TestNewAWSError(t *testing.T) {
 			}
 
 			if tt.shouldWrap {
-				if err.Underlying != tt.underlying {
+				if !errors.Is(err.Underlying, tt.underlying) {
 					t.Error("Should wrap underlying error")
 				}
 			} else {
@@ -466,7 +466,7 @@ func TestContextTypes(t *testing.T) {
 
 	// Add all context values
 	for key, value := range testCases {
-		err.WithContext(key, value)
+		err = err.WithContext(key, value)
 	}
 
 	// Verify all values
@@ -494,7 +494,8 @@ func TestErrorInterfaceCompliance(t *testing.T) {
 	}
 
 	// Test type assertion
-	ztiErr, ok := err.(*ZtiError)
+	ztiErr := &ZtiError{}
+	ok := errors.As(err, &ztiErr)
 	if !ok {
 		t.Error("Should be able to type assert to *ZtiError")
 	}

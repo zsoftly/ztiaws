@@ -7,11 +7,12 @@ import (
 	"sync"
 	"time"
 
+	"ztictl/pkg/logging"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
-	"ztictl/pkg/logging"
 )
 
 type Platform string

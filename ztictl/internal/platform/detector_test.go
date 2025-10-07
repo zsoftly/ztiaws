@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"ztictl/pkg/logging"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -12,7 +14,6 @@ import (
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"ztictl/pkg/logging"
 )
 
 // MockSSMClient for testing SSM operations

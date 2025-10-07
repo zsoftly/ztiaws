@@ -82,7 +82,7 @@ func installBashCompletionToPath(installPath string) error {
 			fmt.Printf("⚠️  Warning: Could not set permissions on %s\n", installPath)
 		}
 	} else {
-		if err := os.WriteFile(installPath, []byte(completionScript.String()), 0644); err != nil {
+		if err := os.WriteFile(installPath, []byte(completionScript.String()), 0600); err != nil {
 			return fmt.Errorf("failed to write completion file: %w", err)
 		}
 	}
@@ -121,7 +121,9 @@ func TestInstallBashCompletionMocked(t *testing.T) {
 			name: "System directory with mocked sudo success",
 			setupFunc: func() {
 				// Create mock directories
-				os.MkdirAll(filepath.Join(tempDir, "etc", "bash_completion.d"), 0755)
+				if err := os.MkdirAll(filepath.Join(tempDir, "etc", "bash_completion.d"), 0755); err != nil {
+					t.Fatalf("failed to create mock directory: %v", err)
+				}
 				// Mock sudo with echo command that succeeds
 				sudoCommand = "echo"
 			},

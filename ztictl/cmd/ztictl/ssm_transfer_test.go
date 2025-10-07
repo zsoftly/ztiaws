@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/cobra"
 	"ztictl/pkg/logging"
+
+	"github.com/spf13/cobra"
 )
 
 func TestSsmTransferCmd(t *testing.T) {
