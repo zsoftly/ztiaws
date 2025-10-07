@@ -10,12 +10,66 @@ ztictl is a unified AWS SSM management tool that provides both Go binary and bas
 
 **Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
 
-## New Features
-* feat: improve error handling and adjust file permissions in completion and config management
-* feat: refactor imports and enhance error handling across multiple files
+## Key Changes
 
-## Bug Fixes
-* fix: change error handling to return nil instead of error in isProfileAuthenticated function
+### AWS SSO Pagination Support (Issue #124)
 
-## Other Changes
-* No other changes in this release
+Problem: Previously, only the first page of AWS SSO accounts and roles (5-10 items) was loaded. Users could not search or select accounts/roles beyond the initial page, severely limiting the tool's effectiveness for organizations with many accounts.
+
+Solution: Implemented full pagination support to fetch all available accounts and roles in the background. Search now filters against the complete dataset.
+
+Technical changes:
+- Migrated listAccounts() from single-page ListAccounts() to NewListAccountsPaginator()
+- Migrated listAccountRoles() from single-page ListAccountRoles() to NewListAccountRolesPaginator()
+- Added SSO client dependency injection for improved testability
+- Added comprehensive pagination tests (8 new tests covering all scenarios)
+
+Impact: Users can now search and select any account/role they have access to, regardless of pagination.
+
+### Bug Fixes
+
+Session Manager Plugin Detection (Issue #122)
+- Fixed checkSSMPlugin() to validate exit code 255 specifically
+- Previously accepted any exit error as "plugin installed"
+- Now correctly identifies plugin installation status
+- Prevents false positives when plugin is corrupted or missing
+
+Authentication Error Handling
+- Fixed isProfileAuthenticated() to return (false, nil) on configuration errors
+- Previously propagated configuration errors up the call stack
+- Now treats configuration errors as "not authenticated" without error
+- Maintains proper function contract where authentication failures are expected
+
+### Code Quality
+
+- Replaced deprecated type assertions with errors.As() throughout codebase
+- Standardized error wrapping using %w format verb for proper error chains
+- Standardized import ordering: stdlib, external packages, internal packages
+- Removed empty else blocks and dead code
+- Enhanced path validation logging for cache operations
+
+## Testing
+
+All changes include comprehensive test coverage:
+- Pagination: 8 tests (single/multiple pages, empty results, errors)
+- Exit code validation: Confirms session-manager-plugin detection logic
+- Error handling: Validates proper error propagation patterns
+- Total: 140+ tests passing across all packages
+
+## Upgrade Notes
+
+Recommended upgrade for users with:
+- Multiple AWS accounts (10+ accounts)
+- Large AWS organizations with many roles
+- Session Manager plugin detection issues
+
+No breaking changes. Drop-in replacement for v2.8.1.
+
+## What's Changed
+
+- feat: Implement AWS SSO pagination support (#125)
+- fix: Correct session-manager-plugin exit code validation (#125)
+- fix: Improve authentication error handling (#125)
+- chore: Code quality improvements and modernization (#125)
+
+Full Changelog: https://github.com/zsoftly/ztiaws/compare/v2.8.1...v2.8.2
