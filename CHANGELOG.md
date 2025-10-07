@@ -1,5 +1,15 @@
 # Changelog
 
+## [v2.8.2] - 2025-10-07
+
+### Added
+- feat: improve error handling and adjust file permissions in completion and config management
+- feat: refactor imports and enhance error handling across multiple files
+
+### Fixed
+- fix: change error handling to return nil instead of error in isProfileAuthenticated function
+
+
 ## [v2.8.1] - 2025-10-03
 
 ### Added
