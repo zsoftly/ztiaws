@@ -823,6 +823,12 @@ func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
 		displayItems[i+2] = account
 	}
 
+	// Dynamically set preview window size
+	previewHeight := 10
+	if len(accounts) < previewHeight {
+		previewHeight = len(accounts)
+	}
+
 	idx, err := fuzzyfinder.Find(displayItems,
 		func(i int) string {
 			switch i {
@@ -840,6 +846,17 @@ func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
 		},
 		fuzzyfinder.WithPromptString("🔍 "),
 		fuzzyfinder.WithHeader(fmt.Sprintf("Select AWS Account (%d available)", len(accounts))),
+		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
+			if i < 2 { // For header and separator
+				return ""
+			}
+			// Show a preview of the account details
+			account := displayItems[i].(Account)
+			return fmt.Sprintf("Account: %s (%s)\nEmail:   %s",
+				account.AccountName,
+				account.AccountID,
+				account.EmailAddress)
+		}),
 	)
 
 	// Adjust index since we added header and separator
@@ -946,6 +963,17 @@ func (m *Manager) selectRoleFuzzy(roles []Role, account *Account) (*Role, error)
 		fuzzyfinder.WithPromptString("🎭 "),
 		fuzzyfinder.WithHeader(fmt.Sprintf("Select Role for %s (%d available)",
 			account.AccountName, len(roles))),
+		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
+			if i < 2 { // For header and separator
+				return ""
+			}
+			// Show a preview of the role details
+			role := displayItems[i].(Role)
+			return fmt.Sprintf("Role: %s\nAccount: %s (%s)",
+				role.RoleName,
+				account.AccountName,
+				account.AccountID)
+		}),
 	)
 
 	// Adjust index since we added header and separator
