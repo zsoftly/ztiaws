@@ -13,6 +13,8 @@
 - Merge conflict resolution in fuzzy finder implementation with proper bounds checking
 - Added documentation comments explaining pointer usage with `WithHotReload()` option
 
+**Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.8.2...v2.9.0
+
 
 ## [v2.8.2] - 2025-10-07
 
