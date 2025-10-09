@@ -39,3 +39,5 @@ ZTICTL_SELECTOR_HEIGHT=3 ztictl auth login
 ## Bug Fixes
 * Resolved merge conflict in fuzzy finder implementation with proper bounds checking
 * Added code documentation for pointer usage with `WithHotReload()` option
+
+**Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.8.2...v2.9.0

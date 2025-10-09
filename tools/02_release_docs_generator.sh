@@ -374,7 +374,14 @@ generate_release_notes() {
     else
         echo "* No other changes in this release" >> RELEASE_NOTES.txt
     fi
-    
+    echo "" >> RELEASE_NOTES.txt
+
+    # Add Full Changelog link
+    if [[ -n "$github_repo" && -n "$LATEST_TAG" ]]; then
+        echo "**Full Changelog**: https://github.com/${github_repo}/compare/${LATEST_TAG}...${VERSION}" >> RELEASE_NOTES.txt
+        debug_log "Added Full Changelog link: ${LATEST_TAG}...${VERSION}"
+    fi
+
     log_info "RELEASE_NOTES.txt generated successfully"
 }
 
