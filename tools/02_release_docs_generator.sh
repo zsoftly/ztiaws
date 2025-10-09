@@ -190,15 +190,30 @@ generate_changelog() {
     local features_file="$1"
     local fixes_file="$2"
     local other_file="$3"
-    
+
     log_info "Generating CHANGELOG.md..."
-    
+
+    # Get GitHub repo info for compare link
+    local repo_url
+    repo_url=$(git config --get remote.origin.url 2>/dev/null || echo "")
+    local github_repo=""
+
+    if [[ "$repo_url" =~ github\.com[:/]([^/]+/[^/]+)(\.git)?$ ]]; then
+        github_repo="${BASH_REMATCH[1]%.git}"
+    elif [[ "$repo_url" =~ ([^/]+/[^/]+)\.git$ ]]; then
+        github_repo="${BASH_REMATCH[1]}"
+    fi
+
+    if [[ -z "$github_repo" && "$repo_url" =~ github\.com ]]; then
+        github_repo=$(echo "$repo_url" | sed -n 's/.*github\.com[:/]\([^/]*\/[^/]*\)\.git.*/\1/p')
+    fi
+
     local temp_entry
     temp_entry=$(mktemp)
-    
+
     echo "## [$VERSION] - $(date +%Y-%m-%d)" > "$temp_entry"
     echo "" >> "$temp_entry"
-    
+
     # Add features section
     if [[ -s "$features_file" ]]; then
         echo "### Added" >> "$temp_entry"
@@ -208,7 +223,7 @@ generate_changelog() {
         echo "" >> "$temp_entry"
         debug_log "Added $(wc -l < "$features_file") features to changelog"
     fi
-    
+
     # Add fixes section
     if [[ -s "$fixes_file" ]]; then
         echo "### Fixed" >> "$temp_entry"
@@ -218,7 +233,7 @@ generate_changelog() {
         echo "" >> "$temp_entry"
         debug_log "Added $(wc -l < "$fixes_file") fixes to changelog"
     fi
-    
+
     # Add other changes section
     if [[ -s "$other_file" ]]; then
         echo "### Changed" >> "$temp_entry"
@@ -227,6 +242,11 @@ generate_changelog() {
         done < "$other_file"
         echo "" >> "$temp_entry"
         debug_log "Added $(wc -l < "$other_file") other changes to changelog"
+    fi
+
+    # Add Full Changelog link
+    if [[ -n "$github_repo" && -n "$LATEST_TAG" ]]; then
+        echo "**Full Changelog**: https://github.com/${github_repo}/compare/${LATEST_TAG}...${VERSION}" >> "$temp_entry"
     fi
     
     # Update CHANGELOG.md
@@ -354,7 +374,14 @@ generate_release_notes() {
     else
         echo "* No other changes in this release" >> RELEASE_NOTES.txt
     fi
-    
+    echo "" >> RELEASE_NOTES.txt
+
+    # Add Full Changelog link
+    if [[ -n "$github_repo" && -n "$LATEST_TAG" ]]; then
+        echo "**Full Changelog**: https://github.com/${github_repo}/compare/${LATEST_TAG}...${VERSION}" >> RELEASE_NOTES.txt
+        debug_log "Added Full Changelog link: ${LATEST_TAG}...${VERSION}"
+    fi
+
     log_info "RELEASE_NOTES.txt generated successfully"
 }
 

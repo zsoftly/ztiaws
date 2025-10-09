@@ -1,5 +1,21 @@
 # Changelog
 
+## [v2.9.0] - 2025-10-09
+
+### Added
+- **Enhanced Account/Role Selector UI**: Clean, compact fuzzy finder interface displays 5 items by default (previously showed all accounts, flooding terminal)
+- **Customizable Display Height**: New `ZTICTL_SELECTOR_HEIGHT` environment variable (range: 1-20, default: 5) allows users to control selector size
+- **Improved Visual Layout**: Bottom-positioned bordered selector with integrated preview panel showing account/role details
+- **Full Search Capability**: All accounts/roles remain searchable via fuzzy finder regardless of display height
+- **Better UX**: Matches familiar fzf `--height=20%` behavior for consistent user experience
+
+### Fixed
+- Merge conflict resolution in fuzzy finder implementation with proper bounds checking
+- Added documentation comments explaining pointer usage with `WithHotReload()` option
+
+**Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.8.2...v2.9.0
+
+
 ## [v2.8.2] - 2025-10-07
 
 ### Added
