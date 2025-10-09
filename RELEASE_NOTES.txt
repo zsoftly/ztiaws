@@ -10,12 +10,32 @@ ztictl is a unified AWS SSM management tool that provides both Go binary and bas
 
 **Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
 
-## New Features
-* feat: add configurable display item to improve UX
-* feat(auth): improve account and role selection UI
+## What's New
+
+### Major UX Improvement: Enhanced Account/Role Selection
+
+**Problem Solved:** Previous versions displayed ALL AWS SSO accounts at once, flooding the terminal with 50+ accounts and making selection overwhelming.
+
+**New Experience:**
+* **Clean Interface**: Shows 5 items by default in a compact, bordered selector at bottom of terminal
+* **Fully Searchable**: Type to search across all accounts/roles regardless of display height
+* **Customizable**: Set `ZTICTL_SELECTOR_HEIGHT` environment variable (1-20) to control display size
+* **Better Layout**: Integrated preview panel shows selected account/role details
+* **Familiar UX**: Matches fzf `--height=20%` behavior for consistent experience
+
+**Usage:**
+```bash
+# Use default (5 items)
+ztictl auth login
+
+# Show more items
+export ZTICTL_SELECTOR_HEIGHT=10
+ztictl auth login
+
+# Compact view
+ZTICTL_SELECTOR_HEIGHT=3 ztictl auth login
+```
 
 ## Bug Fixes
-* fix: add notes for pointer usage in fuzzy finder functions
-
-## Other Changes
-* No other changes in this release
+* Resolved merge conflict in fuzzy finder implementation with proper bounds checking
+* Added code documentation for pointer usage with `WithHotReload()` option
