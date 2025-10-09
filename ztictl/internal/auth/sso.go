@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -102,6 +103,38 @@ func NewManagerWithLogger(logger *logging.Logger) *Manager {
 	return &Manager{
 		logger: logger,
 	}
+}
+
+// getDisplayItemCount returns the number of items to display in the fuzzy finder
+// Reads from ZTICTL_SELECTOR_HEIGHT environment variable, defaults to 5 items
+//
+// Environment variable: ZTICTL_SELECTOR_HEIGHT
+// Default: 5 (matching fzf --height=20% behavior)
+// Range: 1-20 items
+//
+// Examples:
+//
+//	export ZTICTL_SELECTOR_HEIGHT=3   # Show 3 items
+//	export ZTICTL_SELECTOR_HEIGHT=10  # Show 10 items
+func getDisplayItemCount() int {
+	heightStr := os.Getenv("ZTICTL_SELECTOR_HEIGHT")
+	if heightStr == "" {
+		return 5 // Default to 5 items (matching fzf --height=20%)
+	}
+
+	height, err := strconv.Atoi(heightStr)
+	if err != nil || height < 1 {
+		logging.LogWarn("Invalid ZTICTL_SELECTOR_HEIGHT value '%s', using default of 5", heightStr)
+		return 5
+	}
+
+	// Limit to reasonable range (1-20 items)
+	if height > 20 {
+		logging.LogWarn("ZTICTL_SELECTOR_HEIGHT of %d is too large, limiting to 20", height)
+		return 20
+	}
+
+	return height
 }
 
 // Helper functions for dynamic column formatting
@@ -800,73 +833,45 @@ func (m *Manager) selectAccount(accounts []Account) (*Account, error) {
 
 // selectAccountFuzzy uses fuzzy finder for account selection with full search capabilities
 func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
-	// Calculate optimal column widths for all accounts
-	idWidth, nameWidth, emailWidth := calculateOptimalWidths(accounts)
+	return m.selectAccountFuzzyFallback(accounts)
+}
 
-	// Create header row
-	headerRow := fmt.Sprintf("%-*s%-*s%s",
-		idWidth, "Account ID",
-		nameWidth, "Account Name",
-		"Email Address")
+func (m *Manager) selectAccountFuzzyFallback(accounts []Account) (*Account, error) {
+	// Get configurable display height from environment variable, default to 5 items
+	maxDisplayItems := getDisplayItemCount()
 
-	// Create separator row
-	separatorRow := fmt.Sprintf("%-*s%-*s%s",
-		idWidth, strings.Repeat("-", idWidth-ColumnPadding),
-		nameWidth, strings.Repeat("-", nameWidth-ColumnPadding),
-		strings.Repeat("-", emailWidth-ColumnPadding))
+	// Height calculation for bordered box:
+	//   - N item lines (default 5)
+	//   - 1 header line
+	//   - 1 prompt line
+	//   - 1 separator line
+	//   - 2 border lines (top + bottom)
+	// Total: N + 5 lines
+	totalHeight := maxDisplayItems + 5 // items + header + prompt + separator + borders
 
-	// Prepare display items (header + separator + accounts)
-	displayItems := make([]interface{}, len(accounts)+2)
-	displayItems[0] = "HEADER"
-	displayItems[1] = "SEPARATOR"
-	for i, account := range accounts {
-		displayItems[i+2] = account
-	}
-
-	// Dynamically set preview window size
-	previewHeight := 10
-	if len(accounts) < previewHeight {
-		previewHeight = len(accounts)
-	}
-
-	idx, err := fuzzyfinder.Find(displayItems,
+	// Note: Pass &accounts (pointer) because WithHotReload requires it
+	idx, err := fuzzyfinder.Find(&accounts,
 		func(i int) string {
-			switch i {
-			case 0:
-				// Header row
-				return headerRow
-			case 1:
-				// Separator row
-				return separatorRow
-			default:
-				// Account data
-				account := displayItems[i].(Account)
-				return formatAccountRow(account, idWidth, nameWidth, emailWidth)
-			}
+			return fmt.Sprintf("%s - %s", accounts[i].AccountID, accounts[i].AccountName)
 		},
-		fuzzyfinder.WithPromptString("🔍 "),
+		fuzzyfinder.WithCursorPosition(fuzzyfinder.CursorPositionBottom),
+		fuzzyfinder.WithPromptString("🔍 Type to search > "),
 		fuzzyfinder.WithHeader(fmt.Sprintf("Select AWS Account (%d available)", len(accounts))),
+		fuzzyfinder.WithMode(fuzzyfinder.ModeSmart),
+		fuzzyfinder.WithHotReload(),
+		fuzzyfinder.WithHeight(totalHeight),
+		fuzzyfinder.WithBorder(),
 		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-			if i < 2 { // For header and separator
+			if i >= len(accounts) {
 				return ""
 			}
-			// Show a preview of the account details
-			account := displayItems[i].(Account)
-			return fmt.Sprintf("Account: %s (%s)\nEmail:   %s",
-				account.AccountName,
+			account := accounts[i]
+			return fmt.Sprintf("Account ID:   %s\nAccount Name: %s\nEmail:        %s",
 				account.AccountID,
+				account.AccountName,
 				account.EmailAddress)
 		}),
 	)
-
-	// Adjust index since we added header and separator
-	if idx < 2 {
-		// User selected header or separator, treat as cancellation
-		_, _ = color.New(color.FgRed).Printf("❌ Invalid selection\n") // #nosec G104
-		return nil, fmt.Errorf("invalid selection")
-	}
-
-	actualIdx := idx - 2
 
 	if err != nil {
 		if err.Error() == "abort" {
@@ -877,9 +882,9 @@ func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
 	}
 
 	// Display selection confirmation
-	_, _ = color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s (%s)\n", accounts[actualIdx].AccountName, accounts[actualIdx].AccountID) // #nosec G104
+	_, _ = color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s (%s)\n", accounts[idx].AccountName, accounts[idx].AccountID) // #nosec G104
 
-	return &accounts[actualIdx], nil
+	return &accounts[idx], nil
 }
 
 // listAccountRoles retrieves available roles for an account
@@ -924,66 +929,46 @@ func (m *Manager) selectRole(roles []Role, account *Account) (*Role, error) {
 
 // selectRoleFuzzy uses fuzzy finder for role selection with full search capabilities
 func (m *Manager) selectRoleFuzzy(roles []Role, account *Account) (*Role, error) {
-	// Calculate optimal column widths for roles and account info
-	roleWidth, accountWidth := calculateOptimalRoleWidths(roles, account)
+	return m.selectRoleFuzzyFallback(roles, account)
+}
 
-	// Create header row
-	headerRow := fmt.Sprintf("%-*s%s",
-		roleWidth, "Role Name",
-		"Account Information")
+func (m *Manager) selectRoleFuzzyFallback(roles []Role, account *Account) (*Role, error) {
+	// Get configurable display height from environment variable, default to 5 items
+	maxDisplayItems := getDisplayItemCount()
 
-	// Create separator row
-	separatorRow := fmt.Sprintf("%-*s%s",
-		roleWidth, strings.Repeat("-", roleWidth-ColumnPadding),
-		strings.Repeat("-", accountWidth-ColumnPadding))
+	// Height calculation for bordered box:
+	//   - N item lines (default 5)
+	//   - 1 header line
+	//   - 1 prompt line
+	//   - 1 separator line
+	//   - 2 border lines (top + bottom)
+	// Total: N + 5 lines
+	totalHeight := maxDisplayItems + 5 // items + header + prompt + separator + borders
 
-	// Prepare display items (header + separator + roles)
-	displayItems := make([]interface{}, len(roles)+2)
-	displayItems[0] = "HEADER"
-	displayItems[1] = "SEPARATOR"
-	for i, role := range roles {
-		displayItems[i+2] = role
-	}
-
-	idx, err := fuzzyfinder.Find(displayItems,
+	// Note: Pass &roles (pointer) because WithHotReload requires it
+	idx, err := fuzzyfinder.Find(&roles,
 		func(i int) string {
-			switch i {
-			case 0:
-				// Header row
-				return headerRow
-			case 1:
-				// Separator row
-				return separatorRow
-			default:
-				// Role data
-				role := displayItems[i].(Role)
-				return formatRoleRow(role, account, roleWidth, accountWidth)
-			}
+			return roles[i].RoleName
 		},
-		fuzzyfinder.WithPromptString("🎭 "),
+		fuzzyfinder.WithCursorPosition(fuzzyfinder.CursorPositionBottom),
+		fuzzyfinder.WithPromptString("🎭 Type to search > "),
 		fuzzyfinder.WithHeader(fmt.Sprintf("Select Role for %s (%d available)",
 			account.AccountName, len(roles))),
+		fuzzyfinder.WithMode(fuzzyfinder.ModeSmart),
+		fuzzyfinder.WithHotReload(),
+		fuzzyfinder.WithHeight(totalHeight),
+		fuzzyfinder.WithBorder(),
 		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-			if i < 2 { // For header and separator
+			if i >= len(roles) {
 				return ""
 			}
-			// Show a preview of the role details
-			role := displayItems[i].(Role)
-			return fmt.Sprintf("Role: %s\nAccount: %s (%s)",
+			role := roles[i]
+			return fmt.Sprintf("Role:         %s\nAccount:      %s\nAccount ID:   %s",
 				role.RoleName,
 				account.AccountName,
 				account.AccountID)
 		}),
 	)
-
-	// Adjust index since we added header and separator
-	if idx < 2 {
-		// User selected header or separator, treat as cancellation
-		_, _ = color.New(color.FgRed).Printf("❌ Invalid selection\n") // #nosec G104
-		return nil, fmt.Errorf("invalid selection")
-	}
-
-	actualIdx := idx - 2
 
 	if err != nil {
 		if err.Error() == "abort" {
@@ -994,9 +979,9 @@ func (m *Manager) selectRoleFuzzy(roles []Role, account *Account) (*Role, error)
 	}
 
 	// Display selection confirmation
-	_, _ = color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s\n", roles[actualIdx].RoleName) // #nosec G104
+	_, _ = color.New(color.FgGreen, color.Bold).Printf("✅ Selected: %s\n", roles[idx].RoleName) // #nosec G104
 
-	return &roles[actualIdx], nil
+	return &roles[idx], nil
 }
 
 // updateProfileWithSelection updates the AWS profile with selected account and role

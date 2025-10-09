@@ -263,6 +263,35 @@ Environment variables can override configuration file settings:
 | `ZTICTL_CONFIG` | Config file location | `ZTICTL_CONFIG=/etc/ztictl.yaml` |
 | `ZTICTL_LOG_LEVEL` | `logging.level` | `ZTICTL_LOG_LEVEL=debug` |
 | `ZTICTL_LOG_DIR` | `logging.directory` | `ZTICTL_LOG_DIR=/var/log` |
+| `ZTICTL_SELECTOR_HEIGHT` | Fuzzy finder display height | `ZTICTL_SELECTOR_HEIGHT=10` |
+
+### UI Customization
+
+#### Fuzzy Finder Display Height
+
+Control the number of items shown in the interactive account/role selector:
+
+```bash
+# Show 3 items (compact display)
+ZTICTL_SELECTOR_HEIGHT=3 ztictl auth login
+
+# Show 10 items (more visible options)
+ZTICTL_SELECTOR_HEIGHT=10 ztictl auth login
+
+# Use default (5 items - matches fzf --height=20%)
+ztictl auth login
+```
+
+**Settings**:
+- **Default**: 5 items (equivalent to fzf `--height=20%`)
+- **Range**: 1-20 items
+- **Behavior**: Invalid values log a warning and use default
+
+**Features**:
+- All accounts/roles remain searchable regardless of display height
+- Full keyboard navigation through entire list with arrow keys
+- Single bordered rectangle at bottom of terminal
+- Preview panel shows selected account/role details
 
 ## Configuration Validation
 

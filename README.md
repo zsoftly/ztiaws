@@ -20,13 +20,14 @@
 - **🌍 Cross-platform**: Native binaries for Linux, macOS, and Windows
 - **🖥️ Multi-OS support**: Full Linux (bash) and Windows Server (PowerShell) command execution
 - **🤖 Smart platform detection**: Automatically detects instance OS and adapts commands accordingly
-- **⚡ Smart file transfers**: Automatic S3 routing for large files with lifecycle management  
+- **⚡ Smart file transfers**: Automatic S3 routing for large files with lifecycle management
 - **🔒 Advanced IAM management**: Temporary policies with automatic cleanup
 - **🛡️ Enhanced security**: PowerShell injection protection, path traversal prevention, UNC validation
 - **🔋 Power management**: Start, stop, and reboot EC2 instances individually or in bulk via tags
 - **🛠️ Modern CLI**: Flag-based interface with comprehensive help and validation
 - **📊 Professional logging**: Thread-safe, timestamped logs with debug capabilities
 - **🔄 Intelligent operations**: Concurrent-safe with filesystem locking and parallel execution
+- **🎨 Clean UI**: Customizable fuzzy finder with pagination support for AWS SSO account/role selection
 
 **Legacy bash tools (deprecated):**
 - **ssm**: Connect to EC2 instances, execute commands, power management, tag-based operations
