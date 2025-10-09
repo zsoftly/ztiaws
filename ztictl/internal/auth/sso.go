@@ -849,6 +849,7 @@ func (m *Manager) selectAccountFuzzyFallback(accounts []Account) (*Account, erro
 	// Total: N + 5 lines
 	totalHeight := maxDisplayItems + 5 // items + header + prompt + separator + borders
 
+	// Note: Pass &accounts (pointer) because WithHotReload requires it
 	idx, err := fuzzyfinder.Find(&accounts,
 		func(i int) string {
 			return fmt.Sprintf("%s - %s", accounts[i].AccountID, accounts[i].AccountName)
@@ -944,6 +945,7 @@ func (m *Manager) selectRoleFuzzyFallback(roles []Role, account *Account) (*Role
 	// Total: N + 5 lines
 	totalHeight := maxDisplayItems + 5 // items + header + prompt + separator + borders
 
+	// Note: Pass &roles (pointer) because WithHotReload requires it
 	idx, err := fuzzyfinder.Find(&roles,
 		func(i int) string {
 			return roles[i].RoleName
