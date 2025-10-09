@@ -66,6 +66,9 @@ ztictl config check --fix
 
 # Verify installation
 ztictl --version
+
+# Customize account/role selector display (optional)
+export ZTICTL_SELECTOR_HEIGHT=10  # Show 10 items instead of default 5
 ```
 
 See [Configuration Guide](../docs/CONFIGURATION.md) for detailed configuration options.
