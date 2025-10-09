@@ -1,5 +1,15 @@
 # Changelog
 
+## [v2.9.0] - 2025-10-09
+
+### Added
+- feat: add configurable display item to improve UX
+- feat(auth): improve account and role selection UI
+
+### Fixed
+- fix: add notes for pointer usage in fuzzy finder functions
+
+
 ## [v2.8.2] - 2025-10-07
 
 ### Added
