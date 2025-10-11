@@ -48,12 +48,11 @@ The `ztictl` fuzzy finder (used in `ztictl auth login` for account/role selectio
 - **Preview window** shows detailed information about the currently highlighted item
 - **Border** surrounds the finder for clear visual boundaries
 - **Responsive height** adapts to terminal size (configurable via `ZTICTL_SELECTOR_HEIGHT`)
-- **Dynamic width** automatically adjusts based on content length
-  - Minimum width: 80 columns (comfortable readability)
-  - Maximum width: 160 columns (uses more terminal space when needed)
-  - Only takes as much width as needed for your account/role names
-  - Considers prompt, borders, preview window, and content in calculation
-  - Prevents text truncation by calculating actual content requirements
+- **Truly dynamic width** that is content-driven and terminal-aware:
+  - Minimum width: 80 columns for comfortable readability.
+  - No arbitrary maximum width; it uses the terminal width as a natural limit.
+  - Automatically expands to fit the longest account/role name, preventing truncation.
+  - Intelligently considers all UI elements (prompt, borders, preview window) in its width calculation.
 - **Left-aligned positioning** anchored at bottom-left corner of terminal
   - Extends rightward as content requires
   - Doesn't take over full terminal width unnecessarily
