@@ -2,7 +2,7 @@ module ztictl
 
 go 1.24.5
 
-replace github.com/ktr0731/go-fuzzyfinder => github.com/zsoftly/go-fuzzyfinder v0.0.0-20251009002548-d3a136f86df0
+replace github.com/ktr0731/go-fuzzyfinder => github.com/zsoftly/go-fuzzyfinder v0.0.0-20251011215817-623ae668e846
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.39.2
@@ -20,10 +20,12 @@ require (
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
+	golang.org/x/term v0.36.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
+	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.1 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.16 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.9 // indirect
@@ -60,7 +62,6 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/term v0.36.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 )

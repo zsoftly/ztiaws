@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	appconfig "ztictl/internal/config"
@@ -27,6 +28,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/pkg/browser"
+	"golang.org/x/term"
 )
 
 const (
@@ -39,6 +41,16 @@ const (
 	MaxColumnWidth = 40
 	ColumnPadding  = 2
 )
+
+// getTerminalWidth returns the width of the terminal or a default if it fails
+func getTerminalWidth() int {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		// Fallback to a wider default for test environments
+		return 120
+	}
+	return width
+}
 
 // Manager handles AWS SSO authentication operations
 type Manager struct {
@@ -833,7 +845,82 @@ func (m *Manager) selectAccount(accounts []Account) (*Account, error) {
 
 // selectAccountFuzzy uses fuzzy finder for account selection with full search capabilities
 func (m *Manager) selectAccountFuzzy(accounts []Account) (*Account, error) {
+	return safeSelectAccountFuzzy(m, accounts)
+}
+
+// safeSelectAccountFuzzy wraps fuzzy finder with panic recovery
+func safeSelectAccountFuzzy(m *Manager, accounts []Account) (account *Account, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			_, _ = color.New(color.FgRed, color.Bold).Printf("\n❌ An unexpected error occurred in the account selector.\n")    // #nosec G104
+			_, _ = color.New(color.FgRed).Printf("   Please report this issue at: https://github.com/zsoftly/ztiaws/issues\n") // #nosec G104
+			_, _ = color.New(color.FgYellow).Printf("   Error details: %v\n\n", r)                                             // #nosec G104
+			logging.LogError("Panic in account selector | error=%v", r)
+			err = fmt.Errorf("account selector encountered an unexpected error: %v", r)
+			account = nil
+		}
+	}()
 	return m.selectAccountFuzzyFallback(accounts)
+}
+
+// calculateAccountSelectorWidth determines optimal width for account selector
+// based on content length, capped by the terminal width
+func calculateAccountSelectorWidth(accounts []Account) int {
+	const (
+		minWidth       = 80 // Minimum comfortable width for readability
+		promptLen      = 22 // "🔍 Type to search > " length
+		borderPad      = 6  // Border chars + internal padding
+		previewPad     = 4  // Preview window padding
+		listPreviewGap = 2  // Gap between list and preview
+	)
+
+	terminalWidth := getTerminalWidth()
+
+	maxContentWidth := promptLen
+
+	// Find the longest account display string
+	for _, account := range accounts {
+		// Format: "AccountID - AccountName"
+		displayLen := len(account.AccountID) + 3 + len(account.AccountName) // 3 for " - "
+		if displayLen > maxContentWidth {
+			maxContentWidth = displayLen
+		}
+	}
+
+	// Find longest preview content
+	maxPreviewWidth := 0
+	for _, account := range accounts {
+		previewLen := len(fmt.Sprintf("Account ID:   %s", account.AccountID))
+		nameLen := len(fmt.Sprintf("Account Name: %s", account.AccountName))
+		emailLen := len(fmt.Sprintf("Email:        %s", account.EmailAddress))
+
+		maxLen := previewLen
+		if nameLen > maxLen {
+			maxLen = nameLen
+		}
+		if emailLen > maxLen {
+			maxLen = emailLen
+		}
+		if maxLen > maxPreviewWidth {
+			maxPreviewWidth = maxLen
+		}
+	}
+
+	// Total width: list + preview + gaps + borders
+	listWidth := maxContentWidth + 4 // content + padding
+	previewWidthActual := maxPreviewWidth + previewPad
+	totalWidth := listWidth + listPreviewGap + previewWidthActual + borderPad
+
+	// Apply bounds
+	if totalWidth < minWidth {
+		return minWidth
+	}
+	// Ensure the width does not exceed the terminal width, with a small padding
+	if totalWidth > terminalWidth {
+		return terminalWidth - 2 // 2 for padding from terminal edge
+	}
+
+	return totalWidth
 }
 
 func (m *Manager) selectAccountFuzzyFallback(accounts []Account) (*Account, error) {
@@ -849,7 +936,13 @@ func (m *Manager) selectAccountFuzzyFallback(accounts []Account) (*Account, erro
 	// Total: N + 5 lines
 	totalHeight := maxDisplayItems + 5 // items + header + prompt + separator + borders
 
-	// Note: Pass &accounts (pointer) because WithHotReload requires it
+	// Calculate dynamic width based on content
+	dynamicWidth := calculateAccountSelectorWidth(accounts)
+
+	// Create mutex for thread-safe account list access
+	var accountsMutex sync.RWMutex
+
+	// Note: Pass &accounts (pointer) because WithHotReloadLock requires it
 	idx, err := fuzzyfinder.Find(&accounts,
 		func(i int) string {
 			return fmt.Sprintf("%s - %s", accounts[i].AccountID, accounts[i].AccountName)
@@ -858,11 +951,13 @@ func (m *Manager) selectAccountFuzzyFallback(accounts []Account) (*Account, erro
 		fuzzyfinder.WithPromptString("🔍 Type to search > "),
 		fuzzyfinder.WithHeader(fmt.Sprintf("Select AWS Account (%d available)", len(accounts))),
 		fuzzyfinder.WithMode(fuzzyfinder.ModeSmart),
-		fuzzyfinder.WithHotReload(),
+		fuzzyfinder.WithHotReloadLock(&accountsMutex),
 		fuzzyfinder.WithHeight(totalHeight),
+		fuzzyfinder.WithWidth(dynamicWidth),
+		fuzzyfinder.WithHorizontalAlignment(fuzzyfinder.AlignLeft),
 		fuzzyfinder.WithBorder(),
 		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-			if i >= len(accounts) {
+			if i < 0 || i >= len(accounts) {
 				return ""
 			}
 			account := accounts[i]
@@ -929,7 +1024,86 @@ func (m *Manager) selectRole(roles []Role, account *Account) (*Role, error) {
 
 // selectRoleFuzzy uses fuzzy finder for role selection with full search capabilities
 func (m *Manager) selectRoleFuzzy(roles []Role, account *Account) (*Role, error) {
+	return safeSelectRoleFuzzy(m, roles, account)
+}
+
+// safeSelectRoleFuzzy wraps fuzzy finder with panic recovery
+func safeSelectRoleFuzzy(m *Manager, roles []Role, account *Account) (role *Role, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			_, _ = color.New(color.FgRed, color.Bold).Printf("\n❌ An unexpected error occurred in the role selector.\n")       // #nosec G104
+			_, _ = color.New(color.FgRed).Printf("   Please report this issue at: https://github.com/zsoftly/ztiaws/issues\n") // #nosec G104
+			_, _ = color.New(color.FgYellow).Printf("   Error details: %v\n\n", r)                                             // #nosec G104
+			logging.LogError("Panic in role selector | error=%v", r)
+			err = fmt.Errorf("role selector encountered an unexpected error: %v", r)
+			role = nil
+		}
+	}()
 	return m.selectRoleFuzzyFallback(roles, account)
+}
+
+// calculateRoleSelectorWidth determines optimal width for role selector
+// based on content length, capped by the terminal width
+func calculateRoleSelectorWidth(roles []Role, account *Account) int {
+	const (
+		minWidth       = 80 // Minimum comfortable width for readability
+		promptLen      = 22 // "🎭 Type to search > " length
+		borderPad      = 6  // Border chars + internal padding
+		previewPad     = 4  // Preview window padding
+		listPreviewGap = 2  // Gap between list and preview
+	)
+
+	terminalWidth := getTerminalWidth()
+
+	maxContentWidth := promptLen
+
+	// Find the longest role name
+	for _, role := range roles {
+		if len(role.RoleName) > maxContentWidth {
+			maxContentWidth = len(role.RoleName)
+		}
+	}
+
+	// Also consider the header length
+	headerLen := len(fmt.Sprintf("Select Role for %s (%d available)", account.AccountName, len(roles)))
+	if headerLen > maxContentWidth {
+		maxContentWidth = headerLen
+	}
+
+	// Find longest preview content
+	maxPreviewWidth := 0
+	for _, role := range roles {
+		roleLen := len(fmt.Sprintf("Role:         %s", role.RoleName))
+		accountLen := len(fmt.Sprintf("Account:      %s", account.AccountName))
+		idLen := len(fmt.Sprintf("Account ID:   %s", account.AccountID))
+
+		maxLen := roleLen
+		if accountLen > maxLen {
+			maxLen = accountLen
+		}
+		if idLen > maxLen {
+			maxLen = idLen
+		}
+		if maxLen > maxPreviewWidth {
+			maxPreviewWidth = maxLen
+		}
+	}
+
+	// Total width: list + preview + gaps + borders
+	listWidth := maxContentWidth + 4 // content + padding
+	previewWidthActual := maxPreviewWidth + previewPad
+	totalWidth := listWidth + listPreviewGap + previewWidthActual + borderPad
+
+	// Apply bounds
+	if totalWidth < minWidth {
+		return minWidth
+	}
+	// Ensure the width does not exceed the terminal width, with a small padding
+	if totalWidth > terminalWidth {
+		return terminalWidth - 2 // 2 for padding from terminal edge
+	}
+
+	return totalWidth
 }
 
 func (m *Manager) selectRoleFuzzyFallback(roles []Role, account *Account) (*Role, error) {
@@ -945,7 +1119,13 @@ func (m *Manager) selectRoleFuzzyFallback(roles []Role, account *Account) (*Role
 	// Total: N + 5 lines
 	totalHeight := maxDisplayItems + 5 // items + header + prompt + separator + borders
 
-	// Note: Pass &roles (pointer) because WithHotReload requires it
+	// Calculate dynamic width based on content
+	dynamicWidth := calculateRoleSelectorWidth(roles, account)
+
+	// Create mutex for thread-safe roles list access
+	var rolesMutex sync.RWMutex
+
+	// Note: Pass &roles (pointer) because WithHotReloadLock requires it
 	idx, err := fuzzyfinder.Find(&roles,
 		func(i int) string {
 			return roles[i].RoleName
@@ -955,11 +1135,13 @@ func (m *Manager) selectRoleFuzzyFallback(roles []Role, account *Account) (*Role
 		fuzzyfinder.WithHeader(fmt.Sprintf("Select Role for %s (%d available)",
 			account.AccountName, len(roles))),
 		fuzzyfinder.WithMode(fuzzyfinder.ModeSmart),
-		fuzzyfinder.WithHotReload(),
+		fuzzyfinder.WithHotReloadLock(&rolesMutex),
 		fuzzyfinder.WithHeight(totalHeight),
+		fuzzyfinder.WithWidth(dynamicWidth),
+		fuzzyfinder.WithHorizontalAlignment(fuzzyfinder.AlignLeft),
 		fuzzyfinder.WithBorder(),
 		fuzzyfinder.WithPreviewWindow(func(i, w, h int) string {
-			if i >= len(roles) {
+			if i < 0 || i >= len(roles) {
 				return ""
 			}
 			role := roles[i]
