@@ -28,6 +28,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/ktr0731/go-fuzzyfinder"
 	"github.com/pkg/browser"
+	"golang.org/x/term"
 )
 
 const (
@@ -40,6 +41,16 @@ const (
 	MaxColumnWidth = 40
 	ColumnPadding  = 2
 )
+
+// getTerminalWidth returns the width of the terminal or a default if it fails
+func getTerminalWidth() int {
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		// Fallback to a wider default for test environments
+		return 120
+	}
+	return width
+}
 
 // Manager handles AWS SSO authentication operations
 type Manager struct {
@@ -853,17 +864,17 @@ func safeSelectAccountFuzzy(m *Manager, accounts []Account) (account *Account, e
 }
 
 // calculateAccountSelectorWidth determines optimal width for account selector
-// based on content length with sensible min/max bounds
+// based on content length, capped by the terminal width
 func calculateAccountSelectorWidth(accounts []Account) int {
 	const (
-		minWidth       = 80  // Minimum comfortable width for readability
-		maxWidth       = 160 // Maximum width (can use more of terminal)
-		promptLen      = 22  // "🔍 Type to search > " length
-		borderPad      = 6   // Border chars + internal padding
-		previewWidth   = 40  // Preview window width
-		previewPad     = 4   // Preview window padding
-		listPreviewGap = 2   // Gap between list and preview
+		minWidth       = 80 // Minimum comfortable width for readability
+		promptLen      = 22 // "🔍 Type to search > " length
+		borderPad      = 6  // Border chars + internal padding
+		previewPad     = 4  // Preview window padding
+		listPreviewGap = 2  // Gap between list and preview
 	)
+
+	terminalWidth := getTerminalWidth()
 
 	maxContentWidth := promptLen
 
@@ -904,8 +915,9 @@ func calculateAccountSelectorWidth(accounts []Account) int {
 	if totalWidth < minWidth {
 		return minWidth
 	}
-	if totalWidth > maxWidth {
-		return maxWidth
+	// Ensure the width does not exceed the terminal width, with a small padding
+	if totalWidth > terminalWidth {
+		return terminalWidth - 2 // 2 for padding from terminal edge
 	}
 
 	return totalWidth
@@ -1031,16 +1043,17 @@ func safeSelectRoleFuzzy(m *Manager, roles []Role, account *Account) (role *Role
 }
 
 // calculateRoleSelectorWidth determines optimal width for role selector
-// based on content length with sensible min/max bounds
+// based on content length, capped by the terminal width
 func calculateRoleSelectorWidth(roles []Role, account *Account) int {
 	const (
-		minWidth       = 80  // Minimum comfortable width for readability
-		maxWidth       = 160 // Maximum width (can use more of terminal)
-		promptLen      = 22  // "🎭 Type to search > " length
-		borderPad      = 6   // Border chars + internal padding
-		previewPad     = 4   // Preview window padding
-		listPreviewGap = 2   // Gap between list and preview
+		minWidth       = 80 // Minimum comfortable width for readability
+		promptLen      = 22 // "🎭 Type to search > " length
+		borderPad      = 6  // Border chars + internal padding
+		previewPad     = 4  // Preview window padding
+		listPreviewGap = 2  // Gap between list and preview
 	)
+
+	terminalWidth := getTerminalWidth()
 
 	maxContentWidth := promptLen
 
@@ -1085,8 +1098,9 @@ func calculateRoleSelectorWidth(roles []Role, account *Account) int {
 	if totalWidth < minWidth {
 		return minWidth
 	}
-	if totalWidth > maxWidth {
-		return maxWidth
+	// Ensure the width does not exceed the terminal width, with a small padding
+	if totalWidth > terminalWidth {
+		return terminalWidth - 2 // 2 for padding from terminal edge
 	}
 
 	return totalWidth

@@ -39,14 +39,15 @@ func TestCalculateAccountSelectorWidth(t *testing.T) {
 			checkBounds: true,
 		},
 		{
-			name: "very long account names - should cap at maximum width",
+			name: "very long account names - should be capped by terminal width",
 			accounts: []Account{
 				{
 					AccountID:   "123456789012",
-					AccountName: "Super Long Account Name That Should Definitely Exceed Maximum Width For Testing Purposes",
+					AccountName: "Super Long Account Name That Should Definitely Exceed Any Reasonable Terminal Width For Testing Purposes And Then Some More To Be Sure",
 				},
 			},
-			expectExactly: 160,
+			expectedMin: 80,
+			checkBounds: true,
 		},
 		{
 			name: "mixed length account names",
@@ -56,7 +57,7 @@ func TestCalculateAccountSelectorWidth(t *testing.T) {
 				{AccountID: "333333333333", AccountName: "Very Long Account Name For Testing"},
 			},
 			expectedMin: 80,
-			expectedMax: 160,
+			expectedMax: getTerminalWidth(),
 			checkBounds: true,
 		},
 	}
@@ -71,12 +72,14 @@ func TestCalculateAccountSelectorWidth(t *testing.T) {
 
 			if tt.checkBounds {
 				assert.GreaterOrEqual(t, width, tt.expectedMin, "Width should be >= minimum")
-				assert.LessOrEqual(t, width, tt.expectedMax, "Width should be <= maximum")
+				if tt.expectedMax > 0 {
+					assert.LessOrEqual(t, width, tt.expectedMax, "Width should be <= maximum")
+				}
 			}
 
 			// Always check absolute bounds
 			assert.GreaterOrEqual(t, width, 80, "Width should never be less than minimum (80)")
-			assert.LessOrEqual(t, width, 160, "Width should never exceed maximum (160)")
+			assert.LessOrEqual(t, width, getTerminalWidth(), "Width should never exceed terminal width")
 		})
 	}
 }
@@ -101,7 +104,7 @@ func TestCalculateRoleSelectorWidth(t *testing.T) {
 			roles:       []Role{},
 			account:     testAccount,
 			expectedMin: 80,
-			expectedMax: 160,
+			expectedMax: getTerminalWidth(),
 			checkBounds: true,
 		},
 		{
@@ -112,7 +115,7 @@ func TestCalculateRoleSelectorWidth(t *testing.T) {
 			},
 			account:     testAccount,
 			expectedMin: 80,
-			expectedMax: 160,
+			expectedMax: getTerminalWidth(),
 			checkBounds: true,
 		},
 		{
@@ -123,19 +126,20 @@ func TestCalculateRoleSelectorWidth(t *testing.T) {
 			},
 			account:     testAccount,
 			expectedMin: 80,
-			expectedMax: 160,
+			expectedMax: getTerminalWidth(),
 			checkBounds: true,
 		},
 		{
-			name: "very long role names - should cap at maximum width",
+			name: "very long role names - should be capped by terminal width",
 			roles: []Role{
 				{
-					RoleName:  "SuperLongRoleNameThatShouldDefinitelyExceedMaximumWidthForTestingPurposesAndMoreCharacters",
+					RoleName:  "SuperLongRoleNameThatShouldDefinitelyExceedAnyReasonableTerminalWidthForTestingPurposesAndThenSomeMoreCharactersJustToBeSafe",
 					AccountID: "123456789012",
 				},
 			},
-			account:       testAccount,
-			expectExactly: 160,
+			account:     testAccount,
+			expectedMin: 80,
+			checkBounds: true,
 		},
 		{
 			name: "long account name affects width",
@@ -144,10 +148,10 @@ func TestCalculateRoleSelectorWidth(t *testing.T) {
 			},
 			account: &Account{
 				AccountID:   "123456789012",
-				AccountName: "Very Long Account Name That Affects The Header Width Calculation",
+				AccountName: "Very Long Account Name That Affects The Header Width Calculation And Should Be Handled Gracefully By The Dynamic Width Calculation",
 			},
 			expectedMin: 80,
-			expectedMax: 160,
+			expectedMax: getTerminalWidth(),
 			checkBounds: true,
 		},
 	}
@@ -162,12 +166,14 @@ func TestCalculateRoleSelectorWidth(t *testing.T) {
 
 			if tt.checkBounds {
 				assert.GreaterOrEqual(t, width, tt.expectedMin, "Width should be >= minimum")
-				assert.LessOrEqual(t, width, tt.expectedMax, "Width should be <= maximum")
+				if tt.expectedMax > 0 {
+					assert.LessOrEqual(t, width, tt.expectedMax, "Width should be <= maximum")
+				}
 			}
 
 			// Always check absolute bounds
 			assert.GreaterOrEqual(t, width, 80, "Width should never be less than minimum (80)")
-			assert.LessOrEqual(t, width, 160, "Width should never exceed maximum (160)")
+			assert.LessOrEqual(t, width, getTerminalWidth(), "Width should never exceed terminal width")
 		})
 	}
 }
