@@ -151,6 +151,10 @@ func TestInstanceSSMStatusVariations(t *testing.T) {
 				SSMStatus:  tt.ssmStatus,
 			}
 
+			if instance.InstanceID != "i-1234567890abcdef0" {
+				t.Errorf("InstanceID = %s, want i-1234567890abcdef0", instance.InstanceID)
+			}
+
 			if instance.SSMStatus != tt.ssmStatus {
 				t.Errorf("SSMStatus = %s, want %s", instance.SSMStatus, tt.ssmStatus)
 			}
@@ -205,6 +209,10 @@ func TestInstanceTagsMap(t *testing.T) {
 			"Team":        "platform",
 			"CostCenter":  "engineering",
 		},
+	}
+
+	if instance.InstanceID != "i-1234567890abcdef0" {
+		t.Errorf("InstanceID = %s, want i-1234567890abcdef0", instance.InstanceID)
 	}
 
 	if len(instance.Tags) != 4 {

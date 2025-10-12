@@ -102,7 +102,7 @@ The fuzzy finder provides:
 - **Keyboard shortcuts**: Arrow keys to navigate, Enter to select, Escape to cancel
 
 ```bash
-# Launch interactive instance browser for a region
+# Launch interactive instance browser for a region (default)
 ztictl ssm list --region cac1
 
 # Pre-filter by tags, then browse with fuzzy finder
@@ -110,7 +110,13 @@ ztictl ssm list --region use1 --tags "Environment=prod,App=web"
 
 # Browse instances with status filtering
 ztictl ssm list --region euw1 --status running
+
+# Use traditional table format instead of fuzzy finder
+ztictl ssm list --region cac1 --table
 ```
+
+**Flags:**
+- `--table` - Display instances in traditional table format (for scripts/automation)
 
 #### `ztictl ssm connect`
 **🔍 Interactive Connection** - Connect to instances via Session Manager with fuzzy finder support.
