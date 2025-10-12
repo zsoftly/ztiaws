@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"ztictl/internal/interactive"
 	"ztictl/internal/ssm"
@@ -130,12 +131,12 @@ func validateSSMStatus(instance *interactive.Instance, operation string) error {
 func displayStateSuggestion(state, region, instanceID string, requirements InstanceValidationRequirements) {
 	switch state {
 	case "stopped":
-		if contains(requirements.AllowedStates, "running") {
+		if slices.Contains(requirements.AllowedStates, "running") {
 			colors.PrintData("💡 Tip: Start the instance first:\n")
 			fmt.Printf("   ztictl ssm start %s --region %s\n", instanceID, region)
 		}
 	case "running":
-		if contains(requirements.AllowedStates, "stopped") {
+		if slices.Contains(requirements.AllowedStates, "stopped") {
 			colors.PrintData("💡 Tip: Instance is already running. Use 'reboot' to restart it:\n")
 			fmt.Printf("   ztictl ssm reboot %s --region %s\n", instanceID, region)
 		}
@@ -187,14 +188,4 @@ func getSSMStatusColor(status string) string {
 		}
 		return colors.ColorWarning("? %s", status)
 	}
-}
-
-// contains checks if a string slice contains a specific string
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }
