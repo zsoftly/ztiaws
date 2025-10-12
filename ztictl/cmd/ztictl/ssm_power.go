@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"ztictl/internal/ssm"
 	"ztictl/pkg/aws"
 	"ztictl/pkg/colors"
 	"ztictl/pkg/logging"
@@ -25,77 +26,24 @@ var ssmStartCmd = &cobra.Command{
 	Use:   "start [instance-identifier]",
 	Short: "Start stopped EC2 instance(s)",
 	Long: `Start stopped EC2 instance(s).
+If no instance identifier is provided, an interactive fuzzy finder will be launched.
 Instance identifier can be an instance ID (i-1234567890abcdef0) or instance name.
 Use --instances flag to specify multiple instance IDs (comma-separated).
 Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-1), etc.
 
 Examples:
-  ztictl ssm start i-1234567890abcdef0 --region cac1
-  ztictl ssm start --instances i-1234,i-5678 --region use1`,
+  ztictl ssm start --region cac1                        # Interactive fuzzy finder
+  ztictl ssm start i-1234567890abcdef0 --region cac1   # Specific instance
+  ztictl ssm start --instances i-1234,i-5678 --region use1  # Multiple instances`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		regionCode, _ := cmd.Flags().GetString("region")
 		instancesFlag, _ := cmd.Flags().GetString("instances")
 		parallelFlag, _ := cmd.Flags().GetInt("parallel")
 
-		region := resolveRegion(regionCode)
-
-		// Validate arguments and flags
-		if err := validatePowerCommandArgs(args, instancesFlag); err != nil {
-			colors.PrintError("✗ %v\n", err)
+		if err := performPowerOperation(args, regionCode, instancesFlag, parallelFlag, "start"); err != nil {
+			logging.LogError("Start operation failed: %v", err)
 			os.Exit(1)
-		}
-
-		ctx := context.Background()
-		awsClient, err := aws.NewClient(ctx, aws.ClientOptions{Region: region})
-		if err != nil {
-			colors.PrintError("✗ Failed to create AWS client: %v\n", err)
-			logging.LogError("Failed to create AWS client: %v", err)
-			os.Exit(1)
-		}
-
-		var instanceIDs []string
-
-		if instancesFlag != "" {
-			// Multiple instances via --instances flag
-			instanceIDs = strings.Split(instancesFlag, ",")
-			for i, id := range instanceIDs {
-				instanceIDs[i] = strings.TrimSpace(id)
-			}
-			logging.LogInfo("Starting %d instances in region: %s", len(instanceIDs), region)
-
-			// Execute in parallel
-			startTime := time.Now()
-			results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "start", parallelFlag)
-			totalDuration := time.Since(startTime)
-			if err := displayPowerOperationResults(results, "start", totalDuration, parallelFlag); err != nil {
-				os.Exit(1)
-			}
-		} else {
-			// Single instance
-			instanceIdentifier := args[0]
-			logging.LogInfo("Starting instance %s in region: %s", instanceIdentifier, region)
-
-			// Resolve instance ID if name was provided
-			instanceID, err := resolveInstanceID(ctx, awsClient, instanceIdentifier)
-			if err != nil {
-				colors.PrintError("✗ Failed to resolve instance: %v\n", err)
-				logging.LogError("Failed to resolve instance: %v", err)
-				os.Exit(1)
-			}
-
-			// Start the instance
-			_, err = awsClient.EC2.StartInstances(ctx, &ec2.StartInstancesInput{
-				InstanceIds: []string{instanceID},
-			})
-			if err != nil {
-				colors.PrintError("✗ Failed to start instance %s\n", instanceID)
-				logging.LogError("Failed to start instance: %v", err)
-				os.Exit(1)
-			}
-
-			colors.PrintSuccess("✓ Instance %s (%s) start requested successfully\n", instanceIdentifier, instanceID)
-			logging.LogInfo("Instance start requested successfully")
 		}
 	},
 }
@@ -105,77 +53,24 @@ var ssmStopCmd = &cobra.Command{
 	Use:   "stop [instance-identifier]",
 	Short: "Stop running EC2 instance(s)",
 	Long: `Stop running EC2 instance(s).
+If no instance identifier is provided, an interactive fuzzy finder will be launched.
 Instance identifier can be an instance ID (i-1234567890abcdef0) or instance name.
 Use --instances flag to specify multiple instance IDs (comma-separated).
 Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-1), etc.
 
 Examples:
-  ztictl ssm stop i-1234567890abcdef0 --region cac1
-  ztictl ssm stop --instances i-1234,i-5678 --region use1`,
+  ztictl ssm stop --region cac1                        # Interactive fuzzy finder
+  ztictl ssm stop i-1234567890abcdef0 --region cac1   # Specific instance
+  ztictl ssm stop --instances i-1234,i-5678 --region use1  # Multiple instances`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		regionCode, _ := cmd.Flags().GetString("region")
 		instancesFlag, _ := cmd.Flags().GetString("instances")
 		parallelFlag, _ := cmd.Flags().GetInt("parallel")
 
-		region := resolveRegion(regionCode)
-
-		// Validate arguments and flags
-		if err := validatePowerCommandArgs(args, instancesFlag); err != nil {
-			colors.PrintError("✗ %v\n", err)
+		if err := performPowerOperation(args, regionCode, instancesFlag, parallelFlag, "stop"); err != nil {
+			logging.LogError("Stop operation failed: %v", err)
 			os.Exit(1)
-		}
-
-		ctx := context.Background()
-		awsClient, err := aws.NewClient(ctx, aws.ClientOptions{Region: region})
-		if err != nil {
-			colors.PrintError("✗ Failed to create AWS client: %v\n", err)
-			logging.LogError("Failed to create AWS client: %v", err)
-			os.Exit(1)
-		}
-
-		var instanceIDs []string
-
-		if instancesFlag != "" {
-			// Multiple instances via --instances flag
-			instanceIDs = strings.Split(instancesFlag, ",")
-			for i, id := range instanceIDs {
-				instanceIDs[i] = strings.TrimSpace(id)
-			}
-			logging.LogInfo("Stopping %d instances in region: %s", len(instanceIDs), region)
-
-			// Execute in parallel
-			startTime := time.Now()
-			results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "stop", parallelFlag)
-			totalDuration := time.Since(startTime)
-			if err := displayPowerOperationResults(results, "stop", totalDuration, parallelFlag); err != nil {
-				os.Exit(1)
-			}
-		} else {
-			// Single instance
-			instanceIdentifier := args[0]
-			logging.LogInfo("Stopping instance %s in region: %s", instanceIdentifier, region)
-
-			// Resolve instance ID if name was provided
-			instanceID, err := resolveInstanceID(ctx, awsClient, instanceIdentifier)
-			if err != nil {
-				colors.PrintError("✗ Failed to resolve instance: %v\n", err)
-				logging.LogError("Failed to resolve instance: %v", err)
-				os.Exit(1)
-			}
-
-			// Stop the instance
-			_, err = awsClient.EC2.StopInstances(ctx, &ec2.StopInstancesInput{
-				InstanceIds: []string{instanceID},
-			})
-			if err != nil {
-				colors.PrintError("✗ Failed to stop instance %s\n", instanceID)
-				logging.LogError("Failed to stop instance: %v", err)
-				os.Exit(1)
-			}
-
-			colors.PrintSuccess("✓ Instance %s (%s) stop requested successfully\n", instanceIdentifier, instanceID)
-			logging.LogInfo("Instance stop requested successfully")
 		}
 	},
 }
@@ -185,77 +80,24 @@ var ssmRebootCmd = &cobra.Command{
 	Use:   "reboot [instance-identifier]",
 	Short: "Reboot running EC2 instance(s)",
 	Long: `Reboot running EC2 instance(s).
+If no instance identifier is provided, an interactive fuzzy finder will be launched.
 Instance identifier can be an instance ID (i-1234567890abcdef0) or instance name.
 Use --instances flag to specify multiple instance IDs (comma-separated).
 Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-1), etc.
 
 Examples:
-  ztictl ssm reboot i-1234567890abcdef0 --region cac1
-  ztictl ssm reboot --instances i-1234,i-5678 --region use1`,
+  ztictl ssm reboot --region cac1                        # Interactive fuzzy finder
+  ztictl ssm reboot i-1234567890abcdef0 --region cac1   # Specific instance
+  ztictl ssm reboot --instances i-1234,i-5678 --region use1  # Multiple instances`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		regionCode, _ := cmd.Flags().GetString("region")
 		instancesFlag, _ := cmd.Flags().GetString("instances")
 		parallelFlag, _ := cmd.Flags().GetInt("parallel")
 
-		region := resolveRegion(regionCode)
-
-		// Validate arguments and flags
-		if err := validatePowerCommandArgs(args, instancesFlag); err != nil {
-			colors.PrintError("✗ %v\n", err)
+		if err := performPowerOperation(args, regionCode, instancesFlag, parallelFlag, "reboot"); err != nil {
+			logging.LogError("Reboot operation failed: %v", err)
 			os.Exit(1)
-		}
-
-		ctx := context.Background()
-		awsClient, err := aws.NewClient(ctx, aws.ClientOptions{Region: region})
-		if err != nil {
-			colors.PrintError("✗ Failed to create AWS client: %v\n", err)
-			logging.LogError("Failed to create AWS client: %v", err)
-			os.Exit(1)
-		}
-
-		var instanceIDs []string
-
-		if instancesFlag != "" {
-			// Multiple instances via --instances flag
-			instanceIDs = strings.Split(instancesFlag, ",")
-			for i, id := range instanceIDs {
-				instanceIDs[i] = strings.TrimSpace(id)
-			}
-			logging.LogInfo("Rebooting %d instances in region: %s", len(instanceIDs), region)
-
-			// Execute in parallel
-			startTime := time.Now()
-			results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "reboot", parallelFlag)
-			totalDuration := time.Since(startTime)
-			if err := displayPowerOperationResults(results, "reboot", totalDuration, parallelFlag); err != nil {
-				os.Exit(1)
-			}
-		} else {
-			// Single instance
-			instanceIdentifier := args[0]
-			logging.LogInfo("Rebooting instance %s in region: %s", instanceIdentifier, region)
-
-			// Resolve instance ID if name was provided
-			instanceID, err := resolveInstanceID(ctx, awsClient, instanceIdentifier)
-			if err != nil {
-				colors.PrintError("✗ Failed to resolve instance: %v\n", err)
-				logging.LogError("Failed to resolve instance: %v", err)
-				os.Exit(1)
-			}
-
-			// Reboot the instance
-			_, err = awsClient.EC2.RebootInstances(ctx, &ec2.RebootInstancesInput{
-				InstanceIds: []string{instanceID},
-			})
-			if err != nil {
-				colors.PrintError("✗ Failed to reboot instance %s\n", instanceID)
-				logging.LogError("Failed to reboot instance: %v", err)
-				os.Exit(1)
-			}
-
-			colors.PrintSuccess("✓ Instance %s (%s) reboot requested successfully\n", instanceIdentifier, instanceID)
-			logging.LogInfo("Instance reboot requested successfully")
 		}
 	},
 }
@@ -502,18 +344,101 @@ type PowerOperationResult struct {
 	Duration   time.Duration
 }
 
-// validatePowerCommandArgs validates arguments and flags for power commands
-func validatePowerCommandArgs(args []string, instancesFlag string) error {
-	// Validate arguments and flags
-	if len(args) == 0 && instancesFlag == "" {
-		return fmt.Errorf("either provide an instance identifier or use --instances flag")
+// performPowerOperation handles power operations with fuzzy finder support
+func performPowerOperation(args []string, regionCode, instancesFlag string, parallelFlag int, operation string) error {
+	region := resolveRegion(regionCode)
+	ctx := context.Background()
+
+	// Case 1: Multiple instances via --instances flag
+	if instancesFlag != "" {
+		if len(args) > 0 {
+			return fmt.Errorf("cannot specify both instance identifier and --instances flag")
+		}
+
+		instanceIDs := strings.Split(instancesFlag, ",")
+		for i, id := range instanceIDs {
+			instanceIDs[i] = strings.TrimSpace(id)
+		}
+		logging.LogInfo("%s %d instances in region: %s", capitalize(operation), len(instanceIDs), region)
+
+		awsClient, err := aws.NewClient(ctx, aws.ClientOptions{Region: region})
+		if err != nil {
+			colors.PrintError("✗ Failed to create AWS client: %v\n", err)
+			return fmt.Errorf("failed to create AWS client: %w", err)
+		}
+
+		startTime := time.Now()
+		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, operation, parallelFlag)
+		totalDuration := time.Since(startTime)
+		return displayPowerOperationResults(results, operation, totalDuration, parallelFlag)
 	}
 
-	// Validate mutual exclusion
-	if len(args) > 0 && instancesFlag != "" {
-		return fmt.Errorf("cannot specify both instance identifier and --instances flag")
+	// Case 2: Single instance (direct or fuzzy finder)
+	ssmManager := ssm.NewManager(logger)
+	var instanceIdentifier string
+	if len(args) > 0 {
+		instanceIdentifier = args[0]
 	}
 
+	// Use SelectInstanceWithFallback to handle both direct and fuzzy finder modes
+	instanceID, err := ssmManager.GetInstanceService().SelectInstanceWithFallback(
+		ctx,
+		instanceIdentifier,
+		region,
+		nil, // No filters for power commands
+	)
+	if err != nil {
+		return fmt.Errorf("instance selection failed: %w", err)
+	}
+
+	logging.LogInfo("%s instance %s in region: %s", capitalize(operation), instanceID, region)
+
+	// Validate instance state before attempting power operation
+	requirements := InstanceValidationRequirements{
+		RequireSSMOnline: false,
+		Operation:        operation,
+	}
+	switch operation {
+	case "start":
+		requirements.AllowedStates = []string{"stopped"}
+	case "stop", "reboot":
+		requirements.AllowedStates = []string{"running"}
+	}
+	if err := ValidateInstanceState(ctx, ssmManager, instanceID, region, requirements); err != nil {
+		return err
+	}
+
+	awsClient, err := aws.NewClient(ctx, aws.ClientOptions{Region: region})
+	if err != nil {
+		colors.PrintError("✗ Failed to create AWS client: %v\n", err)
+		return fmt.Errorf("failed to create AWS client: %w", err)
+	}
+
+	// Execute the power operation
+	switch operation {
+	case "start":
+		_, err = awsClient.EC2.StartInstances(ctx, &ec2.StartInstancesInput{
+			InstanceIds: []string{instanceID},
+		})
+	case "stop":
+		_, err = awsClient.EC2.StopInstances(ctx, &ec2.StopInstancesInput{
+			InstanceIds: []string{instanceID},
+		})
+	case "reboot":
+		_, err = awsClient.EC2.RebootInstances(ctx, &ec2.RebootInstancesInput{
+			InstanceIds: []string{instanceID},
+		})
+	default:
+		return fmt.Errorf("unknown operation: %s", operation)
+	}
+
+	if err != nil {
+		colors.PrintError("✗ Failed to %s instance %s\n", operation, instanceID)
+		return fmt.Errorf("failed to %s instance: %w", operation, err)
+	}
+
+	colors.PrintSuccess("✓ Instance %s %s requested successfully\n", instanceID, operation)
+	logging.LogInfo("Instance %s requested successfully", operation)
 	return nil
 }
 
@@ -545,37 +470,6 @@ func capitalize(s string) string {
 	r := []rune(s)
 	r[0] = unicode.ToUpper(r[0])
 	return string(r)
-}
-
-// resolveInstanceID converts instance name to instance ID if needed
-func resolveInstanceID(ctx context.Context, awsClient *aws.Client, instanceIdentifier string) (string, error) {
-	// If it's already an instance ID (starts with i-), return as is
-	if strings.HasPrefix(instanceIdentifier, "i-") {
-		return instanceIdentifier, nil
-	}
-
-	// Otherwise, treat it as a name and resolve to ID
-	result, err := awsClient.EC2.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
-		Filters: []types.Filter{
-			{
-				Name:   awssdk.String("tag:Name"),
-				Values: []string{instanceIdentifier},
-			},
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to describe instances: %w", err)
-	}
-
-	if len(result.Reservations) == 0 {
-		return "", fmt.Errorf("no instance found with name: %s", instanceIdentifier)
-	}
-
-	if len(result.Reservations) > 1 || len(result.Reservations[0].Instances) > 1 {
-		return "", fmt.Errorf("multiple instances found with name: %s", instanceIdentifier)
-	}
-
-	return *result.Reservations[0].Instances[0].InstanceId, nil
 }
 
 // getInstanceIDsByTags finds instance IDs by tag filters
