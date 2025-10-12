@@ -152,15 +152,25 @@ func executeCommandParallel(ctx context.Context, ssmManager *ssm.Manager, instan
 // executeSingleCommand handles single instance command execution and returns errors instead of calling os.Exit
 func executeSingleCommand(regionCode, instanceIdentifier, command string) error {
 	region := resolveRegion(regionCode)
-
-	logging.LogInfo("Executing command '%s' on instance %s in region: %s", command, instanceIdentifier, region)
-
-	ssmManager := ssm.NewManager(logger)
 	ctx := context.Background()
+	ssmManager := ssm.NewManager(logger)
 
-	result, err := ssmManager.ExecuteCommand(ctx, instanceIdentifier, region, command, "")
+	// Use the shared instance selection logic to resolve the identifier
+	instanceID, err := ssmManager.GetInstanceService().ResolveInstanceIdentifier(ctx, instanceIdentifier, region)
 	if err != nil {
-		colors.PrintError("✗ Failed to execute command on instance %s\n", instanceIdentifier)
+		return fmt.Errorf("instance identifier resolution failed: %w", err)
+	}
+
+	// Validate instance state before attempting execution
+	if err := validateInstanceForSSM(ctx, ssmManager, instanceID, region, "execute commands"); err != nil {
+		return err
+	}
+
+	logging.LogInfo("Executing command '%s' on instance %s in region: %s", command, instanceID, region)
+
+	result, err := ssmManager.ExecuteCommand(ctx, instanceID, region, command, "")
+	if err != nil {
+		colors.PrintError("✗ Failed to execute command on instance %s\n", instanceID)
 		return fmt.Errorf("failed to execute command: %w", err)
 	}
 
@@ -256,11 +266,46 @@ func executeTaggedCommand(regionCode, command, tagsFlag, instancesFlag string, p
 		return true, nil
 	}
 
-	logging.LogInfo("Executing command on %d instances with parallelism: %d", len(instances), parallelFlag)
+	// Filter instances to only include those that are running with online SSM status
+	var validInstances []interactive.Instance
+	var skippedInstances []interactive.Instance
+
+	for _, instance := range instances {
+		if instance.State != "running" {
+			skippedInstances = append(skippedInstances, instance)
+			colors.PrintWarning("⚠ Skipping instance %s (%s) - not running (state: %s)\n",
+				instance.InstanceID, instance.Name, instance.State)
+			continue
+		}
+		if instance.SSMStatus != "Online" {
+			skippedInstances = append(skippedInstances, instance)
+			colors.PrintWarning("⚠ Skipping instance %s (%s) - SSM agent not online (status: %s)\n",
+				instance.InstanceID, instance.Name, instance.SSMStatus)
+			continue
+		}
+		validInstances = append(validInstances, instance)
+	}
+
+	if len(validInstances) == 0 {
+		colors.PrintError("\n✗ No instances available for command execution\n")
+		if len(skippedInstances) > 0 {
+			fmt.Printf("\nAll %d instance(s) were skipped due to state or SSM status issues.\n", len(skippedInstances))
+			colors.PrintData("💡 Tip: Ensure instances are running and have SSM Agent Online.\n")
+		}
+		return false, fmt.Errorf("no valid instances available for execution")
+	}
+
+	if len(skippedInstances) > 0 {
+		fmt.Printf("\n")
+		colors.PrintWarning("⚠ %d instance(s) skipped, %d instance(s) will be targeted\n",
+			len(skippedInstances), len(validInstances))
+	}
+
+	logging.LogInfo("Executing command on %d instances with parallelism: %d", len(validInstances), parallelFlag)
 
 	// Execute commands in parallel
 	startTime := time.Now()
-	results := executeCommandParallel(ctx, ssmManager, instances, region, command, parallelFlag)
+	results := executeCommandParallel(ctx, ssmManager, validInstances, region, command, parallelFlag)
 	totalDuration := time.Since(startTime)
 
 	// Process and display results
@@ -299,14 +344,17 @@ func executeTaggedCommand(regionCode, command, tagsFlag, instancesFlag string, p
 	// Summary
 	fmt.Printf("\n")
 	colors.PrintHeader("=== Execution Summary ===\n")
-	colors.PrintData("Total instances: %d\n", len(instances))
+	colors.PrintData("Total instances targeted: %d\n", len(validInstances))
+	if len(skippedInstances) > 0 {
+		colors.PrintData("Skipped (not running/no agent): %d\n", len(skippedInstances))
+	}
 	colors.PrintData("Successful: %d\n", successCount)
-	colors.PrintData("Failed: %d\n", len(instances)-successCount)
+	colors.PrintData("Failed: %d\n", len(validInstances)-successCount)
 	colors.PrintData("Total execution time: %v\n", totalDuration.Round(time.Millisecond))
 	colors.PrintData("Max parallelism: %d\n", parallelFlag)
 
-	if successCount < len(instances) {
-		logging.LogWarn("Some executions failed: %d successful, %d failed", successCount, len(instances)-successCount)
+	if successCount < len(validInstances) {
+		logging.LogWarn("Some executions failed: %d successful, %d failed", successCount, len(validInstances)-successCount)
 		return false, nil
 	} else {
 		logging.LogSuccess("All executions completed successfully")

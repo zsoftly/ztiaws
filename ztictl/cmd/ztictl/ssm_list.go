@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"ztictl/internal/interactive"
 	"ztictl/internal/ssm"
@@ -80,7 +81,7 @@ func performInstanceListing(regionCode string, filters *ssm.ListFilters, tableFo
 	logging.LogInfo("Launching interactive instance browser...")
 
 	// Use shared fuzzy finder (user can select or just browse)
-	_, err = interactive.SelectInstance(instances, "Browse EC2 instances")
+	selected, err := interactive.SelectInstance(instances, "Browse EC2 instances")
 	if err != nil {
 		// User cancelled - that's OK for list command
 		if err.Error() == "instance selection cancelled" {
@@ -88,6 +89,9 @@ func performInstanceListing(regionCode string, filters *ssm.ListFilters, tableFo
 		}
 		return fmt.Errorf("instance selection failed: %w", err)
 	}
+
+	// Display detailed instance information
+	printInstanceDetails(selected, region)
 
 	return nil
 }
@@ -178,6 +182,139 @@ func printInstanceTable(instances []interactive.Instance, region string) {
 	colors.PrintData("Total: %d instances\n", len(instances))
 	fmt.Printf("Note: Only instances with %s SSM status can be connected to via SSM\n", colors.ColorSuccess("'✓ Online'"))
 	colors.PrintData("Usage: ztictl ssm connect <instance-id-or-name>\n")
+}
+
+// printInstanceDetails displays detailed information about the selected instance
+func printInstanceDetails(instance *interactive.Instance, region string) {
+	fmt.Printf("\n")
+	colors.PrintHeader("═══════════════════════════════════════════════════════════════════\n")
+	colors.PrintHeader("                    Instance Details\n")
+	colors.PrintHeader("═══════════════════════════════════════════════════════════════════\n")
+	fmt.Printf("\n")
+
+	// Basic Information
+	colors.PrintHeader("📋 Basic Information:\n")
+	fmt.Printf("  Name:           %s\n", colors.ColorSuccess("%s", instance.Name))
+	fmt.Printf("  Instance ID:    %s\n", colors.ColorData("%s", instance.InstanceID))
+	fmt.Printf("  State:          %s\n", getColoredState(instance.State))
+	fmt.Printf("  Platform:       %s\n", colors.ColorData("%s", instance.Platform))
+	fmt.Printf("\n")
+
+	// Network Information
+	colors.PrintHeader("🌐 Network:\n")
+	fmt.Printf("  Private IP:     %s\n", colors.ColorData("%s", instance.PrivateIPAddress))
+	if instance.PublicIPAddress != "" {
+		fmt.Printf("  Public IP:      %s\n", colors.ColorSuccess("%s", instance.PublicIPAddress))
+	} else {
+		fmt.Printf("  Public IP:      %s\n", colors.ColorWarning("%s", "N/A (private instance)"))
+	}
+	fmt.Printf("\n")
+
+	// SSM Status
+	colors.PrintHeader("🔌 SSM Agent:\n")
+	var ssmStatus string
+	switch instance.SSMStatus {
+	case "Online":
+		ssmStatus = colors.ColorSuccess("%s", "✓ Online - Ready for connections")
+	case "ConnectionLost":
+		ssmStatus = colors.ColorWarning("%s", "⚠ Connection Lost - May need troubleshooting")
+	case "No Agent":
+		ssmStatus = colors.ColorError("%s", "✗ No Agent - SSM not available")
+	default:
+		if instance.SSMStatus == "" {
+			ssmStatus = colors.ColorError("%s", "✗ No Agent - SSM not available")
+		} else {
+			ssmStatus = colors.ColorWarning("? %s", instance.SSMStatus)
+		}
+	}
+	fmt.Printf("  Status:         %s\n", ssmStatus)
+	if instance.SSMAgentVersion != "" {
+		fmt.Printf("  Agent Version:  %s\n", colors.ColorData("%s", instance.SSMAgentVersion))
+	}
+	if instance.LastPingDateTime != "" {
+		fmt.Printf("  Last Ping:      %s\n", colors.ColorData("%s", instance.LastPingDateTime))
+	}
+	fmt.Printf("\n")
+
+	// Tags
+	if len(instance.Tags) > 0 {
+		colors.PrintHeader("🏷️  Tags:\n")
+		for key, value := range instance.Tags {
+			fmt.Printf("  %s = %s\n", colors.ColorData("%s", key), colors.ColorSuccess("%s", value))
+		}
+		fmt.Printf("\n")
+	}
+
+	// Command Examples
+	if instance.SSMStatus == "Online" {
+		colors.PrintHeader("💻 Quick Commands:\n")
+		fmt.Printf("\n")
+
+		// Connect command
+		colors.PrintData("  Connect to instance:\n")
+		connectCmd := fmt.Sprintf("ztictl ssm connect %s --region %s", instance.InstanceID, region)
+		fmt.Printf("    %s\n", colors.ColorSuccess("%s", connectCmd))
+		fmt.Printf("\n")
+
+		// Execute command
+		colors.PrintData("  Execute remote command:\n")
+		if instance.Platform == "Windows" || containsIgnoreCase(instance.Platform, "windows") {
+			execCmd := fmt.Sprintf("ztictl ssm exec %s %s \"Get-Process\"", region, instance.InstanceID)
+			fmt.Printf("    %s\n", colors.ColorSuccess("%s", execCmd))
+		} else {
+			execCmd := fmt.Sprintf("ztictl ssm exec %s %s \"uptime\"", region, instance.InstanceID)
+			fmt.Printf("    %s\n", colors.ColorSuccess("%s", execCmd))
+		}
+		fmt.Printf("\n")
+
+		// File transfer commands
+		colors.PrintData("  Transfer files:\n")
+		var uploadCmd, downloadCmd string
+		if instance.Platform == "Windows" || containsIgnoreCase(instance.Platform, "windows") {
+			uploadCmd = fmt.Sprintf("ztictl ssm transfer upload %s /local/file.txt C:\\\\remote\\\\file.txt --region %s", instance.InstanceID, region)
+			downloadCmd = fmt.Sprintf("ztictl ssm transfer download %s C:\\\\remote\\\\file.txt /local/file.txt --region %s", instance.InstanceID, region)
+		} else {
+			uploadCmd = fmt.Sprintf("ztictl ssm transfer upload %s /local/file.txt /remote/file.txt --region %s", instance.InstanceID, region)
+			downloadCmd = fmt.Sprintf("ztictl ssm transfer download %s /remote/file.txt /local/file.txt --region %s", instance.InstanceID, region)
+		}
+		fmt.Printf("    Upload:   %s\n", colors.ColorSuccess("%s", uploadCmd))
+		fmt.Printf("    Download: %s\n", colors.ColorSuccess("%s", downloadCmd))
+		fmt.Printf("\n")
+	} else {
+		colors.PrintWarning("⚠ SSM commands unavailable - Instance must have SSM Agent Online\n")
+		fmt.Printf("\n")
+		colors.PrintData("  To enable SSM:\n")
+		fmt.Printf("    1. Ensure the instance has the SSM agent installed\n")
+		fmt.Printf("    2. Verify the instance has the required IAM role (AmazonSSMManagedInstanceCore)\n")
+		fmt.Printf("    3. Check network connectivity to SSM endpoints\n")
+		fmt.Printf("\n")
+	}
+
+	colors.PrintHeader("═══════════════════════════════════════════════════════════════════\n")
+	fmt.Printf("\n")
+}
+
+// getColoredState returns a colored state string
+func getColoredState(state string) string {
+	switch state {
+	case "running":
+		return colors.ColorSuccess("%s", "● running")
+	case "stopped":
+		return colors.ColorError("%s", "○ stopped")
+	case "pending":
+		return colors.ColorWarning("%s", "◐ pending")
+	case "stopping":
+		return colors.ColorWarning("%s", "◑ stopping")
+	case "terminated":
+		return colors.ColorError("%s", "✗ terminated")
+	default:
+		return colors.ColorData("%s", state)
+	}
+}
+
+// containsIgnoreCase checks if a string contains a substring (case-insensitive)
+func containsIgnoreCase(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
 
 func init() {

@@ -1281,3 +1281,66 @@ func TestValidatePortNumber(t *testing.T) {
 		})
 	}
 }
+
+func TestRemoveExitCodeLine(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Output with EXIT_CODE at end",
+			input:    " 17:33:25 up 8 days, 14:48,  0 user,  load average: 0.00, 0.00, 0.00\nEXIT_CODE:0",
+			expected: " 17:33:25 up 8 days, 14:48,  0 user,  load average: 0.00, 0.00, 0.00",
+		},
+		{
+			name:     "Output with EXIT_CODE in middle",
+			input:    "line1\nEXIT_CODE:0\nline2",
+			expected: "line1\nline2",
+		},
+		{
+			name:     "Multiple EXIT_CODE lines",
+			input:    "output\nEXIT_CODE:0\nmore output\nEXIT_CODE:1",
+			expected: "output\nmore output",
+		},
+		{
+			name:     "No EXIT_CODE line",
+			input:    "normal output\nwithout exit code",
+			expected: "normal output\nwithout exit code",
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Only EXIT_CODE line",
+			input:    "EXIT_CODE:0",
+			expected: "",
+		},
+		{
+			name:     "EXIT_CODE with non-zero code",
+			input:    "error output\nEXIT_CODE:127",
+			expected: "error output",
+		},
+		{
+			name:     "Text containing EXIT_CODE but not at start",
+			input:    "The EXIT_CODE:0 is in the middle of line",
+			expected: "The EXIT_CODE:0 is in the middle of line",
+		},
+		{
+			name:     "Output ending with newline after EXIT_CODE",
+			input:    "output\nEXIT_CODE:0\n",
+			expected: "output\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := removeExitCodeLine(tt.input)
+			if result != tt.expected {
+				t.Errorf("removeExitCodeLine() = %q, expected %q", result, tt.expected)
+			}
+		})
+	}
+}

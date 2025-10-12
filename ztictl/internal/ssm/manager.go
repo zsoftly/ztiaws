@@ -539,10 +539,13 @@ func (m *Manager) waitForCommandCompletion(ctx context.Context, ssmClient *ssm.C
 			return nil, fmt.Errorf("failed to get command result: %w", err)
 		}
 
+		// Clean the output to remove the EXIT_CODE line that was added by the wrapper script
+		cleanOutput := removeExitCodeLine(aws.ToString(detailResp.StandardOutputContent))
+
 		result := &CommandResult{
 			InstanceID:  instanceID,
 			Status:      status,
-			Output:      aws.ToString(detailResp.StandardOutputContent),
+			Output:      cleanOutput,
 			ErrorOutput: aws.ToString(detailResp.StandardErrorContent),
 		}
 
@@ -554,6 +557,33 @@ func (m *Manager) waitForCommandCompletion(ctx context.Context, ssmClient *ssm.C
 	}
 
 	return nil, fmt.Errorf("command execution timed out after %v", maxWait)
+}
+
+// removeExitCodeLine removes the EXIT_CODE line from command output
+// The platform builders add this line to capture exit codes, but it shouldn't be shown to users
+func removeExitCodeLine(output string) string {
+	if output == "" {
+		return output
+	}
+
+	lines := strings.Split(output, "\n")
+	var filteredLines []string
+
+	for _, line := range lines {
+		// Skip lines that start with EXIT_CODE:
+		if strings.HasPrefix(line, "EXIT_CODE:") {
+			continue
+		}
+		filteredLines = append(filteredLines, line)
+	}
+
+	// Preserve trailing newline if original output had one
+	result := strings.Join(filteredLines, "\n")
+	if strings.HasSuffix(output, "\n") && !strings.HasSuffix(result, "\n") {
+		result += "\n"
+	}
+
+	return result
 }
 
 // File transfer helper methods
