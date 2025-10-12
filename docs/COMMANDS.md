@@ -90,29 +90,54 @@ ztictl config repair
 
 ### SSM Operations
 
+> **🔍 Interactive Fuzzy Finder**: Many SSM commands now feature an interactive fuzzy finder for enhanced user experience. The fuzzy finder provides real-time search, instance details preview, and keyboard navigation.
+
 #### `ztictl ssm list`
-List EC2 instances with SSM status.
+**🔍 Interactive Fuzzy Finder** - Browse and search EC2 instances with real-time filtering.
+
+The fuzzy finder provides:
+- **Real-time search**: Type to filter instances by name or ID
+- **Instance details**: Shows state, platform, IP addresses, and SSM status
+- **Browse mode**: Navigate through instances without connecting
+- **Keyboard shortcuts**: Arrow keys to navigate, Enter to select, Escape to cancel
 
 ```bash
-# List in specific region (shortcode or full name)
+# Launch interactive instance browser for a region (default)
 ztictl ssm list --region cac1
-ztictl ssm list --region ca-central-1
 
-# Filter by tags
+# Pre-filter by tags, then browse with fuzzy finder
 ztictl ssm list --region use1 --tags "Environment=prod,App=web"
 
-# Filter by running status
-ztictl ssm list --region euw1 --running
+# Browse instances with status filtering
+ztictl ssm list --region euw1 --status running
+
+# Use traditional table format instead of fuzzy finder
+ztictl ssm list --region cac1 --table
 ```
 
+**Flags:**
+- `--table` - Display instances in traditional table format (for scripts/automation)
+
 #### `ztictl ssm connect`
-Connect to an instance via Session Manager.
+**🔍 Interactive Connection** - Connect to instances via Session Manager with fuzzy finder support.
+
+**Interactive Mode** (no instance specified):
+- Launches interactive fuzzy finder to search and select instances
+- Real-time filtering by typing instance names or IDs
+- Shows instance details including SSM status and platform
+- Press Enter to connect, Escape to cancel
+
+**Direct Mode** (instance specified):
+- Connects directly to the specified instance by ID or name
 
 ```bash
-# Connect using instance ID
+# 🔍 Interactive mode - Launch fuzzy finder to search and connect
+ztictl ssm connect --region euw1
+
+# 🎯 Direct mode - Connect using instance ID
 ztictl ssm connect i-1234567890abcdef0 --region use1
 
-# Connect using instance name
+# 🎯 Direct mode - Connect using instance name  
 ztictl ssm connect prod-web-01 --region cac1
 ```
 
@@ -218,6 +243,51 @@ ztictl ssm exec-multi --region-group production --tags "App=api" "curl localhost
 # Control parallelism
 ztictl ssm exec-multi --all-regions --tags "Type=cache" "redis-cli ping" --parallel 3
 ```
+
+---
+
+## Interactive Fuzzy Finder
+
+**New in v2.9+** - Enhanced interactive instance selection with real-time search capabilities.
+
+### Features
+- **🔍 Real-time Search**: Type to instantly filter instances by name or ID
+- **📋 Instance Details**: Preview instance information before connecting
+- **⌨️ Keyboard Navigation**: 
+  - Arrow keys or `j/k` to navigate
+  - Enter to select instance
+  - Escape or `q` to cancel
+  - `/` to focus search input
+- **🎨 Color-coded Status**: Visual indicators for SSM status and instance state
+- **🏷️ Tag Support**: Pre-filter instances by tags before launching fuzzy finder
+
+### When Fuzzy Finder Launches
+The interactive fuzzy finder automatically launches when:
+- `ztictl ssm list` - Always launches for browsing instances
+- `ztictl ssm connect` - Launches when no instance identifier is provided
+- Any command where instance selection is needed but not specified
+
+### Example Workflow
+```bash
+# 1. Launch fuzzy finder for region
+ztictl ssm connect --region ca-central-1
+
+# 2. Type to search (e.g., "web" to find web servers)
+#    Results filter in real-time as you type
+
+# 3. Use arrow keys to navigate through matches
+
+# 4. Press Enter to connect to selected instance
+#    Or Escape to cancel
+```
+
+### Instance Information Displayed
+- **Instance ID**: e.g., `i-1234567890abcdef0`
+- **Name**: Instance name from Name tag
+- **State**: running, stopped, pending, etc.
+- **Platform**: Linux, Windows
+- **IP Addresses**: Private and public IPs
+- **SSM Status**: ✓ Online, ⚠ Lost, ✗ No Agent
 
 ---
 

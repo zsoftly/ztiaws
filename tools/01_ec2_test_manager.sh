@@ -40,13 +40,17 @@ INSTANCE_TYPE="t2.micro"
 # REQUIRED: Override by setting the SUBNET_ID environment variable for your environment.
 # To find available subnets in your region, use:
 # aws ec2 describe-subnets --query 'Subnets[*].[SubnetId,VpcId,AvailabilityZone,CidrBlock]' --output table
-SUBNET_ID="${SUBNET_ID:-subnet-0248e681d3349e41c}"
+# The subnet has access to the internet via a NAT gateway
+# If they are attached to a public route table with an internet gateway, use --associate-public-ip-address
+SUBNET_ID="${SUBNET_ID:-subnet-0b0c36050965b21ff}"
 
 # Security Group ID for EC2 instances. Default is for ca-central-1 region.
 # REQUIRED: Override by setting the SECURITY_GROUP environment variable for your environment.
 # To find available security groups in your VPC, use:
 # aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId,GroupName,Description,VpcId]' --output table
-SECURITY_GROUP="${SECURITY_GROUP:-sg-0a932ab2ea0066022}"
+# Has Outbound: HTTPS (443) to 0.0.0.0/0
+# Have SSM VPC endpoint or allow outbound internet access for SSM to work
+SECURITY_GROUP="${SECURITY_GROUP:-sg-0d3a8aef97b110181}"
 
 IAM_ROLE_NAME="EC2-SSM-Role"
 IAM_INSTANCE_PROFILE="EC2-SSM-InstanceProfile"
@@ -57,6 +61,7 @@ COUNT=1
 OWNER=""
 NAME_PREFIX="web-server"
 OS_TYPE="both"  # Options: linux, windows, both
+ASSIGN_PUBLIC_IP=false  # Default: no public IP (use NAT/VPC endpoints for SSM)
 
 # Auto-detect latest AMI IDs for Linux and Windows
 get_latest_linux_ami() {
@@ -137,6 +142,7 @@ Options:
   -a, --ami-id AMI_ID      AMI ID to use (overrides auto-detection)
   -s, --subnet-id SUBNET   Subnet ID to use (default: $SUBNET_ID)
   -g, --security-group SG  Security Group ID to use (default: $SECURITY_GROUP)
+  -p, --public-ip          Assign public IP addresses (default: private IPs)
   -h, --help              Show this help
 
 Environment Variables:
@@ -154,6 +160,7 @@ Examples:
   $0 create --owner Bob --os-type windows  # Creates only Windows instances
   $0 create --owner Carol --os-type both --count 1  # Creates one Linux and one Windows instance
   $0 create --owner Dave --subnet-id subnet-123abc --security-group sg-456def
+  $0 create --owner Eve --public-ip  # Creates instances with public IP addresses
   SUBNET_ID=subnet-123abc SECURITY_GROUP=sg-456def $0 create --owner Eve
   $0 verify
   $0 delete
@@ -363,7 +370,16 @@ create_instances() {
                 log_info "Using $instance_type for Windows instance (upgraded from t2.micro)"
             fi
             
-            # Create instance
+            # Create instance with dynamic public IP assignment
+            local public_ip_flag
+            if [[ "$ASSIGN_PUBLIC_IP" == "true" ]]; then
+                public_ip_flag="--associate-public-ip-address"
+                log_info "Creating $name with public IP address"
+            else
+                public_ip_flag="--no-associate-public-ip-address"
+                log_info "Creating $name with private IP only (requires NAT/VPC endpoints for SSM)"
+            fi
+            
             local result
             result=$(aws ec2 run-instances \
                 --image-id "$ami_id" \
@@ -371,7 +387,7 @@ create_instances() {
                 --count 1 \
                 --subnet-id "$SUBNET_ID" \
                 --security-group-ids "$SECURITY_GROUP" \
-                --no-associate-public-ip-address \
+                $public_ip_flag \
                 --iam-instance-profile Name="$IAM_INSTANCE_PROFILE" \
                 --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$name},{Key=Owner,Value=$OWNER},{Key=ManagedBy,Value=ec2-manager},{Key=OSType,Value=$os_type},{Key=Platform,Value=$os_type},{Key=Environment,Value=testing},{Key=SSMEnabled,Value=true}]" \
                 --credit-specification CpuCredits=standard \
@@ -496,6 +512,9 @@ parse_args() {
                 SECURITY_GROUP="$2"
                 [[ "$SECURITY_GROUP" =~ ^sg-[0-9a-f]{8,17}$ ]] || { log_error "Invalid security group ID format: $SECURITY_GROUP"; exit 1; }
                 shift 2 ;;
+            -p|--public-ip)
+                ASSIGN_PUBLIC_IP=true
+                shift ;;
             -h|--help)
                 show_help; exit 0 ;;
             *)

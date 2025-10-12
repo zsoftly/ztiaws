@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"ztictl/internal/interactive"
 	"ztictl/pkg/logging"
 )
 
@@ -51,74 +52,6 @@ func TestGetAWSCommand(t *testing.T) {
 
 	// Platform-specific tests would require mocking runtime.GOOS
 	// For now, just verify it returns a valid command name
-}
-
-func TestInstanceStruct(t *testing.T) {
-	instance := Instance{
-		InstanceID:       "i-1234567890abcdef0",
-		Name:             "test-instance",
-		State:            "running",
-		Platform:         "Linux/UNIX",
-		PrivateIPAddress: "10.0.1.100",
-		PublicIPAddress:  "203.0.113.1",
-		SSMStatus:        "Online",
-		SSMAgentVersion:  "3.1.1732.0",
-		LastPingDateTime: "2023-01-01T12:00:00Z",
-		Tags: map[string]string{
-			"Name":        "test-instance",
-			"Environment": "test",
-		},
-	}
-
-	// Test that all fields are properly set
-	if instance.InstanceID != "i-1234567890abcdef0" {
-		t.Error("InstanceID should be properly set")
-	}
-
-	if instance.Name != "test-instance" {
-		t.Error("Name should be properly set")
-	}
-
-	if instance.State != "running" {
-		t.Error("State should be properly set")
-	}
-
-	if instance.Platform != "Linux/UNIX" {
-		t.Error("Platform should be properly set")
-	}
-
-	if instance.PrivateIPAddress != "10.0.1.100" {
-		t.Error("PrivateIPAddress should be properly set")
-	}
-
-	if instance.PublicIPAddress != "203.0.113.1" {
-		t.Error("PublicIPAddress should be properly set")
-	}
-
-	if instance.SSMStatus != "Online" {
-		t.Error("SSMStatus should be properly set")
-	}
-
-	if instance.SSMAgentVersion != "3.1.1732.0" {
-		t.Error("SSMAgentVersion should be properly set")
-	}
-
-	if instance.LastPingDateTime != "2023-01-01T12:00:00Z" {
-		t.Error("LastPingDateTime should be properly set")
-	}
-
-	// Test tags
-	if len(instance.Tags) != 2 {
-		t.Errorf("Expected 2 tags, got %d", len(instance.Tags))
-	}
-
-	if instance.Tags["Name"] != "test-instance" {
-		t.Error("Name tag should be properly set")
-	}
-
-	if instance.Tags["Environment"] != "test" {
-		t.Error("Environment tag should be properly set")
-	}
 }
 
 func TestCommandResultStruct(t *testing.T) {
@@ -247,6 +180,19 @@ func TestFileTransferOperationStruct(t *testing.T) {
 
 	if operation.ErrorMessage != "" {
 		t.Error("ErrorMessage should be empty")
+	}
+}
+
+func TestStartSession(t *testing.T) {
+	logger := logging.NewNoOpLogger()
+	manager := NewManager(logger)
+	ctx := context.Background()
+
+	// This test will fail if aws cli is not configured
+	// but it will test the command execution
+	err := manager.StartSession(ctx, "i-0c1b1b2b3b4b5b6b7", "us-east-1")
+	if err != nil {
+		t.Logf("StartSession failed as expected without a real instance: %v", err)
 	}
 }
 
@@ -666,7 +612,7 @@ func TestCommandResultWithNilValues(t *testing.T) {
 }
 
 func TestInstanceWithEmptyTags(t *testing.T) {
-	instance := Instance{
+	instance := interactive.Instance{
 		InstanceID: "i-1234567890abcdef0",
 		Tags:       map[string]string{}, // Empty tags map
 	}
@@ -684,7 +630,7 @@ func TestInstanceWithEmptyTags(t *testing.T) {
 	}
 
 	// Test nil tags map
-	instance2 := Instance{
+	instance2 := interactive.Instance{
 		InstanceID: "i-1234567890abcdef0",
 		Tags:       nil,
 	}
@@ -860,76 +806,6 @@ func TestInstanceIdentifierResolution(t *testing.T) {
 				t.Logf("Operation result (expected to fail without AWS): %v", err)
 			} else if err == nil {
 				t.Error("Expected error without AWS configuration")
-			}
-		})
-	}
-}
-
-func TestManagerOperationsWithoutAWS(t *testing.T) {
-	logger := logging.NewNoOpLogger()
-	manager := NewManager(logger)
-	ctx := context.Background()
-	region := "us-east-1"
-	instanceID := "i-1234567890abcdef0"
-
-	// Test various operations that should fail gracefully without AWS config
-	operations := []struct {
-		name string
-		fn   func() error
-	}{
-		{
-			"StartSession",
-			func() error { return manager.StartSession(ctx, instanceID, region) },
-		},
-		{
-			"ExecuteCommand",
-			func() error {
-				_, err := manager.ExecuteCommand(ctx, instanceID, region, "echo test", "")
-				return err
-			},
-		},
-		{
-			"UploadFile",
-			func() error {
-				return manager.UploadFile(ctx, instanceID, region, "/tmp/local", "/tmp/remote")
-			},
-		},
-		{
-			"DownloadFile",
-			func() error {
-				return manager.DownloadFile(ctx, instanceID, region, "/tmp/remote", "/tmp/local")
-			},
-		},
-		{
-			"GetInstanceStatus",
-			func() error {
-				_, err := manager.GetInstanceStatus(ctx, instanceID, region)
-				return err
-			},
-		},
-		{
-			"ListInstances",
-			func() error {
-				_, err := manager.ListInstances(ctx, region, nil)
-				return err
-			},
-		},
-		{
-			"ForwardPort",
-			func() error {
-				return manager.ForwardPort(ctx, instanceID, region, 8080, 80)
-			},
-		},
-	}
-
-	for _, op := range operations {
-		t.Run(op.name, func(t *testing.T) {
-			err := op.fn()
-			// These should all fail without proper AWS setup
-			if err == nil {
-				t.Log("Operation succeeded - AWS configuration available")
-			} else {
-				t.Log("Expected error without AWS configuration:", err)
 			}
 		})
 	}
@@ -1401,6 +1277,69 @@ func TestValidatePortNumber(t *testing.T) {
 				t.Errorf("Expected error for port %d but got none", tt.port)
 			} else if !tt.expectError && err != nil {
 				t.Errorf("Unexpected error for port %d: %v", tt.port, err)
+			}
+		})
+	}
+}
+
+func TestRemoveExitCodeLine(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Output with EXIT_CODE at end",
+			input:    " 17:33:25 up 8 days, 14:48,  0 user,  load average: 0.00, 0.00, 0.00\nEXIT_CODE:0",
+			expected: " 17:33:25 up 8 days, 14:48,  0 user,  load average: 0.00, 0.00, 0.00",
+		},
+		{
+			name:     "Output with EXIT_CODE in middle",
+			input:    "line1\nEXIT_CODE:0\nline2",
+			expected: "line1\nline2",
+		},
+		{
+			name:     "Multiple EXIT_CODE lines",
+			input:    "output\nEXIT_CODE:0\nmore output\nEXIT_CODE:1",
+			expected: "output\nmore output",
+		},
+		{
+			name:     "No EXIT_CODE line",
+			input:    "normal output\nwithout exit code",
+			expected: "normal output\nwithout exit code",
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Only EXIT_CODE line",
+			input:    "EXIT_CODE:0",
+			expected: "",
+		},
+		{
+			name:     "EXIT_CODE with non-zero code",
+			input:    "error output\nEXIT_CODE:127",
+			expected: "error output",
+		},
+		{
+			name:     "Text containing EXIT_CODE but not at start",
+			input:    "The EXIT_CODE:0 is in the middle of line",
+			expected: "The EXIT_CODE:0 is in the middle of line",
+		},
+		{
+			name:     "Output ending with newline after EXIT_CODE",
+			input:    "output\nEXIT_CODE:0\n",
+			expected: "output\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := removeExitCodeLine(tt.input)
+			if result != tt.expected {
+				t.Errorf("removeExitCodeLine() = %q, expected %q", result, tt.expected)
 			}
 		})
 	}
