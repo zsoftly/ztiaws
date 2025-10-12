@@ -6,25 +6,25 @@
 
 ## Overview
 
-ztictl is a unified AWS SSM management tool that provides both Go binary and bash script implementations. The Go version (`ztictl`) is the primary implementation with enhanced features, while the bash scripts (`authaws`, `ssm`) are maintained for backward compatibility only.
+This release introduces a major user experience enhancement by integrating an interactive fuzzy finder into core SSM commands. Finding and selecting EC2 instances is now faster, easier, and less error-prone.
 
-**Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
+## Key Features
 
-## New Features
-* feat: Replace custom slice contains function with slices.Contains for improved readability
-* feat: Enhance EC2 instance management with public IP assignment and detailed instance information
-* feat: Add table flag to SSM list command and improve instance ID validation constants
-* feat: Add table format option for instance listing and enhance tests for instance ID validation
-* feat: Enhance instance selection and logging in interactive fuzzy finder
-* feat: Implement ClientPoolAdapter for SSM and EC2 clients
-* feat: add fuzzy finder features documentation, implement panic recovery, and enhance width calculation for account/role selectors
-* feat: add terminal width handling for account and role selector width calculations
-* feat: add fuzzy finder features documentation, implement panic recovery, and enhance width calculation for account/role selectors
+### Interactive Fuzzy Finder for SSM Commands
 
-## Bug Fixes
-* No bug fixes in this release
+- **A Faster, More Intuitive Workflow**: Say goodbye to manually copying and pasting instance IDs. The `ssm` commands below now launch an interactive fuzzy finder when an instance ID is not provided:
+    - `ztictl ssm connect`
+    - `ztictl ssm list`
+    - `ztictl ssm exec`
+    - `ztictl ssm transfer`
+    - `ztictl ssm start | stop | reboot`
+
+- **Find Instances Instantly**: Simply type a few characters of an instance's name, ID, or tag to instantly filter through the list in real-time.
+
+- **Enhanced Stability**: The fuzzy finder is built to be robust. It gracefully handles unexpected user input and terminal resizing, preventing crashes and ensuring a smooth experience.
 
 ## Other Changes
-* Feat: Introduced `ssm_validation.go` to centralize instance state validation logic, ensuring operations are only performed on instances in valid states.
+
+- No other user-facing changes in this release.
 
 **Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.9.0...v2.10.0
