@@ -219,6 +219,7 @@ func TestSsmListCmdFlags(t *testing.T) {
 		{"tag", "t", "", false},
 		{"status", "s", "", false},
 		{"name", "n", "", false},
+		{"table", "", "false", false},
 	}
 
 	for _, tt := range tests {

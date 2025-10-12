@@ -351,18 +351,29 @@ func (s *InstanceService) findInstanceByName(ctx context.Context, name, region s
 
 // Helper functions
 
+// AWS instance ID format constants
+// Instance IDs follow the pattern: i-[0-9a-f]{8,17}
+// Reference: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/resource-ids.html
+const (
+	instanceIDPrefix         = "i-"
+	instanceIDPrefixLength   = 2 // len("i-")
+	instanceIDMinHexDigits   = 8
+	instanceIDMaxHexDigits   = 17
+	instanceIDMinTotalLength = instanceIDPrefixLength + instanceIDMinHexDigits // 10
+	instanceIDMaxTotalLength = instanceIDPrefixLength + instanceIDMaxHexDigits // 19
+)
+
 // isInstanceID checks if a string matches the AWS instance ID pattern
 func isInstanceID(identifier string) bool {
-	// AWS instance IDs follow the pattern: i-[0-9a-f]{8,17}
-	if len(identifier) < 10 || len(identifier) > 19 {
+	if len(identifier) < instanceIDMinTotalLength || len(identifier) > instanceIDMaxTotalLength {
 		return false
 	}
 
-	if !strings.HasPrefix(identifier, "i-") {
+	if !strings.HasPrefix(identifier, instanceIDPrefix) {
 		return false
 	}
 
-	suffix := identifier[2:]
+	suffix := identifier[instanceIDPrefixLength:]
 	for _, char := range suffix {
 		if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')) {
 			return false
