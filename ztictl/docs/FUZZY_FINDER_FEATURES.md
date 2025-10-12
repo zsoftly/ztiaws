@@ -1,6 +1,79 @@
 # Fuzzy Finder Features
 
-The `ztictl` fuzzy finder (used in `ztictl auth login` for account/role selection) includes modern text editing and mouse support capabilities.
+The `ztictl` fuzzy finder provides interactive selection across multiple commands, including modern text editing and mouse support capabilities.
+
+## Available in Commands
+
+### Authentication
+- **`ztictl auth login`** - Interactive account/role selection
+
+### SSM Instance Operations (v2.1+)
+All SSM commands support interactive instance selection by omitting the instance identifier:
+
+- **`ztictl ssm connect [--region <region>]`** - Connect to an instance
+- **`ztictl ssm list [--region <region>]`** - List and select instances
+- **`ztictl ssm exec [--region <region>] "<command>"`** - Execute commands on an instance
+- **`ztictl ssm transfer upload [--region <region>] <local> <remote>`** - Upload files to an instance
+- **`ztictl ssm transfer download [--region <region>] <remote> <local>`** - Download files from an instance
+- **`ztictl ssm start [--region <region>]`** - Start a stopped instance
+- **`ztictl ssm stop [--region <region>]`** - Stop a running instance
+- **`ztictl ssm reboot [--region <region>]`** - Reboot a running instance
+
+### Usage Example
+```bash
+# Traditional way (still supported)
+ztictl ssm connect i-1234567890abcdef0 --region cac1
+
+# Interactive way (launches fuzzy finder)
+ztictl ssm connect --region cac1
+```
+
+## Instance State Validation
+
+When using the fuzzy finder for SSM operations, `ztictl` automatically validates instance states to prevent invalid operations:
+
+### Validation Rules
+
+| Operation | Required Instance State | Requires SSM Agent Online |
+|-----------|------------------------|---------------------------|
+| `connect` | `running` | ✅ Yes |
+| `exec` | `running` | ✅ Yes |
+| `transfer` | `running` | ✅ Yes |
+| `start` | `stopped` | ❌ No |
+| `stop` | `running` | ❌ No |
+| `reboot` | `running` | ❌ No |
+
+### Error Feedback
+
+If an instance is in an invalid state, you'll receive clear feedback:
+
+```
+✗ Cannot start - Instance is not in required state
+
+Instance Details:
+  Instance ID: i-1234567890abcdef0
+  Name:        web-server-prod
+  State:       ● running
+  Required:    [stopped]
+
+💡 Tip: Instance is already running. Use 'reboot' to restart it:
+   ztictl ssm reboot i-1234567890abcdef0 --region ca-central-1
+```
+
+### Instance State Reference
+
+- **● running** - Instance is running and operational (green)
+- **○ stopped** - Instance is stopped (red)
+- **◑ stopping** - Instance is in the process of stopping (yellow)
+- **◐ pending** - Instance is starting up (yellow)
+- **✗ terminated** - Instance has been permanently deleted (red)
+- **◑ shutting-down** - Instance is shutting down, will be terminated (yellow)
+
+### SSM Agent Status
+
+- **✓ Online** - SSM agent is connected and ready (green)
+- **⚠ Connection Lost** - Agent was online but connection dropped (yellow)
+- **✗ No Agent** - SSM agent not installed or not running (red)
 
 ## Keyboard Shortcuts
 

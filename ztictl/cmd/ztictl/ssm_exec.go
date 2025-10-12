@@ -20,22 +20,26 @@ import (
 
 // ssmExecCmd represents the exec command for single instance command execution
 var ssmExecCmd = &cobra.Command{
-	Use:   "exec <region-shortcode> <instance-identifier> <command>",
+	Use:   "exec [region-shortcode] [instance-identifier] <command>",
 	Short: "Execute a command on a single instance",
 	Long: `Execute a command on a single EC2 instance via SSM.
+If no instance identifier is provided, an interactive fuzzy finder will be launched.
 Region shortcuts supported: cac1, use1, euw1, etc.
 Instance identifier can be an instance ID or name.
 
 Examples:
+  # Interactive fuzzy finder (new):
+  ztictl ssm exec --region cac1 "uptime"
+  ztictl ssm exec cac1 "uptime"
+
+  # Direct instance specification (backward compatible):
   ztictl ssm exec cac1 i-1234567890abcdef0 "uptime"
   ztictl ssm exec use1 web-server "sudo systemctl status nginx"`,
-	Args: cobra.MinimumNArgs(3),
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		regionCode := args[0]
-		instanceIdentifier := args[1]
-		command := strings.Join(args[2:], " ")
+		regionFlag, _ := cmd.Flags().GetString("region")
 
-		if err := executeSingleCommand(regionCode, instanceIdentifier, command); err != nil {
+		if err := executeCommandWithFuzzyFinder(args, regionFlag); err != nil {
 			logging.LogError("Command execution failed: %v", err)
 			// Check if it's a non-zero exit code error and exit with that code
 			if strings.Contains(err.Error(), "command exited with non-zero status:") {
@@ -149,20 +153,71 @@ func executeCommandParallel(ctx context.Context, ssmManager *ssm.Manager, instan
 	return results
 }
 
+// executeCommandWithFuzzyFinder handles command execution with support for fuzzy finder and backward compatibility
+func executeCommandWithFuzzyFinder(args []string, regionFlag string) error {
+	var regionCode, instanceIdentifier, command string
+
+	// Determine which format is being used based on args
+	if len(args) >= 3 {
+		// Format 1 (backward compatible): region instance command [command...]
+		regionCode = args[0]
+		instanceIdentifier = args[1]
+		command = strings.Join(args[2:], " ")
+	} else if len(args) == 2 {
+		// Format 2: Could be "region command" OR "instance command"
+		// Check if first arg looks like a region shortcode or instance ID
+		firstArg := args[0]
+		if isRegionShortcode(firstArg) || regionFlag != "" {
+			// Format: region command (fuzzy finder for instance)
+			if regionFlag != "" {
+				regionCode = regionFlag
+				command = strings.Join(args, " ")
+			} else {
+				regionCode = firstArg
+				command = args[1]
+			}
+			instanceIdentifier = "" // Will use fuzzy finder
+		} else {
+			// Format: instance command (use default region or flag)
+			regionCode = regionFlag
+			instanceIdentifier = firstArg
+			command = args[1]
+		}
+	} else if len(args) == 1 {
+		// Format 3 (new): command only, use fuzzy finder + region flag
+		regionCode = regionFlag
+		instanceIdentifier = ""
+		command = args[0]
+	} else {
+		return fmt.Errorf("insufficient arguments provided")
+	}
+
+	return executeSingleCommand(regionCode, instanceIdentifier, command)
+}
+
 // executeSingleCommand handles single instance command execution and returns errors instead of calling os.Exit
 func executeSingleCommand(regionCode, instanceIdentifier, command string) error {
 	region := resolveRegion(regionCode)
 	ctx := context.Background()
 	ssmManager := ssm.NewManager(logger)
 
-	// Use the shared instance selection logic to resolve the identifier
-	instanceID, err := ssmManager.GetInstanceService().ResolveInstanceIdentifier(ctx, instanceIdentifier, region)
+	// Use SelectInstanceWithFallback to handle both direct and fuzzy finder modes
+	instanceID, err := ssmManager.GetInstanceService().SelectInstanceWithFallback(
+		ctx,
+		instanceIdentifier,
+		region,
+		nil, // No filters
+	)
 	if err != nil {
-		return fmt.Errorf("instance identifier resolution failed: %w", err)
+		return fmt.Errorf("instance selection failed: %w", err)
 	}
 
 	// Validate instance state before attempting execution
-	if err := validateInstanceForSSM(ctx, ssmManager, instanceID, region, "execute commands"); err != nil {
+	if err := ValidateInstanceState(ctx, ssmManager, instanceID, region, InstanceValidationRequirements{
+		AllowedStates:    []string{"running"},
+		RequireSSMOnline: true,
+		Operation:        "execute commands",
+	}); err != nil {
 		return err
 	}
 
@@ -187,6 +242,34 @@ func executeSingleCommand(regionCode, instanceIdentifier, command string) error 
 	}
 
 	return nil
+}
+
+const (
+	// Region shortcode length constraints
+	regionShortcodeMinLength = 3
+	regionShortcodeMaxLength = 6
+)
+
+// isRegionShortcode checks if a string looks like a region shortcode
+// Region shortcodes are typically 3-6 characters: cac1, use1, euw1, apne1, etc.
+func isRegionShortcode(candidate string) bool {
+	// Check length constraints
+	if len(candidate) < regionShortcodeMinLength || len(candidate) > regionShortcodeMaxLength {
+		return false
+	}
+
+	// Check if it contains numbers (typical of region codes)
+	hasNumber := false
+	for _, ch := range candidate {
+		if ch >= '0' && ch <= '9' {
+			hasNumber = true
+			break
+		}
+	}
+
+	// Region shortcodes typically have numbers at the end
+	// Instance IDs start with "i-" so exclude those
+	return hasNumber && !strings.HasPrefix(candidate, "i-")
 }
 
 // validateExecTaggedArgs validates arguments and flags for exec-tagged command
@@ -363,6 +446,9 @@ func executeTaggedCommand(regionCode, command, tagsFlag, instancesFlag string, p
 }
 
 func init() {
+	// Add flags for exec command
+	ssmExecCmd.Flags().StringP("region", "r", "", "AWS region or shortcode (cac1, use1, euw1, etc.) - default from config")
+
 	// Add flags for exec-tagged command
 	ssmExecTaggedCmd.Flags().StringP("tags", "t", "", "Tag filters in key=value format, separated by commas")
 	ssmExecTaggedCmd.Flags().StringP("instances", "i", "", "Comma-separated list of instance IDs to target explicitly")

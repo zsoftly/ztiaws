@@ -73,6 +73,36 @@ export ZTICTL_SELECTOR_HEIGHT=10  # Show 10 items instead of default 5
 
 See [Configuration Guide](../docs/CONFIGURATION.md) for detailed configuration options.
 
+### Interactive Instance Selection
+
+Most SSM commands support **interactive fuzzy finder** for instance selection. Simply omit the instance ID to launch the interactive selector:
+
+```bash
+# Traditional way (still supported)
+ztictl ssm connect i-1234567890abcdef0 --region cac1
+
+# New interactive way - launches fuzzy finder
+ztictl ssm connect --region cac1
+# → Type to search instances by name or ID
+# → Arrow keys or j/k to navigate
+# → Enter to select
+
+# Works for all SSM operations
+ztictl ssm exec --region cac1 "uptime"
+ztictl ssm transfer upload --region cac1 ./config.yml /etc/app/config.yml
+ztictl ssm start --region cac1
+ztictl ssm stop --region cac1
+```
+
+**Features:**
+- 🔍 **Fuzzy search** - Type to filter instances by name, ID, or tags
+- ⌨️ **Keyboard shortcuts** - Vim-style navigation (j/k), arrow keys, Page Up/Down
+- 🖱️ **Mouse support** - Click to select, scroll to navigate
+- ✅ **Smart validation** - Automatically checks instance state and SSM agent status
+- 💡 **Helpful errors** - Clear feedback with suggested commands when operations cannot proceed
+
+See [Fuzzy Finder Features](docs/FUZZY_FINDER_FEATURES.md) for complete keyboard shortcuts, mouse controls, and validation details.
+
 ## Documentation
 
 📚 **Complete documentation is available in the docs directory:**

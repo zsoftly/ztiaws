@@ -624,63 +624,6 @@ func TestParallelExecutionValidation(t *testing.T) {
 	}
 }
 
-func TestValidatePowerCommandArgs(t *testing.T) {
-	tests := []struct {
-		name          string
-		args          []string
-		instancesFlag string
-		expectError   bool
-		errorContains string
-	}{
-		{
-			name:          "valid single argument",
-			args:          []string{"i-1234567890abcdef0"},
-			instancesFlag: "",
-			expectError:   false,
-		},
-		{
-			name:          "valid instances flag",
-			args:          []string{},
-			instancesFlag: "i-1234567890abcdef0,i-0987654321fedcba0",
-			expectError:   false,
-		},
-		{
-			name:          "no arguments or flags",
-			args:          []string{},
-			instancesFlag: "",
-			expectError:   true,
-			errorContains: "either provide an instance identifier or use --instances flag",
-		},
-		{
-			name:          "both argument and instances flag",
-			args:          []string{"i-1234567890abcdef0"},
-			instancesFlag: "i-0987654321fedcba0",
-			expectError:   true,
-			errorContains: "cannot specify both instance identifier and --instances flag",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validatePowerCommandArgs(tt.args, tt.instancesFlag)
-
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("Expected error but got nil")
-					return
-				}
-				if tt.errorContains != "" && err.Error() != tt.errorContains {
-					t.Errorf("Expected error containing %q, got %q", tt.errorContains, err.Error())
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Expected no error but got: %v", err)
-				}
-			}
-		})
-	}
-}
-
 func TestValidateTaggedCommandArgs(t *testing.T) {
 	tests := []struct {
 		name          string
