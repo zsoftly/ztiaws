@@ -1,5 +1,23 @@
 # Changelog
 
+## [v2.10.0] - 2025-10-12
+
+### Added
+
+- **Interactive Fuzzy Finder for SSM Commands**:
+  - `ssm connect` and `ssm list` now feature an interactive fuzzy finder for selecting instances, replacing the need for manual instance ID entry.
+  - `ssm exec`, `ssm transfer`, and power commands (`start`, `stop`, `reboot`) also integrate the fuzzy finder for a streamlined workflow.
+  - The fuzzy finder provides a real-time, searchable list of instances, dramatically improving usability and speed.
+
+- **Enhanced Stability**:
+  - The fuzzy finder has been hardened to prevent panics from unexpected user input or terminal resizing, ensuring a smoother user experience.
+
+### Changed
+
+- The user experience for several `ssm` subcommands is now interactive by default when no instance ID is provided.
+
+**Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.9.0...v2.10.0
+
 ## [v2.9.0] - 2025-10-09
 
 ### Added

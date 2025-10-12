@@ -1,43 +1,30 @@
-# ztictl v2.9.0 Release Notes
+# ztictl v2.10.0 Release Notes
 
-**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.9.0/INSTALLATION.md)
+**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.10.0/INSTALLATION.md)
 
-**Release Date:** October 09, 2025
+**Release Date:** October 12, 2025
 
 ## Overview
 
-ztictl is a unified AWS SSM management tool that provides both Go binary and bash script implementations. The Go version (`ztictl`) is the primary implementation with enhanced features, while the bash scripts (`authaws`, `ssm`) are maintained for backward compatibility only.
+This release introduces a major user experience enhancement by integrating an interactive fuzzy finder into core SSM commands. Finding and selecting EC2 instances is now faster, easier, and less error-prone.
 
-**Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
+## Key Features
 
-## What's New
+### Interactive Fuzzy Finder for SSM Commands
 
-### Major UX Improvement: Enhanced Account/Role Selection
+- **A Faster, More Intuitive Workflow**: Say goodbye to manually copying and pasting instance IDs. The `ssm` commands below now launch an interactive fuzzy finder when an instance ID is not provided:
+    - `ztictl ssm connect`
+    - `ztictl ssm list`
+    - `ztictl ssm exec`
+    - `ztictl ssm transfer`
+    - `ztictl ssm start | stop | reboot`
 
-**Problem Solved:** Previous versions displayed ALL AWS SSO accounts at once, flooding the terminal with 50+ accounts and making selection overwhelming.
+- **Find Instances Instantly**: Simply type a few characters of an instance's name, ID, or tag to instantly filter through the list in real-time.
 
-**New Experience:**
-* **Clean Interface**: Shows 5 items by default in a compact, bordered selector at bottom of terminal
-* **Fully Searchable**: Type to search across all accounts/roles regardless of display height
-* **Customizable**: Set `ZTICTL_SELECTOR_HEIGHT` environment variable (1-20) to control display size
-* **Better Layout**: Integrated preview panel shows selected account/role details
-* **Familiar UX**: Matches fzf `--height=20%` behavior for consistent experience
+- **Enhanced Stability**: The fuzzy finder is built to be robust. It gracefully handles unexpected user input and terminal resizing, preventing crashes and ensuring a smooth experience.
 
-**Usage:**
-```bash
-# Use default (5 items)
-ztictl auth login
+## Other Changes
 
-# Show more items
-export ZTICTL_SELECTOR_HEIGHT=10
-ztictl auth login
+- No other user-facing changes in this release.
 
-# Compact view
-ZTICTL_SELECTOR_HEIGHT=3 ztictl auth login
-```
-
-## Bug Fixes
-* Resolved merge conflict in fuzzy finder implementation with proper bounds checking
-* Added code documentation for pointer usage with `WithHotReload()` option
-
-**Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.8.2...v2.9.0
+**Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.9.0...v2.10.0
