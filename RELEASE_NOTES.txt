@@ -1,8 +1,8 @@
-# ztictl v2.9.0 Release Notes
+# ztictl v2.10.0 Release Notes
 
-**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.9.0/INSTALLATION.md)
+**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.10.0/INSTALLATION.md)
 
-**Release Date:** October 09, 2025
+**Release Date:** October 12, 2025
 
 ## Overview
 
@@ -10,34 +10,21 @@ ztictl is a unified AWS SSM management tool that provides both Go binary and bas
 
 **Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
 
-## What's New
-
-### Major UX Improvement: Enhanced Account/Role Selection
-
-**Problem Solved:** Previous versions displayed ALL AWS SSO accounts at once, flooding the terminal with 50+ accounts and making selection overwhelming.
-
-**New Experience:**
-* **Clean Interface**: Shows 5 items by default in a compact, bordered selector at bottom of terminal
-* **Fully Searchable**: Type to search across all accounts/roles regardless of display height
-* **Customizable**: Set `ZTICTL_SELECTOR_HEIGHT` environment variable (1-20) to control display size
-* **Better Layout**: Integrated preview panel shows selected account/role details
-* **Familiar UX**: Matches fzf `--height=20%` behavior for consistent experience
-
-**Usage:**
-```bash
-# Use default (5 items)
-ztictl auth login
-
-# Show more items
-export ZTICTL_SELECTOR_HEIGHT=10
-ztictl auth login
-
-# Compact view
-ZTICTL_SELECTOR_HEIGHT=3 ztictl auth login
-```
+## New Features
+* feat: Replace custom slice contains function with slices.Contains for improved readability
+* feat: Enhance EC2 instance management with public IP assignment and detailed instance information
+* feat: Add table flag to SSM list command and improve instance ID validation constants
+* feat: Add table format option for instance listing and enhance tests for instance ID validation
+* feat: Enhance instance selection and logging in interactive fuzzy finder
+* feat: Implement ClientPoolAdapter for SSM and EC2 clients
+* feat: add fuzzy finder features documentation, implement panic recovery, and enhance width calculation for account/role selectors
+* feat: add terminal width handling for account and role selector width calculations
+* feat: add fuzzy finder features documentation, implement panic recovery, and enhance width calculation for account/role selectors
 
 ## Bug Fixes
-* Resolved merge conflict in fuzzy finder implementation with proper bounds checking
-* Added code documentation for pointer usage with `WithHotReload()` option
+* No bug fixes in this release
 
-**Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.8.2...v2.9.0
+## Other Changes
+* Feat: Introduced `ssm_validation.go` to centralize instance state validation logic, ensuring operations are only performed on instances in valid states.
+
+**Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.9.0...v2.10.0

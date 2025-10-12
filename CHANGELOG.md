@@ -1,5 +1,23 @@
 # Changelog
 
+## [v2.10.0] - 2025-10-12
+
+### Added
+- feat: Replace custom slice contains function with slices.Contains for improved readability
+- feat: Enhance EC2 instance management with public IP assignment and detailed instance information
+- feat: Add table flag to SSM list command and improve instance ID validation constants
+- feat: Add table format option for instance listing and enhance tests for instance ID validation
+- feat: Enhance instance selection and logging in interactive fuzzy finder
+- feat: Implement ClientPoolAdapter for SSM and EC2 clients
+- feat: add fuzzy finder features documentation, implement panic recovery, and enhance width calculation for account/role selectors
+- feat: add terminal width handling for account and role selector width calculations
+- feat: add fuzzy finder features documentation, implement panic recovery, and enhance width calculation for account/role selectors
+
+### Changed
+- Feat: Introduced `ssm_validation.go` to centralize instance state validation logic, ensuring operations are only performed on instances in valid states.
+
+**Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.9.0...v2.10.0
+
 ## [v2.9.0] - 2025-10-09
 
 ### Added
