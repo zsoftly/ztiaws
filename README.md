@@ -18,8 +18,8 @@
 
 **ztictl (Primary Tool):**
 - **🌍 Cross-platform**: Native binaries for Linux, macOS, and Windows
-- **� Interactive fuzzy finder**: Real-time instance search and selection with keyboard navigation
-- **�🖥️ Multi-OS support**: Full Linux (bash) and Windows Server (PowerShell) command execution
+- **🔍 Interactive fuzzy finder**: Real-time instance search and selection with keyboard navigation
+- **🖥️ Multi-OS support**: Full Linux (bash) and Windows Server (PowerShell) command execution
 - **🤖 Smart platform detection**: Automatically detects instance OS and adapts commands accordingly
 - **⚡ Smart file transfers**: Automatic S3 routing for large files with lifecycle management
 - **🔒 Advanced IAM management**: Temporary policies with automatic cleanup

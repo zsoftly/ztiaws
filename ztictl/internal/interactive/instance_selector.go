@@ -77,13 +77,19 @@ func SelectInstance(instances []Instance, title string) (*Instance, error) {
 				}
 			}
 
+			publicIP := instance.PublicIPAddress
+			if publicIP == "" {
+				publicIP = "N/A"
+			}
+
 			return fmt.Sprintf("Name:         %s\n"+
 				"Instance ID:  %s\n"+
 				"State:        %s\n"+
 				"Platform:     %s\n"+
 				"Private IP:   %s\n"+
+				"Public IP:    %s\n"+
 				"SSM Status:   %s",
-				name, instance.InstanceID, instance.State, instance.Platform, instance.PrivateIPAddress, ssmStatus)
+				name, instance.InstanceID, instance.State, instance.Platform, instance.PrivateIPAddress, publicIP, ssmStatus)
 		},
 	)
 

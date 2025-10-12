@@ -171,6 +171,7 @@ func (s *InstanceService) SelectInstanceWithFallback(ctx context.Context, identi
 	}
 
 	// No identifier provided, show fuzzy finder
+	s.logger.Info("No instance specified, fetching instances from region", "region", region)
 	instances, err := s.ListInstances(ctx, region, filters)
 	if err != nil {
 		return "", fmt.Errorf("failed to list instances: %w", err)
@@ -180,7 +181,8 @@ func (s *InstanceService) SelectInstanceWithFallback(ctx context.Context, identi
 		return "", fmt.Errorf("no instances found in region: %s", region)
 	}
 
-	selected, err := interactive.SelectInstance(instances, "Select an instance:")
+	s.logger.Info("Found instances, launching interactive selector", "count", len(instances), "region", region)
+	selected, err := interactive.SelectInstance(instances, fmt.Sprintf("Select instance (%d available)", len(instances)))
 	if err != nil {
 		return "", err
 	}

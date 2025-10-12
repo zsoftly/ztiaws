@@ -23,7 +23,6 @@ import (
 	"ztictl/pkg/security"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/ec2" // Used for client types in clientSet and GetPlatformClients
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 )
@@ -47,9 +46,6 @@ type Manager struct {
 	builderManager     *platform.BuilderManager
 	clientPool         *ClientPool
 }
-
-// Ensure EC2 import is recognized - required for GetPlatformClients return type
-var _ *ec2.Client
 
 // CommandResult represents the result of a command execution
 type CommandResult struct {

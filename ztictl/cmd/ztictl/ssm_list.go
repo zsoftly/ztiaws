@@ -47,7 +47,7 @@ func performInstanceListing(regionCode string, filters *ssm.ListFilters) error {
 	ctx := context.Background()
 	ssmManager := ssm.NewManager(logger)
 
-	logging.LogInfo("Listing SSM-enabled instances in region: %s", region)
+	colors.PrintData("🔍 Fetching instances from region %s...\n", region)
 
 	// Convert SSM filters to AWS filters
 	awsFilters := &awsservice.ListFilters{
@@ -64,9 +64,12 @@ func performInstanceListing(regionCode string, filters *ssm.ListFilters) error {
 	}
 
 	if len(instances) == 0 {
-		logging.LogInfo("No EC2 instances found in region: %s", region)
+		colors.PrintWarning("⚠ No EC2 instances found in region: %s\n", region)
 		return nil
 	}
+
+	colors.PrintSuccess("✓ Found %d instance(s) in region %s\n", len(instances), region)
+	logging.LogInfo("Launching interactive instance browser...")
 
 	// Use shared fuzzy finder (user can select or just browse)
 	_, err = interactive.SelectInstance(instances, "Browse EC2 instances")
