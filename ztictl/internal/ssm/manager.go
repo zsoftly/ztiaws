@@ -15,14 +15,15 @@ import (
 	"time"
 
 	appconfig "ztictl/internal/config"
+	"ztictl/internal/interactive"
 	"ztictl/internal/platform"
+	awsservice "ztictl/pkg/aws"
 	"ztictl/pkg/errors"
 	"ztictl/pkg/logging"
 	"ztictl/pkg/security"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/ec2" // Used for client types in clientSet and GetPlatformClients
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 )
@@ -39,6 +40,7 @@ var (
 // Manager handles AWS Systems Manager operations
 type Manager struct {
 	logger             *logging.Logger
+	instanceService    *awsservice.InstanceService // Add this
 	iamManager         *IAMManager
 	s3LifecycleManager *S3LifecycleManager
 	platformDetector   *platform.Detector
@@ -46,19 +48,8 @@ type Manager struct {
 	clientPool         *ClientPool
 }
 
-// Instance represents an EC2 instance with SSM information
-type Instance struct {
-	InstanceID       string            `json:"instance_id"`
-	Name             string            `json:"name"`
-	State            string            `json:"state"`
-	Platform         string            `json:"platform"`
-	PrivateIPAddress string            `json:"private_ip_address"`
-	PublicIPAddress  string            `json:"public_ip_address,omitempty"`
-	SSMStatus        string            `json:"ssm_status"`
-	SSMAgentVersion  string            `json:"ssm_agent_version,omitempty"`
-	LastPingDateTime string            `json:"last_ping_date_time,omitempty"`
-	Tags             map[string]string `json:"tags,omitempty"`
-}
+// Ensure EC2 import is recognized - required for GetPlatformClients return type
+var _ *ec2.Client
 
 // CommandResult represents the result of a command execution
 type CommandResult struct {
@@ -97,57 +88,14 @@ type FileTransferOperation struct {
 func NewManager(logger *logging.Logger) *Manager {
 	// Note: Platform detector and builder manager are not initialized here.
 	// They will be initialized on first use via initializePlatformComponents()
+	clientPool := NewClientPool()
+	clientPoolAdapter := NewClientPoolAdapter(clientPool)
+
 	return &Manager{
-		logger:     logger,
-		clientPool: NewClientPool(),
+		logger:          logger,
+		clientPool:      clientPool,
+		instanceService: awsservice.NewInstanceService(clientPoolAdapter, logger),
 	}
-}
-
-// initializePlatformComponents initializes platform detection components if not already done
-func (m *Manager) initializePlatformComponents(ctx context.Context, region string) error {
-	if m.platformDetector != nil && m.builderManager != nil {
-		return nil // Already initialized
-	}
-
-	// Get clients from pool
-	ssmClient, ec2Client, err := m.clientPool.GetPlatformClients(ctx, region)
-	if err != nil {
-		return fmt.Errorf("failed to get AWS clients from pool: %w", err)
-	}
-
-	m.platformDetector = platform.NewDetector(ssmClient, ec2Client, m.logger)
-	m.builderManager = platform.NewBuilderManager(m.platformDetector)
-
-	return nil
-}
-
-// getAWSCommand returns the platform-appropriate AWS CLI command name
-func getAWSCommand() string {
-	if runtime.GOOS == "windows" {
-		return "aws.exe"
-	}
-	return "aws"
-}
-
-// initializeManagers initializes the IAM and S3 lifecycle managers
-func (m *Manager) initializeManagers(ctx context.Context, region string) error {
-	// Get clients from pool
-	clients, err := m.clientPool.GetClients(ctx, region)
-	if err != nil {
-		return fmt.Errorf("failed to get AWS clients from pool: %w", err)
-	}
-
-	// Initialize IAM manager
-	iamManager, err := NewIAMManager(m.logger, clients.IAMClient, clients.EC2Client)
-	if err != nil {
-		return fmt.Errorf("failed to create IAM manager: %w", err)
-	}
-	m.iamManager = iamManager
-
-	// Initialize S3 lifecycle manager
-	m.s3LifecycleManager = NewS3LifecycleManager(m.logger, clients.S3Client, clients.STSClient)
-
-	return nil
 }
 
 // StartSession starts an SSM session to an instance
@@ -193,84 +141,72 @@ func (m *Manager) StartSession(ctx context.Context, instanceIdentifier, region s
 	return nil
 }
 
-// ListInstances lists all EC2 instances in a region with their SSM status
-func (m *Manager) ListInstances(ctx context.Context, region string, filters *ListFilters) ([]Instance, error) {
-	m.logger.Debug("Listing all EC2 instances with SSM status in region", "region", region)
+// initializePlatformComponents initializes platform detection components if not already done
+func (m *Manager) initializePlatformComponents(ctx context.Context, region string) error {
+	if m.platformDetector != nil && m.builderManager != nil {
+		return nil // Already initialized
+	}
 
 	// Get clients from pool
-	ec2Client, err := m.clientPool.GetEC2Client(ctx, region)
+	ssmClient, ec2Client, err := m.clientPool.GetPlatformClients(ctx, region)
 	if err != nil {
-		return nil, errors.NewAWSError("failed to get EC2 client", err)
+		return fmt.Errorf("failed to get AWS clients from pool: %w", err)
 	}
 
-	// Get all EC2 instances first
-	allInstances, err := m.getAllEC2Instances(ctx, ec2Client, filters)
+	m.platformDetector = platform.NewDetector(ssmClient, ec2Client, m.logger)
+	m.builderManager = platform.NewBuilderManager(m.platformDetector)
+
+	return nil
+}
+
+// GetInstanceService exposes the shared instance service
+func (m *Manager) GetInstanceService() *awsservice.InstanceService {
+	return m.instanceService
+}
+
+// getAWSCommand returns the platform-appropriate AWS CLI command name
+func getAWSCommand() string {
+	if runtime.GOOS == "windows" {
+		return "aws.exe"
+	}
+	return "aws"
+}
+
+// initializeManagers initializes the IAM and S3 lifecycle managers
+func (m *Manager) initializeManagers(ctx context.Context, region string) error {
+	// Get clients from pool
+	clients, err := m.clientPool.GetClients(ctx, region)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get EC2 instances: %w", err)
+		return fmt.Errorf("failed to get AWS clients from pool: %w", err)
 	}
 
-	if len(allInstances) == 0 {
-		return []Instance{}, nil
-	}
-
-	// Get SSM status information
-	ssmClient, err := m.clientPool.GetSSMClient(ctx, region)
+	// Initialize IAM manager
+	iamManager, err := NewIAMManager(m.logger, clients.IAMClient, clients.EC2Client)
 	if err != nil {
-		return nil, errors.NewAWSError("failed to get SSM client", err)
+		return fmt.Errorf("failed to create IAM manager: %w", err)
 	}
-	ssmStatusMap, err := m.getSSMStatusMap(ctx, ssmClient)
-	if err != nil {
-		m.logger.Warn("Failed to get SSM status information", "error", err)
-		// Continue without SSM status - we'll mark all as "No Agent"
-	}
+	m.iamManager = iamManager
 
-	// Combine EC2 data with SSM status
-	instances := make([]Instance, 0, len(allInstances))
-	for _, ec2Inst := range allInstances {
-		instanceID := aws.ToString(ec2Inst.InstanceId)
+	// Initialize S3 lifecycle manager
+	m.s3LifecycleManager = NewS3LifecycleManager(m.logger, clients.S3Client, clients.STSClient)
 
-		instance := Instance{
-			InstanceID:       instanceID,
-			State:            string(ec2Inst.State.Name),
-			PrivateIPAddress: aws.ToString(ec2Inst.PrivateIpAddress),
-			Platform:         aws.ToString(ec2Inst.PlatformDetails),
+	return nil
+}
+
+// ListInstances lists all EC2 instances in a region with their SSM status
+func (m *Manager) ListInstances(ctx context.Context, region string, filters *ListFilters) ([]interactive.Instance, error) {
+	// Convert SSM ListFilters to AWS ListFilters
+	var awsFilters *awsservice.ListFilters
+	if filters != nil {
+		awsFilters = &awsservice.ListFilters{
+			Tag:    filters.Tag,
+			Tags:   filters.Tags,
+			Status: filters.Status,
+			Name:   filters.Name,
 		}
-
-		// Set public IP if available
-		if ec2Inst.PublicIpAddress != nil {
-			instance.PublicIPAddress = aws.ToString(ec2Inst.PublicIpAddress)
-		}
-
-		// Extract name and tags
-		instance.Tags = make(map[string]string)
-		for _, tag := range ec2Inst.Tags {
-			key := aws.ToString(tag.Key)
-			value := aws.ToString(tag.Value)
-			instance.Tags[key] = value
-			if key == "Name" {
-				instance.Name = value
-			}
-		}
-
-		// Set SSM status information
-		if ssmInfo, exists := ssmStatusMap[instanceID]; exists {
-			instance.SSMStatus = string(ssmInfo.PingStatus)
-			instance.SSMAgentVersion = aws.ToString(ssmInfo.AgentVersion)
-			if ssmInfo.LastPingDateTime != nil {
-				instance.LastPingDateTime = ssmInfo.LastPingDateTime.Format(time.RFC3339)
-			}
-			// Override platform with SSM platform if available (more accurate)
-			if ssmInfo.PlatformName != nil {
-				instance.Platform = aws.ToString(ssmInfo.PlatformName)
-			}
-		} else {
-			instance.SSMStatus = "No Agent"
-		}
-
-		instances = append(instances, instance)
 	}
 
-	return instances, nil
+	return m.instanceService.ListInstances(ctx, region, awsFilters)
 }
 
 // ExecuteCommand executes a command on an instance via SSM
@@ -459,7 +395,7 @@ func (m *Manager) ForwardPort(ctx context.Context, instanceIdentifier, region st
 }
 
 // GetInstanceStatus gets SSM status for a specific instance
-func (m *Manager) GetInstanceStatus(ctx context.Context, instanceIdentifier, region string) (*Instance, error) {
+func (m *Manager) GetInstanceStatus(ctx context.Context, instanceIdentifier, region string) (*interactive.Instance, error) {
 	// Resolve instance identifier
 	instanceID, err := m.resolveInstanceIdentifier(ctx, instanceIdentifier, region)
 	if err != nil {
@@ -491,7 +427,7 @@ func (m *Manager) GetInstanceStatus(ctx context.Context, instanceIdentifier, reg
 
 	info := resp.InstanceInformationList[0]
 
-	return &Instance{
+	return &interactive.Instance{
 		InstanceID:       aws.ToString(info.InstanceId),
 		SSMStatus:        string(info.PingStatus),
 		SSMAgentVersion:  aws.ToString(info.AgentVersion),
@@ -501,7 +437,7 @@ func (m *Manager) GetInstanceStatus(ctx context.Context, instanceIdentifier, reg
 }
 
 // ListInstanceStatuses lists SSM status for all instances in a region
-func (m *Manager) ListInstanceStatuses(ctx context.Context, region string) ([]Instance, error) {
+func (m *Manager) ListInstanceStatuses(ctx context.Context, region string) ([]interactive.Instance, error) {
 	// Get SSM client from pool
 	ssmClient, err := m.clientPool.GetSSMClient(ctx, region)
 	if err != nil {
@@ -514,9 +450,9 @@ func (m *Manager) ListInstanceStatuses(ctx context.Context, region string) ([]In
 		return nil, errors.NewSSMError("failed to describe instance information", err)
 	}
 
-	instances := make([]Instance, len(resp.InstanceInformationList))
+	instances := make([]interactive.Instance, len(resp.InstanceInformationList))
 	for i, info := range resp.InstanceInformationList {
-		instances[i] = Instance{
+		instances[i] = interactive.Instance{
 			InstanceID:       aws.ToString(info.InstanceId),
 			SSMStatus:        string(info.PingStatus),
 			SSMAgentVersion:  aws.ToString(info.AgentVersion),
@@ -565,82 +501,7 @@ func parseTagFilters(tagsStr string) (map[string]string, error) {
 
 // resolveInstanceIdentifier resolves an instance name or ID to an instance ID
 func (m *Manager) resolveInstanceIdentifier(ctx context.Context, identifier, region string) (string, error) {
-	// If it's already an instance ID, validate and return it
-	if strings.HasPrefix(identifier, "i-") && len(identifier) >= 10 {
-		// Validate the instance exists
-		if err := m.validateInstanceID(ctx, identifier, region); err != nil {
-			return "", err
-		}
-		return identifier, nil
-	}
-
-	// Search by name tag
-	instanceID, err := m.findInstanceByName(ctx, identifier, region)
-	if err != nil {
-		return "", err
-	}
-
-	m.logger.Info("Resolved instance name to ID", "identifier", identifier, "instanceID", instanceID)
-	return instanceID, nil
-}
-
-// validateInstanceID validates that an instance ID exists
-func (m *Manager) validateInstanceID(ctx context.Context, instanceID, region string) error {
-	ec2Client, err := m.clientPool.GetEC2Client(ctx, region)
-	if err != nil {
-		return err
-	}
-
-	_, err = ec2Client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
-		InstanceIds: []string{instanceID},
-	})
-
-	if err != nil {
-		return fmt.Errorf("instance ID '%s' not found in region '%s'", instanceID, region)
-	}
-
-	return nil
-}
-
-// findInstanceByName finds an instance by its Name tag
-func (m *Manager) findInstanceByName(ctx context.Context, name, region string) (string, error) {
-	ec2Client, err := m.clientPool.GetEC2Client(ctx, region)
-	if err != nil {
-		return "", err
-	}
-
-	resp, err := ec2Client.DescribeInstances(ctx, &ec2.DescribeInstancesInput{
-		Filters: []types.Filter{
-			{
-				Name:   aws.String("tag:Name"),
-				Values: []string{name},
-			},
-			{
-				Name:   aws.String("instance-state-name"),
-				Values: []string{"running", "stopped"},
-			},
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to search for instance: %w", err)
-	}
-
-	var instances []string
-	for _, reservation := range resp.Reservations {
-		for _, instance := range reservation.Instances {
-			instances = append(instances, aws.ToString(instance.InstanceId))
-		}
-	}
-
-	if len(instances) == 0 {
-		return "", fmt.Errorf("no instance found with name '%s'", name)
-	}
-
-	if len(instances) > 1 {
-		return "", fmt.Errorf("multiple instances found with name '%s'. Please use instance ID", name)
-	}
-
-	return instances[0], nil
+	return m.instanceService.ResolveInstanceIdentifier(ctx, identifier, region)
 }
 
 // waitForCommandCompletion waits for a command to complete and returns the result
@@ -1092,100 +953,6 @@ func (m *Manager) getRemoteFileSize(ctx context.Context, instanceID, region, rem
 	}
 
 	return size, nil
-}
-
-// getAllEC2Instances retrieves all EC2 instances in a region with optional filtering
-func (m *Manager) getAllEC2Instances(ctx context.Context, ec2Client *ec2.Client, filters *ListFilters) ([]types.Instance, error) {
-	input := &ec2.DescribeInstancesInput{}
-
-	// Apply filters
-	var ec2Filters []types.Filter
-
-	if filters != nil {
-		if filters.Status != "" {
-			ec2Filters = append(ec2Filters, types.Filter{
-				Name:   aws.String("instance-state-name"),
-				Values: []string{filters.Status},
-			})
-		}
-
-		if filters.Name != "" {
-			ec2Filters = append(ec2Filters, types.Filter{
-				Name:   aws.String("tag:Name"),
-				Values: []string{"*" + filters.Name + "*"},
-			})
-		}
-
-		// Handle legacy single tag filter (backward compatibility)
-		if filters.Tag != "" {
-			// Parse tag filter (format: key=value)
-			parts := strings.SplitN(filters.Tag, "=", 2)
-			if len(parts) == 2 {
-				ec2Filters = append(ec2Filters, types.Filter{
-					Name:   aws.String("tag:" + parts[0]),
-					Values: []string{parts[1]},
-				})
-			}
-		}
-
-		// Handle multiple tags filter
-		if filters.Tags != "" {
-			tagFilters, err := parseTagFilters(filters.Tags)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse tag filters: %w", err)
-			}
-
-			// Add a filter for each tag - this creates an AND condition
-			for key, value := range tagFilters {
-				ec2Filters = append(ec2Filters, types.Filter{
-					Name:   aws.String("tag:" + key),
-					Values: []string{value},
-				})
-			}
-		}
-	}
-
-	if len(ec2Filters) > 0 {
-		input.Filters = ec2Filters
-	}
-
-	var allInstances []types.Instance
-	paginator := ec2.NewDescribeInstancesPaginator(ec2Client, input)
-
-	for paginator.HasMorePages() {
-		resp, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, reservation := range resp.Reservations {
-			allInstances = append(allInstances, reservation.Instances...)
-		}
-	}
-
-	return allInstances, nil
-}
-
-// getSSMStatusMap retrieves SSM status information for all instances and returns as a map
-func (m *Manager) getSSMStatusMap(ctx context.Context, ssmClient *ssm.Client) (map[string]ssmtypes.InstanceInformation, error) {
-	input := &ssm.DescribeInstanceInformationInput{}
-	statusMap := make(map[string]ssmtypes.InstanceInformation)
-
-	paginator := ssm.NewDescribeInstanceInformationPaginator(ssmClient, input)
-
-	for paginator.HasMorePages() {
-		resp, err := paginator.NextPage(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, info := range resp.InstanceInformationList {
-			instanceID := aws.ToString(info.InstanceId)
-			statusMap[instanceID] = info
-		}
-	}
-
-	return statusMap, nil
 }
 
 // validateInstanceID validates AWS EC2 instance ID format

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"ztictl/internal/interactive"
 	"ztictl/internal/ssm"
 	"ztictl/pkg/colors"
 	"ztictl/pkg/logging"
@@ -92,16 +93,16 @@ Examples:
 
 // ParallelExecutionResult represents the result of a parallel command execution
 type ParallelExecutionResult struct {
-	Instance ssm.Instance
+	Instance interactive.Instance
 	Result   *ssm.CommandResult
 	Error    error
 	Duration time.Duration
 }
 
 // executeCommandParallel runs commands in parallel across multiple instances
-func executeCommandParallel(ctx context.Context, ssmManager *ssm.Manager, instances []ssm.Instance, region, command string, maxParallel int) []ParallelExecutionResult {
+func executeCommandParallel(ctx context.Context, ssmManager *ssm.Manager, instances []interactive.Instance, region, command string, maxParallel int) []ParallelExecutionResult {
 	// Create channels for work distribution and result collection
-	instanceChan := make(chan ssm.Instance, len(instances))
+	instanceChan := make(chan interactive.Instance, len(instances))
 	resultChan := make(chan ParallelExecutionResult, len(instances))
 
 	// Send instances to work channel
@@ -211,7 +212,7 @@ func executeTaggedCommand(regionCode, command, tagsFlag, instancesFlag string, p
 	ssmManager := ssm.NewManager(logger)
 	ctx := context.Background()
 
-	var instances []ssm.Instance
+	var instances []interactive.Instance
 	var err error
 
 	if instancesFlag != "" {
@@ -225,7 +226,7 @@ func executeTaggedCommand(regionCode, command, tagsFlag, instancesFlag string, p
 
 		// Create Instance objects from IDs (we'll resolve details during execution)
 		for _, instanceID := range instanceIDs {
-			instances = append(instances, ssm.Instance{
+			instances = append(instances, interactive.Instance{
 				InstanceID: instanceID,
 				Name:       instanceID, // Will be resolved later if needed
 			})

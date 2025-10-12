@@ -18,7 +18,8 @@
 
 **ztictl (Primary Tool):**
 - **🌍 Cross-platform**: Native binaries for Linux, macOS, and Windows
-- **🖥️ Multi-OS support**: Full Linux (bash) and Windows Server (PowerShell) command execution
+- **� Interactive fuzzy finder**: Real-time instance search and selection with keyboard navigation
+- **�🖥️ Multi-OS support**: Full Linux (bash) and Windows Server (PowerShell) command execution
 - **🤖 Smart platform detection**: Automatically detects instance OS and adapts commands accordingly
 - **⚡ Smart file transfers**: Automatic S3 routing for large files with lifecycle management
 - **🔒 Advanced IAM management**: Temporary policies with automatic cleanup
@@ -27,7 +28,7 @@
 - **🛠️ Modern CLI**: Flag-based interface with comprehensive help and validation
 - **📊 Professional logging**: Thread-safe, timestamped logs with debug capabilities
 - **🔄 Intelligent operations**: Concurrent-safe with filesystem locking and parallel execution
-- **🎨 Clean UI**: Customizable fuzzy finder with pagination support for AWS SSO account/role selection
+- **🎨 Clean UI**: Intuitive fuzzy finder interface for both SSM operations and AWS SSO account/role selection
 
 **Legacy bash tools (deprecated):**
 - **ssm**: Connect to EC2 instances, execute commands, power management, tag-based operations
@@ -86,7 +87,6 @@ To update to the latest version, see the update instructions in [INSTALLATION.md
 ```bash
 # Initialize configuration interactively (simplified setup)
 ztictl config init --interactive
-# Only asks for: SSO domain ID (not full URL), uses ca-central-1 defaults
 
 # Check system requirements
 ztictl config check --fix
@@ -94,10 +94,13 @@ ztictl config check --fix
 # Authenticate with AWS SSO
 ztictl auth login
 
-# List instances in a region (shortcode or full name)
-ztictl ssm list --region cac1  # or ca-central-1
+# List instances interactively with fuzzy finder
+ztictl ssm list --region cac1
 
-# Connect to an instance
+# Connect using interactive fuzzy finder (no instance specified)
+ztictl ssm connect --region use1
+
+# Connect to an instance directly by ID (classic mode)
 ztictl ssm connect i-1234567890abcdef0 --region use1
 
 # Execute commands on tagged instances
@@ -328,11 +331,13 @@ This will display your AWS access key, secret key, and session token for the spe
 # Check system requirements
 ztictl config check
 
-# List instances (shows OS type detection)
+# List instances with interactive fuzzy finder (browse and select)
 ztictl ssm list --region ca-central-1
-# Output shows: Linux/UNIX, Windows Server 2022, etc.
 
-# Connect to any instance (Linux or Windows)
+# Connect using interactive fuzzy finder (search and select instances)
+ztictl ssm connect --region ca-central-1
+
+# Connect to a specific instance by ID (direct mode)
 ztictl ssm connect i-1234567890abcdef0 --region ca-central-1
 
 # Execute commands (automatically adapts to OS)

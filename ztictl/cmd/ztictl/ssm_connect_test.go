@@ -490,8 +490,8 @@ func TestSsmConnectSessionManagement(t *testing.T) {
 
 func TestSsmConnectCmdStructure(t *testing.T) {
 	// Test command structure
-	if ssmConnectCmd.Use != "connect <instance-identifier>" {
-		t.Errorf("Expected Use to be 'connect <instance-identifier>', got %s", ssmConnectCmd.Use)
+	if ssmConnectCmd.Use != "connect [instance-identifier]" {
+		t.Errorf("Expected Use to be 'connect [instance-identifier]', got %s", ssmConnectCmd.Use)
 	}
 
 	if ssmConnectCmd.Short == "" {
@@ -512,10 +512,20 @@ func TestSsmConnectCmdStructure(t *testing.T) {
 		t.Error("Command should have argument validation")
 	}
 
-	// Test that args validation requires exactly 1 argument
+	// Test that args validation allows 0 or 1 arguments (fuzzy finder support)
 	err := ssmConnectCmd.Args(ssmConnectCmd, []string{})
+	if err != nil {
+		t.Errorf("Command should allow 0 arguments for fuzzy finder, got error: %v", err)
+	}
+
+	err = ssmConnectCmd.Args(ssmConnectCmd, []string{"i-1234567890abcdef0"})
+	if err != nil {
+		t.Errorf("Command should allow 1 argument, got error: %v", err)
+	}
+
+	err = ssmConnectCmd.Args(ssmConnectCmd, []string{"i-1234567890abcdef0", "extra-arg"})
 	if err == nil {
-		t.Error("Command should require exactly 1 argument")
+		t.Error("Command should not allow more than 1 argument")
 	}
 
 	err = ssmConnectCmd.Args(ssmConnectCmd, []string{"instance"})

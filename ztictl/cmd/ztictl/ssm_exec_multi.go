@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"ztictl/internal/config"
+	"ztictl/internal/interactive"
 	"ztictl/internal/ssm"
 	awspkg "ztictl/pkg/aws"
 	"ztictl/pkg/colors"
@@ -191,7 +192,7 @@ type MultiRegionResult struct {
 
 // InstanceResult represents the result of execution on a single instance
 type InstanceResult struct {
-	Instance    ssm.Instance
+	Instance    interactive.Instance
 	Output      string
 	ErrorOutput string
 	ExitCode    int
@@ -357,7 +358,7 @@ func executeRegionCommandWithOutput(regionCode, command, tagsFlag, instancesFlag
 	ssmManager := ssm.NewManager(logger)
 	ctx := context.Background()
 
-	var instances []ssm.Instance
+	var instances []interactive.Instance
 	var err error
 
 	if instancesFlag != "" {
@@ -373,7 +374,7 @@ func executeRegionCommandWithOutput(regionCode, command, tagsFlag, instancesFlag
 
 		// Create Instance objects from IDs
 		for _, instanceID := range instanceIDs {
-			instances = append(instances, ssm.Instance{
+			instances = append(instances, interactive.Instance{
 				InstanceID: instanceID,
 				Name:       instanceID,
 			})

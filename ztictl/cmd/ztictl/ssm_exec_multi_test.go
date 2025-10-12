@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"ztictl/internal/ssm"
+	"ztictl/internal/interactive"
 	awspkg "ztictl/pkg/aws"
 
 	"github.com/spf13/cobra"
@@ -667,19 +667,19 @@ func TestInstanceListProcessing(t *testing.T) {
 	tests := []struct {
 		name          string
 		instancesFlag string
-		expected      []ssm.Instance
+		expected      []interactive.Instance
 	}{
 		{
 			name:          "Single instance",
 			instancesFlag: "i-123",
-			expected: []ssm.Instance{
+			expected: []interactive.Instance{
 				{InstanceID: "i-123", Name: "i-123"},
 			},
 		},
 		{
 			name:          "Multiple instances",
 			instancesFlag: "i-123,i-456,i-789",
-			expected: []ssm.Instance{
+			expected: []interactive.Instance{
 				{InstanceID: "i-123", Name: "i-123"},
 				{InstanceID: "i-456", Name: "i-456"},
 				{InstanceID: "i-789", Name: "i-789"},
@@ -688,7 +688,7 @@ func TestInstanceListProcessing(t *testing.T) {
 		{
 			name:          "Instances with spaces",
 			instancesFlag: "i-123, i-456 , i-789",
-			expected: []ssm.Instance{
+			expected: []interactive.Instance{
 				{InstanceID: "i-123", Name: "i-123"},
 				{InstanceID: "i-456", Name: "i-456"},
 				{InstanceID: "i-789", Name: "i-789"},
@@ -703,13 +703,13 @@ func TestInstanceListProcessing(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var instances []ssm.Instance
+			var instances []interactive.Instance
 
 			if tt.instancesFlag != "" {
 				instanceIDs := strings.Split(tt.instancesFlag, ",")
 				for _, id := range instanceIDs {
 					trimmedID := strings.TrimSpace(id)
-					instances = append(instances, ssm.Instance{
+					instances = append(instances, interactive.Instance{
 						InstanceID: trimmedID,
 						Name:       trimmedID,
 					})

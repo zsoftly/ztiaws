@@ -13,15 +13,20 @@ import (
 
 // ssmConnectCmd represents the ssm connect command
 var ssmConnectCmd = &cobra.Command{
-	Use:   "connect <instance-identifier>",
+	Use:   "connect [instance-identifier]",
 	Short: "Connect to an instance via SSM Session Manager",
 	Long: `Connect to an EC2 instance using SSM Session Manager.
+If no instance identifier is provided, an interactive fuzzy finder will be launched.
 Instance identifier can be an instance ID (i-1234567890abcdef0) or instance name.
 Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-1), etc.`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		regionCode, _ := cmd.Flags().GetString("region")
-		instanceIdentifier := args[0]
+
+		var instanceIdentifier string
+		if len(args) > 0 {
+			instanceIdentifier = args[0]
+		}
 
 		if err := performConnection(regionCode, instanceIdentifier); err != nil {
 			logging.LogError("Connection failed: %v", err)
@@ -33,13 +38,23 @@ Region supports shortcuts: cac1 (ca-central-1), use1 (us-east-1), euw1 (eu-west-
 // performConnection handles SSM connection logic and returns errors instead of calling os.Exit
 func performConnection(regionCode, instanceIdentifier string) error {
 	region := resolveRegion(regionCode)
-
-	logging.LogInfo("Connecting to instance %s in region: %s", instanceIdentifier, region)
-
-	ssmManager := ssm.NewManager(logger)
 	ctx := context.Background()
+	ssmManager := ssm.NewManager(logger)
 
-	if err := ssmManager.StartSession(ctx, instanceIdentifier, region); err != nil {
+	// Use the shared instance selection logic
+	instanceID, err := ssmManager.GetInstanceService().SelectInstanceWithFallback(
+		ctx,
+		instanceIdentifier,
+		region,
+		nil, // No filters
+	)
+	if err != nil {
+		return fmt.Errorf("instance selection failed: %w", err)
+	}
+
+	logging.LogInfo("Connecting to instance %s in region: %s", instanceID, region)
+
+	if err := ssmManager.StartSession(ctx, instanceID, region); err != nil {
 		return fmt.Errorf("failed to start session: %w", err)
 	}
 
