@@ -42,7 +42,7 @@ INSTANCE_TYPE="t2.micro"
 # aws ec2 describe-subnets --query 'Subnets[*].[SubnetId,VpcId,AvailabilityZone,CidrBlock]' --output table
 # The subnet has access to the internet via a NAT gateway
 # If they are attached to a public route table with an internet gateway, use --associate-public-ip-address
-SUBNET_ID="${SUBNET_ID:-subnet-0b0c36050965b21ff}"
+SUBNET_ID="${SUBNET_ID:-""}"
 
 # Security Group ID for EC2 instances. Default is for ca-central-1 region.
 # REQUIRED: Override by setting the SECURITY_GROUP environment variable for your environment.
@@ -50,7 +50,7 @@ SUBNET_ID="${SUBNET_ID:-subnet-0b0c36050965b21ff}"
 # aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId,GroupName,Description,VpcId]' --output table
 # Has Outbound: HTTPS (443) to 0.0.0.0/0
 # Have SSM VPC endpoint or allow outbound internet access for SSM to work
-SECURITY_GROUP="${SECURITY_GROUP:-sg-0d3a8aef97b110181}"
+SECURITY_GROUP="${SECURITY_GROUP:-""}"
 
 IAM_ROLE_NAME="EC2-SSM-Role"
 IAM_INSTANCE_PROFILE="EC2-SSM-InstanceProfile"
@@ -124,7 +124,7 @@ get_ami_for_os() {
 }
 
 show_help() {
-    cat << EOF
+    cat << 'EOF'
 EC2 Test Instance Manager - Cross-Platform Version
 
 Usage: $0 <command> [options]
@@ -140,46 +140,61 @@ Options:
   -n, --name-prefix NAME   Instance name suffix (default: web-server)
   -t, --os-type TYPE       OS type: linux, windows, both (default: both)
   -a, --ami-id AMI_ID      AMI ID to use (overrides auto-detection)
-  -s, --subnet-id SUBNET   Subnet ID to use (default: $SUBNET_ID)
-  -g, --security-group SG  Security Group ID to use (default: $SECURITY_GROUP)
+  -s, --subnet-id SUBNET   Override auto-discovered Subnet ID
+  -g, --security-group SG  Override auto-discovered Security Group ID
   -p, --public-ip          Assign public IP addresses (default: private IPs)
   -h, --help              Show this help
 
 Environment Variables:
   AMI_ID           Override default AMI ID
-  SUBNET_ID        Override default subnet ID (REQUIRED for different environments)
-  SECURITY_GROUP   Override default security group ID (REQUIRED for different environments)
+  SUBNET_ID        Override auto-discovered subnet ID
+  SECURITY_GROUP   Override auto-discovered security group ID
 
-Compatibility:
-  This script is compatible with Linux and macOS environments.
-  Requires bash 4.0+ and standard Unix utilities (grep, awk, jq).
+AWS Resource Auto-Discovery:
+  The script automatically discovers the following resources using tags:
+  - VPC:           tag:Name=ztiaws-poc-vpc
+  - Subnet:        tag:Name=ztiaws-poc-vpc-public-subnet-1
+  - Security Group: tag:Name=ztiaws-poc-sg
 
 Examples:
-  $0 create --count 3 --owner John    # Creates: John-web-server-linux-1, John-web-server-windows-1, etc.
-  $0 create --owner Alice --os-type linux --count 2  # Creates only Linux instances
-  $0 create --owner Bob --os-type windows  # Creates only Windows instances
-  $0 create --owner Carol --os-type both --count 1  # Creates one Linux and one Windows instance
-  $0 create --owner Dave --subnet-id subnet-123abc --security-group sg-456def
-  $0 create --owner Eve --public-ip  # Creates instances with public IP addresses
-  SUBNET_ID=subnet-123abc SECURITY_GROUP=sg-456def $0 create --owner Eve
-  $0 verify
-  $0 delete
-
-Finding AWS Resources:
-  # Find latest Amazon Linux 2023 AMI:
-  aws ec2 describe-images --owners amazon --filters "Name=name,Values=al2023-ami-*" \\
-    --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text
-  
-  # Find latest Windows Server 2022 AMI:
-  aws ec2 describe-images --owners amazon --filters "Name=name,Values=Windows_Server-2022-English-Full-Base-*" \\
-    --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text
-  
-  # List available subnets:
-  aws ec2 describe-subnets --query 'Subnets[*].[SubnetId,VpcId,AvailabilityZone,CidrBlock]' --output table
-  
-  # List security groups:
-  aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId,GroupName,Description,VpcId]' --output table
+  $0 create --owner John               # Uses auto-discovered network resources
+  $0 create --owner Bob --subnet-id subnet-123 --security-group sg-456
 EOF
+}
+
+#---
+# Function to discover VPC, Subnet, and Security Group IDs based on tags
+#---
+discover_network_resources() {
+  echo "--> Auto-discovering network resources from AWS..."
+
+  # 1. Discover the VPC ID using its Name tag
+  VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=ztiaws-poc-vpc" --query "Vpcs[0].VpcId" --output text)
+  if [ -z "$VPC_ID" ] || [ "$VPC_ID" == "None" ]; then
+    echo "Error: Could not find the VPC with tag Name=ztiaws-poc-vpc." >&2
+    exit 1
+  fi
+  echo "    Found VPC: $VPC_ID"
+
+  # 2. Discover the Subnet ID if not provided by the user
+  if [ -z "$SUBNET_ID" ]; then
+    SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=ztiaws-poc-vpc-public-subnet-1" --query "Subnets[0].SubnetId" --output text)
+    if [ -z "$SUBNET_ID" ] || [ "$SUBNET_ID" == "None" ]; then
+      echo "Error: Could not find the Subnet with tag Name=ztiaws-poc-vpc-public-subnet-1 in VPC $VPC_ID." >&2
+      exit 1
+    fi
+    echo "    Auto-detected Subnet ID: $SUBNET_ID"
+  fi
+
+  # 3. Discover the Security Group ID if not provided by the user
+  if [ -z "$SECURITY_GROUP" ]; then
+    SECURITY_GROUP=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=ztiaws-poc-sg" --query "SecurityGroups[0].GroupId" --output text)
+    if [ -z "$SECURITY_GROUP" ] || [ "$SECURITY_GROUP" == "None" ]; then
+      echo "Error: Could not find the Security Group with tag Name=ztiaws-poc-sg in VPC $VPC_ID." >&2
+      exit 1
+    fi
+    echo "    Auto-detected Security Group ID: $SECURITY_GROUP"
+  fi
 }
 
 # Check prerequisites once
@@ -305,14 +320,8 @@ ensure_iam() {
 create_instances() {
     [[ -n "$OWNER" ]] || { log_error "Owner required (use -o/--owner)"; exit 1; }
     
-    # Validate required AWS resources configuration
-    if [[ "$SUBNET_ID" == "subnet-0248e681d3349e41c" ]]; then
-        log_warn "Using default subnet ID for ca-central-1. For other regions, set SUBNET_ID environment variable or use --subnet-id option."
-    fi
-    
-    if [[ "$SECURITY_GROUP" == "sg-0a932ab2ea0066022" ]]; then
-        log_warn "Using default security group for ca-central-1. For other regions, set SECURITY_GROUP environment variable or use --security-group option."
-    fi
+    # Auto-discover network resources if not provided
+    discover_network_resources
     
     # Validate AWS resources before proceeding
     validate_aws_resources
@@ -478,48 +487,57 @@ parse_args() {
     case "$1" in
         -h|--help|help)
             show_help
-            exit 0 ;;
+            exit 0 
+            ;;
     esac
     
     local command="$1"
     shift
     
+    # Parse remaining arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
             -c|--count)
                 COUNT="$2"
                 [[ "$COUNT" =~ ^[1-9][0-9]*$ ]] || { log_error "Count must be positive integer"; exit 1; }
-                shift 2 ;;
+                shift 2 
+                ;;
             -o|--owner)
                 OWNER="$2"
-                shift 2 ;;
+                shift 2 
+                ;;
             -n|--name-prefix)
                 NAME_PREFIX="$2"
-                shift 2 ;;
+                shift 2 
+                ;;
             -t|--os-type)
                 OS_TYPE="$2"
                 [[ "$OS_TYPE" =~ ^(linux|windows|both)$ ]] || { log_error "Invalid OS type: $OS_TYPE. Use 'linux', 'windows', or 'both'"; exit 1; }
-                shift 2 ;;
+                shift 2 
+                ;;
             -a|--ami-id)
                 AMI_ID="$2"
                 [[ "$AMI_ID" =~ ^ami-[0-9a-f]{8,17}$ ]] || { log_error "Invalid AMI ID format: $AMI_ID"; exit 1; }
-                shift 2 ;;
+                shift 2 
+                ;;
             -s|--subnet-id)
                 SUBNET_ID="$2"
                 [[ "$SUBNET_ID" =~ ^subnet-[0-9a-f]{8,17}$ ]] || { log_error "Invalid subnet ID format: $SUBNET_ID"; exit 1; }
-                shift 2 ;;
+                shift 2 
+                ;;
             -g|--security-group)
                 SECURITY_GROUP="$2"
                 [[ "$SECURITY_GROUP" =~ ^sg-[0-9a-f]{8,17}$ ]] || { log_error "Invalid security group ID format: $SECURITY_GROUP"; exit 1; }
-                shift 2 ;;
+                shift 2 
+                ;;
             -p|--public-ip)
                 ASSIGN_PUBLIC_IP=true
-                shift ;;
-            -h|--help)
-                show_help; exit 0 ;;
+                shift 
+                ;;
             *)
                 log_error "Unknown option: $1"
-                exit 1 ;;
+                exit 1 
+                ;;
         esac
     done
     
@@ -529,7 +547,8 @@ parse_args() {
         delete) delete_instances ;;
         *) 
             log_error "Unknown command: $command. Use create, verify, or delete"
-            exit 1 ;;
+            exit 1 
+            ;;
     esac
 }
 
