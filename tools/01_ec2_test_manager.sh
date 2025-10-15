@@ -318,8 +318,6 @@ ensure_iam() {
     # Skip if recently checked (within 5 minutes)
     local current_time
     current_time=$(date +%s)
-    local file_mtime
-    file_mtime=$(get_file_mtime "$EC2_DATA_FILE")
     
     # Check if IAM cache entry exists and is recent
     if [[ -f "$EC2_DATA_FILE" ]]; then
