@@ -42,7 +42,7 @@ INSTANCE_TYPE="t2.micro"
 # aws ec2 describe-subnets --query 'Subnets[*].[SubnetId,VpcId,AvailabilityZone,CidrBlock]' --output table
 # The subnet has access to the internet via a NAT gateway
 # If they are attached to a public route table with an internet gateway, use --associate-public-ip-address
-SUBNET_ID="${SUBNET_ID:-""}"
+SUBNET_ID="${SUBNET_ID:-subnet-0b0c36050965b21ff}"
 
 # Security Group ID for EC2 instances. Default is for ca-central-1 region.
 # REQUIRED: Override by setting the SECURITY_GROUP environment variable for your environment.
@@ -50,11 +50,22 @@ SUBNET_ID="${SUBNET_ID:-""}"
 # aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId,GroupName,Description,VpcId]' --output table
 # Has Outbound: HTTPS (443) to 0.0.0.0/0
 # Have SSM VPC endpoint or allow outbound internet access for SSM to work
-SECURITY_GROUP="${SECURITY_GROUP:-""}"
+SECURITY_GROUP="${SECURITY_GROUP:-sg-0d3a8aef97b110181}"
 
 IAM_ROLE_NAME="EC2-SSM-Role"
 IAM_INSTANCE_PROFILE="EC2-SSM-InstanceProfile"
-INSTANCE_FILE="ec2-instances.txt"
+
+# Get script directory for consistent file storage
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Temporary file stored relative to script location (gitignored)
+EC2_DATA_FILE="$SCRIPT_DIR/.ec2-data"
+
+# Timeout wrapper for AWS CLI calls (30 seconds default)
+aws_timeout() {
+    local timeout=${AWS_TIMEOUT:-30}
+    timeout "$timeout" aws "$@" 2>/dev/null
+}
 
 # Default values
 COUNT=1
@@ -62,6 +73,7 @@ OWNER=""
 NAME_PREFIX="web-server"
 OS_TYPE="both"  # Options: linux, windows, both
 ASSIGN_PUBLIC_IP=false  # Default: no public IP (use NAT/VPC endpoints for SSM)
+DRY_RUN=false  # Default: actually create resources
 
 # Auto-detect latest AMI IDs for Linux and Windows
 get_latest_linux_ami() {
@@ -140,25 +152,41 @@ Options:
   -n, --name-prefix NAME   Instance name suffix (default: web-server)
   -t, --os-type TYPE       OS type: linux, windows, both (default: both)
   -a, --ami-id AMI_ID      AMI ID to use (overrides auto-detection)
-  -s, --subnet-id SUBNET   Override auto-discovered Subnet ID
-  -g, --security-group SG  Override auto-discovered Security Group ID
+  -s, --subnet-id SUBNET   Override default or auto-discovered Subnet ID
+  -g, --security-group SG  Override default or auto-discovered Security Group ID
   -p, --public-ip          Assign public IP addresses (default: private IPs)
+  -d, --dry-run           Show what would be created without actually creating
   -h, --help              Show this help
 
 Environment Variables:
   AMI_ID           Override default AMI ID
-  SUBNET_ID        Override auto-discovered subnet ID
-  SECURITY_GROUP   Override auto-discovered security group ID
+  SUBNET_ID        Override default or auto-discovered subnet ID
+  SECURITY_GROUP   Override default or auto-discovered security group ID
 
 AWS Resource Auto-Discovery:
   The script automatically discovers the following resources using tags:
-  - VPC:           tag:Name=ztiaws-poc-vpc
-  - Subnet:        tag:Name=ztiaws-poc-vpc-public-subnet-1
-  - Security Group: tag:Name=ztiaws-poc-sg
+  - VPC:           tag:Name=poc-sandbox-vpc-cac1
+  - Subnet:        tag:Name=poc-sandbox-priv-app-sn-1-cac1
+  - Security Group: tag:Name=poc-sandbox-app-sg-cac1
 
 Examples:
-  $0 create --owner John               # Uses auto-discovered network resources
+  $0 create --owner John               # Uses auto-discovered network resources or defaults
   $0 create --owner Bob --subnet-id subnet-123 --security-group sg-456
+
+Finding AWS Resources:
+  # Find latest Amazon Linux 2023 AMI:
+  aws ec2 describe-images --owners amazon --filters "Name=name,Values=al2023-ami-*" \\
+    --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text
+  
+  # Find latest Windows Server 2022 AMI:
+  aws ec2 describe-images --owners amazon --filters "Name=name,Values=Windows_Server-2022-English-Full-Base-*" \\
+    --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' --output text
+  
+  # List available subnets:
+  aws ec2 describe-subnets --query 'Subnets[*].[SubnetId,VpcId,AvailabilityZone,CidrBlock]' --output table
+  
+  # List security groups:
+  aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId,GroupName,Description,VpcId]' --output table
 EOF
 }
 
@@ -169,39 +197,47 @@ discover_network_resources() {
   echo "--> Auto-discovering network resources from AWS..."
 
   # 1. Discover the VPC ID using its Name tag
-  VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=ztiaws-poc-vpc" --query "Vpcs[0].VpcId" --output text)
+  VPC_ID=$(aws_timeout ec2 describe-vpcs --filters "Name=tag:Name,Values=poc-sandbox-vpc-cac1" --query "Vpcs[0].VpcId" --output text)
   if [ -z "$VPC_ID" ] || [ "$VPC_ID" == "None" ]; then
-    echo "Error: Could not find the VPC with tag Name=ztiaws-poc-vpc." >&2
-    exit 1
+    echo "Warning: Could not find the VPC with tag Name=poc-sandbox-vpc-cac1. Using default resources." >&2
+    return 0
   fi
   echo "    Found VPC: $VPC_ID"
 
   # 2. Discover the Subnet ID if not provided by the user
   if [ -z "$SUBNET_ID" ]; then
-    SUBNET_ID=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=ztiaws-poc-vpc-public-subnet-1" --query "Subnets[0].SubnetId" --output text)
+    SUBNET_ID=$(aws_timeout ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=poc-sandbox-priv-app-sn-1-cac1" --query "Subnets[0].SubnetId" --output text)
     if [ -z "$SUBNET_ID" ] || [ "$SUBNET_ID" == "None" ]; then
-      echo "Error: Could not find the Subnet with tag Name=ztiaws-poc-vpc-public-subnet-1 in VPC $VPC_ID." >&2
-      exit 1
+      echo "Warning: Could not find the Subnet with tag Name=poc-sandbox-priv-app-sn-1-cac1 in VPC $VPC_ID. Using default subnet." >&2
+      SUBNET_ID="subnet-0b0c36050965b21ff"
+    else
+      echo "    Auto-detected Subnet ID: $SUBNET_ID"
     fi
-    echo "    Auto-detected Subnet ID: $SUBNET_ID"
   fi
 
   # 3. Discover the Security Group ID if not provided by the user
   if [ -z "$SECURITY_GROUP" ]; then
-    SECURITY_GROUP=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=ztiaws-poc-sg" --query "SecurityGroups[0].GroupId" --output text)
+    SECURITY_GROUP=$(aws_timeout ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=tag:Name,Values=poc-sandbox-app-sg-cac1" --query "SecurityGroups[0].GroupId" --output text)
     if [ -z "$SECURITY_GROUP" ] || [ "$SECURITY_GROUP" == "None" ]; then
-      echo "Error: Could not find the Security Group with tag Name=ztiaws-poc-sg in VPC $VPC_ID." >&2
-      exit 1
+      echo "Warning: Could not find the Security Group with tag Name=poc-sandbox-app-sg-cac1 in VPC $VPC_ID. Using default security group." >&2
+      SECURITY_GROUP="sg-0d3a8aef97b110181"
+    else
+      echo "    Auto-detected Security Group ID: $SECURITY_GROUP"
     fi
-    echo "    Auto-detected Security Group ID: $SECURITY_GROUP"
   fi
 }
 
 # Check prerequisites once
 check_prereq() {
-    command -v aws >/dev/null || { log_error "AWS CLI not found"; exit 1; }
-    command -v jq >/dev/null || { log_error "jq not found"; exit 1; }
-    aws sts get-caller-identity >/dev/null 2>&1 || { log_error "AWS credentials invalid"; exit 1; }
+    command -v aws >/dev/null || { log_error "AWS CLI not found. Install from: https://aws.amazon.com/cli/"; exit 1; }
+    command -v jq >/dev/null || { log_error "jq not found. Install from: https://stedolan.github.io/jq/"; exit 1; }
+    aws sts get-caller-identity >/dev/null 2>&1 || { log_error "AWS credentials invalid or expired. Run 'aws configure' or check SSO."; exit 1; }
+    
+    # Check AWS region is set
+    if [[ -z "${AWS_DEFAULT_REGION:-${AWS_REGION:-}}" ]]; then
+        log_warn "No AWS region set. Defaulting to ca-central-1. Set AWS_DEFAULT_REGION for other regions."
+        export AWS_DEFAULT_REGION="ca-central-1"
+    fi
 }
 
 # Validate AWS resources exist and are accessible
@@ -242,17 +278,19 @@ read_instance_ids() {
     local instance_ids=()
     local line
     
-    if [[ ! -f "$INSTANCE_FILE" || ! -s "$INSTANCE_FILE" ]]; then
+    if [[ ! -f "$EC2_DATA_FILE" || ! -s "$EC2_DATA_FILE" ]]; then
         return 1
     fi
     
-    # Read file line by line, filtering out empty lines
+    # Read file line by line, filtering for instance entries
     while IFS= read -r line; do
-        # Skip empty lines and whitespace-only lines
-        if [[ -n "${line// }" ]]; then
-            instance_ids+=("$line")
+        # Skip empty lines and non-instance lines
+        if [[ -n "${line// }" && "$line" =~ ^instance: ]]; then
+            # Extract instance ID from "instance:i-1234567890abcdef0" format
+            local instance_id="${line#instance:}"
+            instance_ids+=("$instance_id")
         fi
-    done < "$INSTANCE_FILE"
+    done < "$EC2_DATA_FILE"
     
     # Return the array via a global variable
     INSTANCE_IDS=("${instance_ids[@]}")
@@ -277,15 +315,25 @@ get_file_mtime() {
 
 # Ensure IAM resources exist (cached check)
 ensure_iam() {
-    local cache_file=".iam_ready"
-    
     # Skip if recently checked (within 5 minutes)
     local current_time
     current_time=$(date +%s)
     local file_mtime
-    file_mtime=$(get_file_mtime "$cache_file")
-    if [[ -f "$cache_file" && $((current_time - file_mtime)) -lt 300 ]]; then
-        return 0
+    file_mtime=$(get_file_mtime "$EC2_DATA_FILE")
+    
+    # Check if IAM cache entry exists and is recent
+    if [[ -f "$EC2_DATA_FILE" ]]; then
+        local iam_cache_time=0
+        while IFS= read -r line; do
+            if [[ "$line" =~ ^iam_cache: ]]; then
+                iam_cache_time="${line#iam_cache:}"
+                break
+            fi
+        done < "$EC2_DATA_FILE"
+        
+        if [[ $iam_cache_time -gt 0 && $((current_time - iam_cache_time)) -lt 300 ]]; then
+            return 0
+        fi
     fi
     
     # Check and create role if needed
@@ -313,7 +361,13 @@ ensure_iam() {
         sleep 5  # Brief wait for AWS propagation
     fi
     
-    touch "$cache_file"
+    # Update IAM cache timestamp
+    local cache_entry="iam_cache:$current_time"
+    # Remove old IAM cache entry if exists, then add new one
+    if [[ -f "$EC2_DATA_FILE" ]]; then
+        sed -i '/^iam_cache:/d' "$EC2_DATA_FILE"
+    fi
+    echo "$cache_entry" >> "$EC2_DATA_FILE"
 }
 
 # Create instances efficiently
@@ -343,6 +397,32 @@ create_instances() {
     
     # Calculate total instances to create
     local total_instances=$((COUNT * ${#os_types[@]}))
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log_info "DRY RUN MODE - Would create $total_instances instance(s) ($COUNT per OS type: ${os_types[*]})"
+        log_info "Network Resources:"
+        log_info "  VPC: ${VPC_ID:-Not discovered}"
+        log_info "  Subnet: $SUBNET_ID"
+        log_info "  Security Group: $SECURITY_GROUP"
+        log_info "  Public IP: ${ASSIGN_PUBLIC_IP:-false}"
+        
+        local counter=1
+        for os_type in "${os_types[@]}"; do
+            for i in $(seq 1 "$COUNT"); do
+                local name="$OWNER-$NAME_PREFIX-$os_type"
+                if [[ $COUNT -gt 1 ]]; then
+                    name="$name-$i"
+                elif [[ "${#os_types[@]}" -gt 1 ]]; then
+                    name="$name-$counter"
+                fi
+                log_info "  Would create: $name ($os_type)"
+                ((counter++))
+            done
+        done
+        log_info "Use --dry-run=false or remove -d flag to actually create instances"
+        return 0
+    fi
+    
     log_info "Creating $total_instances instance(s) ($COUNT per OS type: ${os_types[*]})"
     
     # Prepare batch creation
@@ -406,7 +486,7 @@ create_instances() {
             local instance_id
             instance_id=$(echo "$result" | jq -r '.Instances[0].InstanceId')
             instances+=("$instance_id")
-            echo "$instance_id" >> "$INSTANCE_FILE"
+            echo "instance:$instance_id" >> "$EC2_DATA_FILE"
             log_info "$name ($os_type): $instance_id"
             
             ((counter++))
@@ -469,14 +549,43 @@ delete_instances() {
     
     log_info "Terminating ${#INSTANCE_IDS[@]} instance(s)..."
     
-    # Batch terminate
-    if aws ec2 terminate-instances --instance-ids "${INSTANCE_IDS[@]}" >/dev/null 2>&1; then
-        rm -f "$INSTANCE_FILE" ".iam_ready"
-        log_info "Terminated all instances and cleaned up"
-    else
-        log_error "Failed to terminate instances"
-        exit 1
+    # Check current status of instances first
+    local existing_instances=()
+    local result
+    result=$(aws ec2 describe-instances \
+        --instance-ids "${INSTANCE_IDS[@]}" \
+        --query 'Reservations[].Instances[].[InstanceId,State.Name]' \
+        --output json 2>/dev/null) || {
+        log_warn "Could not check instance status. Assuming instances may already be terminated."
+        # If we can't check status, try to terminate anyway
+        existing_instances=("${INSTANCE_IDS[@]}")
+    }
+    
+    if [[ -n "$result" && "$result" != "null" ]]; then
+        # Filter out already terminated instances
+        while IFS=$'\t' read -r instance_id state; do
+            if [[ "$state" != "terminated" && "$state" != "terminating" ]]; then
+                existing_instances+=("$instance_id")
+            else
+                log_info "Instance $instance_id is already $state"
+            fi
+        done < <(echo "$result" | jq -r '.[] | @tsv')
     fi
+    
+    # Terminate remaining instances
+    if [[ ${#existing_instances[@]} -gt 0 ]]; then
+        if aws ec2 terminate-instances --instance-ids "${existing_instances[@]}" >/dev/null 2>&1; then
+            log_info "Terminated ${#existing_instances[@]} instance(s)"
+        else
+            log_error "Failed to terminate some instances. They may already be terminated or you may not have permission."
+        fi
+    else
+        log_info "All instances were already terminated"
+    fi
+    
+    # Always clean up file regardless of termination success
+    rm -f "$EC2_DATA_FILE"
+    log_info "Cleaned up temporary data file"
 }
 
 # Parse arguments
@@ -532,6 +641,10 @@ parse_args() {
                 ;;
             -p|--public-ip)
                 ASSIGN_PUBLIC_IP=true
+                shift 
+                ;;
+            -d|--dry-run)
+                DRY_RUN=true
                 shift 
                 ;;
             *)

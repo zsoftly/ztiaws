@@ -46,6 +46,7 @@ test_*.sh
 *.tmp
 *.temp
 *.bak
+.ec2-data
 
 # Downloaded packages (from auto-install features)
 *.deb
