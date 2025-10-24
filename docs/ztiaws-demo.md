@@ -41,6 +41,7 @@ This demo introduces **ZTiAWS end-to-end**, covering:
 ZTiAWS was built to make AWS management faster, safer, and simpler.  
 It reduces the friction of using the AWS CLI by abstracting complex commands into clear, human-friendly operations.
 
+
 **Example:**
 ```bash
 # Traditional AWS CLI
@@ -94,7 +95,6 @@ Stores temporary credentials securely
 
 💬 “Unlike the AWS CLI, ZTiAWS provides a guided SSO flow that securely manages temporary credentials and IAM role selection.”
 
-
 4. Use Cases — Demonstration Scenarios
 
 🧩 Use Case 1: List and Connect to EC2 Instances
@@ -146,6 +146,67 @@ ztictl ssm stop-tagged --tags "Environment=dev" --region cac1
 Benefit:
 Start or stop multiple EC2 instances by tag or environment from a single terminal command.
 
+
+
+```
+
+
+## 🧪 Demo Walkthrough (ZTiAWS Setup & Validation)
+
+Below are the step-by-step screenshots showing installation, configuration, and usage.
+
+---
+
+### 1️⃣ Installing ZTiAWS CLI (ztictl)
+![Installing ztictl](./images/01-installing-ztictl.png)
+
+
+### 2️⃣ Initialize Configuration
+![Initialize Configuration](./images/02-initialize-configuration.png)
+
+
+### 3️⃣ Configuration Verification
+![Configuration](./images/03-configuration.png)
+
+
+### 4️⃣ Confirm SSM Connection to EC2
+![Confirm SSM EC2](./images/04-confirm ssm-ec2.png)
+
+
+### 5️⃣ List EC2 Instances
+![List Instances](./images/05-list-instances.png)
+
+
+### 6️⃣ AWS Console — SSM Managed Instance
+![SSM Managed Instance](./images/06-ssm-with-managed-instance.png)
+
+
+### 7️⃣ ZTiAWS Connect to EC2
+![ztictl SSM Connect](./images/07-ztictl-ssm-connect-ec2.png)
+
+
+### 8️⃣ Using Connect and Exec Commands
+![Connect and Exec](./images/08-connect-and-exec-commands.png)
+
+
+### 9️⃣ Executing Commands Remotely
+![Exec Command](./images/09-exec-command.png)
+
+
+### 🔟 Linux Commands Output
+![Linux Commands](./images/10-linux-commands.png)
+
+
+### 11️⃣ Creating Folder and File
+![Creating Folder and File](./images/11-creating-folder-file.png)
+
+
+### 12️⃣ Uploading Local File to EC2
+![Upload Local File](./images/12-uploading-local-to-ec2-file.png)
+
+
+
+```
 
 5. Summary of Benefits
 Feature	Traditional AWS CLI	With ZTiAWS
