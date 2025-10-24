@@ -24,19 +24,6 @@ This demo introduces **ZTiAWS end-to-end**, covering:
 
 ---
 
-## 🚀 Key Features
-
-- 🌍 **Cross-platform**: Native binaries for Linux, macOS, and Windows (AMD64/ARM64)
-- 🔍 **Interactive fuzzy finder**: Real-time instance selection with keyboard navigation
-- 🔒 **Secure AWS SSO authentication** with built-in caching
-- ⚙️ **Smart operations**: OS detection, automatic command adaptation
-- 📦 **S3-backed file transfers** with lifecycle management
-- 🧠 **Tag-based automation** for multi-instance and multi-region control
-- 🛠️ **Professional logging** with thread-safe concurrency
-- 🧩 **Modern CLI** with flag-based syntax and validation
-
----
-
 ## Demo Agenda
 
 | Segment | Duration | Focus |
@@ -62,6 +49,18 @@ aws ssm start-session --target i-1234567890abcdef0
 # With ZTiAWS
 ztictl ssm connect i-1234567890abcdef0
 
+## 🚀 Key Features
+
+ 🌍 **Cross-platform**: Native binaries for Linux, macOS, and Windows (AMD64/ARM64)
+ 🔍 **Interactive fuzzy finder**: Real-time instance selection with keyboard navigation
+ 🔒 **Secure AWS SSO authentication** with built-in caching
+ ⚙️ **Smart operations**: OS detection, automatic command adaptation
+ 📦 **S3-backed file transfers** with lifecycle management
+ 🧠 **Tag-based automation** for multi-instance and multi-region control
+ 🛠️ **Professional logging** with thread-safe concurrency
+ 🧩 **Modern CLI** with flag-based syntax and validation
+
+
 2. Installation & Setup
 
 Linux / macOS
@@ -76,8 +75,8 @@ Move-Item "$env:TEMP\ztictl.exe" "$env:USERPROFILE\Tools\ztictl.exe"
 [Environment]::SetEnvironmentVariable("PATH", "$env:PATH;$env:USERPROFILE\Tools", "User")
 ztictl --version
 
-
 💬 “Installation is one command across all platforms — no dependency hell, no setup pain.”
+
 
 3. Configuration & Authentication
 Step 1 — Initialize Configuration
@@ -87,7 +86,6 @@ ztictl config check --fix
 Step 2 — Authenticate via AWS SSO
 ztictl auth login
 
-
 ✅ Automatically:
 
 Checks required components (AWS CLI, SSM plugin)
@@ -95,6 +93,7 @@ Prompts for SSO login with interactive account/role selection
 Stores temporary credentials securely
 
 💬 “Unlike the AWS CLI, ZTiAWS provides a guided SSO flow that securely manages temporary credentials and IAM role selection.”
+
 
 4. Use Cases — Demonstration Scenarios
 
@@ -122,8 +121,8 @@ Runs OS-specific commands automatically using Bash or PowerShell — no manual d
 
 
 🌎 Use Case 3: Multi-Region and Tag-Based Operations
-ztictl ssm exec-tagged use1 --tags Environment=prod,Role=web "df -h"
-ztictl ssm exec-multi cac1,use1,euw1 --tags "App=web" "uptime"
+ztictl ssm exec-tagged us-east-1 --tags Environment=prod,Role=web "df -h"
+ztictl ssm exec-multi ca-central-1,us-east-1,eu-west-1 --tags "App=web" "uptime"
 
 Benefit:
 Execute parallel commands across multiple regions and tagged instances with a single command.
@@ -158,7 +157,7 @@ File Transfers	Manual S3 upload	Smart routing with S3
 Power Control	Console or SDK	Tag-based automation
 
 
-🎯 6. Conclusion
+6. Conclusion
 
 ZTiAWS is more than a utility — it’s a productivity framework for modern AWS operations.
 
@@ -174,13 +173,9 @@ Perfect for DevOps teams and managed environments
 Repository: https://github.com/zsoftly/ztiaws
 
 🧱 Recommended Next Steps
-
-Clone the repository
-
-Follow this demo to install and test ZTiAWS locally
-
-Contribute new regions or commands via PR
-
-Share feedback via the #ztiaws engineering channel
+1. Clone the repository.
+2. Follow this demo to install and test ZTiAWS locally.
+3. Share feedback via the #ztiaws engineering channel.
+4. (Optional) Contribute new regions or commands via PR.
 
 End of Document
