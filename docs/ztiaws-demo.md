@@ -32,7 +32,7 @@ With ZTiAWS, repetitive tasks like starting SSM sessions, transferring files, or
 | Time-to-action | Minutes per task | Seconds — start to finish |
 
 
-💬 **In short:**  
+**In short:**  
 ZTiAWS helps organizations **reduce cloud operation time**, **enforce secure access by default**, and **improve the developer experience** — without requiring deep CLI expertise.  
 
 ---
@@ -52,7 +52,7 @@ This demo introduces **ZTiAWS end-to-end**, covering:
 
 ---
 
-## 🗓 Demo Agenda  
+## Demo Agenda  
 
 | Segment | Duration | Focus |
 |----------|-----------|--------|
@@ -77,16 +77,16 @@ aws ssm start-session --target i-1234567890abcdef0
 # With ZTiAWS
 ztictl ssm connect i-1234567890abcdef0
 
-## 🚀 Key Features
+## Key Features
 
- 🌍 **Cross-platform**: Native binaries for Linux, macOS, and Windows (AMD64/ARM64)
- 🔍 **Interactive fuzzy finder**: Real-time instance selection with keyboard navigation
- 🔒 **Secure AWS SSO authentication** with built-in caching
- ⚙️ **Smart operations**: OS detection, automatic command adaptation
- 📦 **S3-backed file transfers** with lifecycle management
- 🧠 **Tag-based automation** for multi-instance and multi-region control
- 🛠️ **Professional logging** with thread-safe concurrency
- 🧩 **Modern CLI** with flag-based syntax and validation
+- Cross-platform:                Native binaries for Linux, macOS, and Windows (AMD64/ARM64)
+- Interactive fuzzy finder:      Real-time instance selection with keyboard navigation
+- Secure AWS SSO authentication: Built-in session caching for streamlined logins
+- Smart operations:              OS detection and automatic command adaptation
+- S3-backed file transfers:      Integrated lifecycle management for uploads and downloads
+- Tag-based automation:          Multi-instance and multi-region control through AWS tags
+- Professional logging:          Thread-safe, structured, and easily filterable logs
+- Modern CLI:                    Clean flag-based syntax with built-in validation and help support
 
 
 2. Installation & Setup
@@ -103,7 +103,7 @@ Move-Item "$env:TEMP\ztictl.exe" "$env:USERPROFILE\Tools\ztictl.exe"
 [Environment]::SetEnvironmentVariable("PATH", "$env:PATH;$env:USERPROFILE\Tools", "User")
 ztictl --version
 
-💬 “Installation is one command across all platforms — no dependency hell, no setup pain.”
+ “Installation is one command across all platforms — no dependency hell, no setup pain.”
 
 
 3. Configuration & Authentication
@@ -120,11 +120,11 @@ Checks required components (AWS CLI, SSM plugin)
 Prompts for SSO login with interactive account/role selection
 Stores temporary credentials securely
 
-💬 “Unlike the AWS CLI, ZTiAWS provides a guided SSO flow that securely manages temporary credentials and IAM role selection.”
+ “Unlike the AWS CLI, ZTiAWS provides a guided SSO flow that securely manages temporary credentials and IAM role selection.”
 
 4. Use Cases — Demonstration Scenarios
 
-🧩 Use Case 1: List and Connect to EC2 Instances
+ Use Case 1: List and Connect to EC2 Instances
 ztictl ssm list --region ca-central-1
 ztictl ssm connect --region ca-central-1
 
@@ -136,7 +136,7 @@ Benefit:
 Fast, secure access with zero SSH key management.
 
 
-⚙️ Use Case 2: Execute Cross-Platform Commands
+ Use Case 2: Execute Cross-Platform Commands
 # Linux Instance
 ztictl ssm exec ca-central-1 i-linux123 "uname -a"
 
@@ -147,7 +147,7 @@ Benefit:
 Runs OS-specific commands automatically using Bash or PowerShell — no manual detection needed.
 
 
-🌎 Use Case 3: Multi-Region and Tag-Based Operations
+ Use Case 3: Multi-Region and Tag-Based Operations
 ztictl ssm exec-tagged us-east-1 --tags Environment=prod,Role=web "df -h"
 ztictl ssm exec-multi ca-central-1,us-east-1,eu-west-1 --tags "App=web" "uptime"
 
@@ -155,7 +155,7 @@ Benefit:
 Execute parallel commands across multiple regions and tagged instances with a single command.
 
 
-📦 Use Case 4: Smart File Transfers
+ Use Case 4: Smart File Transfers
 # Upload to remote instance
 ztictl ssm transfer upload i-linux123 ./config.txt /etc/app/config.txt
 
@@ -166,7 +166,7 @@ Benefit:
 Automatic S3 routing for large files with secure lifecycle cleanup.
 
 
-🔋 Use Case 5: Instance Power Management
+ Use Case 5: Instance Power Management
 ztictl ssm start-tagged --tags "AutoStart=true" --region euw1
 ztictl ssm stop-tagged --tags "Environment=dev" --region cac1
 
@@ -181,7 +181,7 @@ Start or stop multiple EC2 instances by tag or environment from a single termina
 ---
 
 
-## 🧪 Demo Walkthrough (ZTiAWS Setup & Validation)
+## Demo Walkthrough (ZTiAWS Setup & Validation)
 
 Below are the step-by-step screenshots showing installation, configuration, and usage.
 
@@ -250,21 +250,18 @@ Below are the step-by-step screenshots showing installation, configuration, and 
 
 
 ---
-💼 Business Value & Impact
+ Business Value & Impact
 
 ZTiAWS isn’t just a CLI tool — it’s a productivity multiplier for DevOps and cloud engineering teams.
 
 By simplifying AWS operations through automation and smart defaults, ZTiAWS helps organizations:
 
-⏱️ Reduce cloud operation time — connect, execute, and transfer in seconds.
+- **Reduce cloud operation time** — connect, execute, and transfer in seconds.  
+- **Focus on automation, not syntax** — less time memorizing CLI commands, more time building.  
+- **Enforce secure access by design** — integrates with AWS CLI or SSO, reducing IAM key exposure.  
+- **Manage multi-account environments easily** — handle multiple regions and infrastructures via tags.  
+- **Accelerate onboarding for new engineers** — interact with AWS safely without deep CLI experience.  
 
-🧠 Focus on automation, not syntax — less time memorizing CLI commands, more time building.
-
-🛡️ Enforce secure access by design — integrates with AWS CLI or SSO, reducing IAM key exposure.
-
-🌐 Manage multi-account environments easily — handle multiple regions and infrastructures via tags.
-
-🤝 Accelerate onboarding for new engineers — interact with AWS safely without deep CLI experience.
 
 Adoption Insight:
 Used internally at ZSoftly by engineering teams managing multi-account AWS environments — proving its reliability and real-world value.
@@ -282,7 +279,7 @@ Summary of Benefits
 | Power Control    | Console or SDK      | Tag-based automation          |
 
 
-🧩 Conclusion
+ Conclusion
 
 ZTiAWS is more than a utility — it’s a productivity framework for modern AWS operations.
 
@@ -301,7 +298,7 @@ ZTIAWS — Simplify AWS. Amplify Productivity.
 Repository: https://github.com/zsoftly/ztiaws
 
 
-🧱 Recommended Next Steps
+ Recommended Next Steps
 1. Clone the repository.
 2. Follow this demo to install and test ZTiAWS locally.
 3. Share feedback via the #ztiaws engineering channel.
