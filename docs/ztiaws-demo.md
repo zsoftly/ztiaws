@@ -35,6 +35,7 @@ With ZTiAWS, repetitive tasks like starting SSM sessions, transferring files, or
 **In short:**  
 ZTiAWS helps organizations **reduce cloud operation time**, **enforce secure access by default**, and **improve the developer experience** — without requiring deep CLI expertise.  
 
+
 ---
 
 
@@ -64,20 +65,24 @@ This demo introduces **ZTiAWS end-to-end**, covering:
 
 ---
 
+
 ## 1️. Introduction  
 
 ZTiAWS was built to make AWS management **faster, safer, and simpler.**  
 It reduces the friction of using the AWS CLI by abstracting complex commands into clear, human-friendly operations.
 
 **Example:**  
+
 ```bash
 # Traditional AWS CLI
 aws ssm start-session --target i-1234567890abcdef0
 
 # With ZTiAWS
 ztictl ssm connect i-1234567890abcdef0
+```
 
-## Key Features
+
+Key Features
 
 - Cross-platform:                Native binaries for Linux, macOS, and Windows (AMD64/ARM64)
 - Interactive fuzzy finder:      Real-time instance selection with keyboard navigation
@@ -89,29 +94,41 @@ ztictl ssm connect i-1234567890abcdef0
 - Modern CLI:                    Clean flag-based syntax with built-in validation and help support
 
 
-2. Installation & Setup
+
+## 2. Installation & Setup
 
 Linux / macOS
+
+```bash
 curl -L -o /tmp/ztictl \
 "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')" \
 && chmod +x /tmp/ztictl && sudo mv /tmp/ztictl /usr/local/bin/ztictl && ztictl --version
+```
 
 Windows (PowerShell)
+```bash
 Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.exe" -OutFile "$env:TEMP\ztictl.exe"
 New-Item -ItemType Directory -Force "$env:USERPROFILE\Tools" | Out-Null
 Move-Item "$env:TEMP\ztictl.exe" "$env:USERPROFILE\Tools\ztictl.exe"
 [Environment]::SetEnvironmentVariable("PATH", "$env:PATH;$env:USERPROFILE\Tools", "User")
 ztictl --version
+```
 
  “Installation is one command across all platforms — no dependency hell, no setup pain.”
 
 
-3. Configuration & Authentication
-Step 1 — Initialize Configuration
+
+
+## 3. Configuration & Authentication
+
+### Step 1 — Initialize Configuration
+
+```bash
 ztictl config init --interactive
 ztictl config check --fix
+```
 
-Step 2 — Authenticate via AWS SSO
+### Step 2 — Authenticate via AWS SSO
 ztictl auth login
 
 ✅ Automatically:
@@ -122,11 +139,15 @@ Stores temporary credentials securely
 
  “Unlike the AWS CLI, ZTiAWS provides a guided SSO flow that securely manages temporary credentials and IAM role selection.”
 
-4. Use Cases — Demonstration Scenarios
 
- Use Case 1: List and Connect to EC2 Instances
+## 4. Use Cases — Demonstration Scenarios
+
+### Use Case 1: List and Connect to EC2 Instances
+
+```bash
 ztictl ssm list --region ca-central-1
 ztictl ssm connect --region ca-central-1
+```
 
 Highlights:
 Interactive fuzzy finder for instance selection
@@ -136,47 +157,54 @@ Benefit:
 Fast, secure access with zero SSH key management.
 
 
- Use Case 2: Execute Cross-Platform Commands
-# Linux Instance
+### Use Case 2: Execute Cross-Platform Commands
+### Linux Instance
+```bash
 ztictl ssm exec ca-central-1 i-linux123 "uname -a"
-
-# Windows Instance
+```
+### Windows Instance
+``` bash
 ztictl ssm exec ca-central-1 i-windows456 "Get-ComputerInfo"
+```
 
 Benefit:
 Runs OS-specific commands automatically using Bash or PowerShell — no manual detection needed.
 
 
- Use Case 3: Multi-Region and Tag-Based Operations
+### Use Case 3: Multi-Region and Tag-Based Operations
+```bash
 ztictl ssm exec-tagged us-east-1 --tags Environment=prod,Role=web "df -h"
 ztictl ssm exec-multi ca-central-1,us-east-1,eu-west-1 --tags "App=web" "uptime"
+```
 
 Benefit:
 Execute parallel commands across multiple regions and tagged instances with a single command.
 
 
- Use Case 4: Smart File Transfers
-# Upload to remote instance
-ztictl ssm transfer upload i-linux123 ./config.txt /etc/app/config.txt
+### Use Case 4: Smart File Transfers
 
-# Download logs
+### Upload to remote instance
+```bash
+ztictl ssm transfer upload i-linux123 ./config.txt /etc/app/config.txt
+```
+
+### Download logs
+```bash
 ztictl ssm transfer download i-windows456 C:\logs\sys.log ./sys.log
+```
 
 Benefit:
 Automatic S3 routing for large files with secure lifecycle cleanup.
 
 
- Use Case 5: Instance Power Management
+### Use Case 5: Instance Power Management
+```bash
 ztictl ssm start-tagged --tags "AutoStart=true" --region euw1
 ztictl ssm stop-tagged --tags "Environment=dev" --region cac1
+```
 
 Benefit:
 Start or stop multiple EC2 instances by tag or environment from a single terminal command.
-
-
-
-```
-
 
 ---
 
@@ -266,7 +294,7 @@ By simplifying AWS operations through automation and smart defaults, ZTiAWS help
 Adoption Insight:
 Used internally at ZSoftly by engineering teams managing multi-account AWS environments — proving its reliability and real-world value.
 
-```
+
 
 Summary of Benefits
 | Feature          | Traditional AWS CLI | With ZTiAWS                   |
@@ -279,7 +307,9 @@ Summary of Benefits
 | Power Control    | Console or SDK      | Tag-based automation          |
 
 
- Conclusion
+---
+
+## Conclusion
 
 ZTiAWS is more than a utility — it’s a productivity framework for modern AWS operations.
 
@@ -297,11 +327,14 @@ ZTIAWS — Simplify AWS. Amplify Productivity.
 
 Repository: https://github.com/zsoftly/ztiaws
 
+---
 
- Recommended Next Steps
+## Recommended Next Steps
 1. Clone the repository.
 2. Follow this demo to install and test ZTiAWS locally.
 3. Share feedback via the #ztiaws engineering channel.
 4. (Optional) Contribute new regions or commands via PR.
 
-End of Document
+
+
+ End of Document
