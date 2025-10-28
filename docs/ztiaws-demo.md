@@ -66,7 +66,7 @@ This demo introduces **ZTiAWS end-to-end**, covering:
 ---
 
 
-## 1️. Introduction  
+## 1. Introduction   
 
 ZTiAWS was built to make AWS management **faster, safer, and simpler.**  
 It reduces the friction of using the AWS CLI by abstracting complex commands into clear, human-friendly operations.
@@ -215,47 +215,47 @@ Below are the step-by-step screenshots showing installation, configuration, and 
 
 
 
-### 1️. Installing ZTiAWS CLI (ztictl)
+### 1. Installing ZTiAWS CLI (ztictl)
 ![Installing ztictl](./images/01-installing-ztictl.png)
 
 
 
-### 2️. Initialize Configuration
+### 2. Initialize Configuration
 ![Initialize Configuration](./images/02-initialize-configuration.png)
 
 
 
 
-### 3️. Configuration Verification
+### 3. Configuration Verification
 ![Configuration](./images/03-configuration.png)
 
 
 
-### 4️. Confirm SSM Connection to EC2
+### 4. Confirm SSM Connection to EC2
 ![Confirm SSM EC2](./images/04-confirm-ssm-ec2.png)
 
 
 
-### 5️. List EC2 Instances
+### 5. List EC2 Instances
 ![List Instances](./images/05-list-instances.png)
 
 
 
-### 6️. AWS Console — SSM Managed Instance
+### 6. AWS Console — SSM Managed Instance
 ![SSM Managed Instance](./images/06-ssm-with-managed-instance.png)
 
 
 
-### 7️. ZTiAWS Connect to EC2
+### 7. ZTiAWS Connect to EC2
 ![ztictl SSM Connect](./images/07-ztictl-ssm-connect-ec2.png)
 
 
-### 8️. Using Connect and Exec Commands
+### 8. Using Connect and Exec Commands
 ![Connect and Exec](./images/08-connect-and-exec-commands.png)
 
 
 
-### 9️. Executing Commands Remotely
+### 9. Executing Commands Remotely
 ![Exec Command](./images/09-exec-command.png)
 
 
@@ -265,12 +265,12 @@ Below are the step-by-step screenshots showing installation, configuration, and 
 
 
 
-### 11️. Creating Folder and File
+### 11. Creating Folder and File
 ![Creating Folder and File](./images/11-creating-folder-file.png)
 
 
 
-### 12️. Uploading Local File to EC2
+### 12. Uploading Local File to EC2
 ![Upload Local File](./images/12-uploading-local-to-ec2-file.png)
 
 
