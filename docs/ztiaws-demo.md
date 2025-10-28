@@ -105,8 +105,8 @@ curl -L -o /tmp/ztictl \
 && chmod +x /tmp/ztictl && sudo mv /tmp/ztictl /usr/local/bin/ztictl && ztictl --version
 ```
 
-Windows (PowerShell)
-```bash
+Windows
+```powershell
 Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.exe" -OutFile "$env:TEMP\ztictl.exe"
 New-Item -ItemType Directory -Force "$env:USERPROFILE\Tools" | Out-Null
 Move-Item "$env:TEMP\ztictl.exe" "$env:USERPROFILE\Tools\ztictl.exe"
@@ -129,7 +129,10 @@ ztictl config check --fix
 ```
 
 ### Step 2 — Authenticate via AWS SSO
+
+```bash
 ztictl auth login
+```
 
 ✅ Automatically:
 
@@ -163,7 +166,7 @@ Fast, secure access with zero SSH key management.
 ztictl ssm exec ca-central-1 i-linux123 "uname -a"
 ```
 ### Windows Instance
-``` bash
+``` powershell
 ztictl ssm exec ca-central-1 i-windows456 "Get-ComputerInfo"
 ```
 
