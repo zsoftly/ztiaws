@@ -1344,3 +1344,79 @@ func TestRemoveExitCodeLine(t *testing.T) {
 		})
 	}
 }
+
+func TestConcurrentInitializePlatformComponents(t *testing.T) {
+	logger := logging.NewNoOpLogger()
+	manager := NewManager(logger)
+	ctx := context.Background()
+	region := "us-east-1"
+
+	const numGoroutines = 50
+	done := make(chan error, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			done <- manager.initializePlatformComponents(ctx, region)
+		}()
+	}
+
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
+
+	if manager.platformDetector == nil && manager.builderManager == nil {
+		t.Skip("Platform components not initialized (expected without platform detection)")
+	}
+}
+
+func TestConcurrentInitializeManagers(t *testing.T) {
+	logger := logging.NewNoOpLogger()
+	manager := NewManager(logger)
+	ctx := context.Background()
+	region := "us-east-1"
+
+	const numGoroutines = 50
+	done := make(chan error, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			done <- manager.initializeManagers(ctx, region)
+		}()
+	}
+
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
+
+	if manager.iamManager == nil && manager.s3LifecycleManager == nil {
+		t.Skip("Managers not initialized (expected without AWS configuration)")
+	}
+}
+
+func TestConcurrentMixedInitialization(t *testing.T) {
+	logger := logging.NewNoOpLogger()
+	manager := NewManager(logger)
+	ctx := context.Background()
+	region := "us-east-1"
+
+	const numGoroutines = 100
+	done := make(chan error, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		if i%2 == 0 {
+			go func() {
+				done <- manager.initializePlatformComponents(ctx, region)
+			}()
+		} else {
+			go func() {
+				done <- manager.initializeManagers(ctx, region)
+			}()
+		}
+	}
+
+	for i := 0; i < numGoroutines; i++ {
+		<-done
+	}
+
+	t.Log("Concurrent mixed initialization completed without race conditions")
+}

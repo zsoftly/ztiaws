@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	appconfig "ztictl/internal/config"
@@ -38,8 +39,9 @@ var (
 
 // Manager handles AWS Systems Manager operations
 type Manager struct {
+	mu                 sync.Mutex
 	logger             *logging.Logger
-	instanceService    *awsservice.InstanceService // Add this
+	instanceService    *awsservice.InstanceService
 	iamManager         *IAMManager
 	s3LifecycleManager *S3LifecycleManager
 	platformDetector   *platform.Detector
@@ -139,11 +141,13 @@ func (m *Manager) StartSession(ctx context.Context, instanceIdentifier, region s
 
 // initializePlatformComponents initializes platform detection components if not already done
 func (m *Manager) initializePlatformComponents(ctx context.Context, region string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.platformDetector != nil && m.builderManager != nil {
-		return nil // Already initialized
+		return nil
 	}
 
-	// Get clients from pool
 	ssmClient, ec2Client, err := m.clientPool.GetPlatformClients(ctx, region)
 	if err != nil {
 		return fmt.Errorf("failed to get AWS clients from pool: %w", err)
@@ -170,21 +174,29 @@ func getAWSCommand() string {
 
 // initializeManagers initializes the IAM and S3 lifecycle managers
 func (m *Manager) initializeManagers(ctx context.Context, region string) error {
-	// Get clients from pool
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.iamManager != nil && m.s3LifecycleManager != nil {
+		return nil
+	}
+
 	clients, err := m.clientPool.GetClients(ctx, region)
 	if err != nil {
 		return fmt.Errorf("failed to get AWS clients from pool: %w", err)
 	}
 
-	// Initialize IAM manager
-	iamManager, err := NewIAMManager(m.logger, clients.IAMClient, clients.EC2Client)
-	if err != nil {
-		return fmt.Errorf("failed to create IAM manager: %w", err)
+	if m.iamManager == nil {
+		iamManager, err := NewIAMManager(m.logger, clients.IAMClient, clients.EC2Client)
+		if err != nil {
+			return fmt.Errorf("failed to create IAM manager: %w", err)
+		}
+		m.iamManager = iamManager
 	}
-	m.iamManager = iamManager
 
-	// Initialize S3 lifecycle manager
-	m.s3LifecycleManager = NewS3LifecycleManager(m.logger, clients.S3Client, clients.STSClient)
+	if m.s3LifecycleManager == nil {
+		m.s3LifecycleManager = NewS3LifecycleManager(m.logger, clients.S3Client, clients.STSClient)
+	}
 
 	return nil
 }
@@ -567,7 +579,7 @@ func removeExitCodeLine(output string) string {
 	}
 
 	lines := strings.Split(output, "\n")
-	var filteredLines []string
+	filteredLines := make([]string, 0, len(lines))
 
 	for _, line := range lines {
 		// Skip lines that start with EXIT_CODE:

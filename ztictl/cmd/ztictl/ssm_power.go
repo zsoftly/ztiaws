@@ -170,7 +170,7 @@ Examples:
 
 		// Execute power operations in parallel
 		startTime := time.Now()
-		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "start", parallelFlag)
+		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "start", parallelFlag, region)
 		totalDuration := time.Since(startTime)
 
 		// Process and display results
@@ -248,7 +248,7 @@ Examples:
 
 		// Execute power operations in parallel
 		startTime := time.Now()
-		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "stop", parallelFlag)
+		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "stop", parallelFlag, region)
 		totalDuration := time.Since(startTime)
 
 		// Process and display results
@@ -326,7 +326,7 @@ Examples:
 
 		// Execute power operations in parallel
 		startTime := time.Now()
-		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "reboot", parallelFlag)
+		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "reboot", parallelFlag, region)
 		totalDuration := time.Since(startTime)
 
 		// Process and display results
@@ -368,7 +368,7 @@ func performPowerOperation(args []string, regionCode, instancesFlag string, para
 		}
 
 		startTime := time.Now()
-		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, operation, parallelFlag)
+		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, operation, parallelFlag, region)
 		totalDuration := time.Since(startTime)
 		return displayPowerOperationResults(results, operation, totalDuration, parallelFlag)
 	}
@@ -509,7 +509,9 @@ func getInstanceIDsByTags(ctx context.Context, awsClient *aws.Client, tagsFlag s
 }
 
 // executePowerOperationParallel runs power operations in parallel across multiple instances
-func executePowerOperationParallel(ctx context.Context, awsClient *aws.Client, instanceIDs []string, operation string, maxParallel int) []PowerOperationResult {
+func executePowerOperationParallel(ctx context.Context, awsClient *aws.Client, instanceIDs []string, operation string, maxParallel int, region string) []PowerOperationResult {
+	ssmManager := ssm.NewManager(logger)
+
 	// Create channels for work distribution and result collection
 	instanceChan := make(chan string, len(instanceIDs))
 	resultChan := make(chan PowerOperationResult, len(instanceIDs))
@@ -531,21 +533,42 @@ func executePowerOperationParallel(ctx context.Context, awsClient *aws.Client, i
 				logging.LogInfo("Executing %s operation on instance %s", operation, instanceID)
 
 				var err error
+
+				// Validate instance state before attempting operation
+				requirements := InstanceValidationRequirements{
+					RequireSSMOnline: false,
+					Operation:        operation,
+				}
 				switch operation {
 				case "start":
-					_, err = awsClient.EC2.StartInstances(ctx, &ec2.StartInstancesInput{
-						InstanceIds: []string{instanceID},
-					})
-				case "stop":
-					_, err = awsClient.EC2.StopInstances(ctx, &ec2.StopInstancesInput{
-						InstanceIds: []string{instanceID},
-					})
-				case "reboot":
-					_, err = awsClient.EC2.RebootInstances(ctx, &ec2.RebootInstancesInput{
-						InstanceIds: []string{instanceID},
-					})
+					requirements.AllowedStates = []string{"stopped"}
+				case "stop", "reboot":
+					requirements.AllowedStates = []string{"running"}
 				default:
 					err = fmt.Errorf("unknown operation: %s", operation)
+				}
+
+				// Only proceed with validation and operation if no error yet
+				if err == nil {
+					err = ValidateInstanceState(ctx, ssmManager, instanceID, region, requirements)
+				}
+
+				// Execute power operation only if validation passed
+				if err == nil {
+					switch operation {
+					case "start":
+						_, err = awsClient.EC2.StartInstances(ctx, &ec2.StartInstancesInput{
+							InstanceIds: []string{instanceID},
+						})
+					case "stop":
+						_, err = awsClient.EC2.StopInstances(ctx, &ec2.StopInstancesInput{
+							InstanceIds: []string{instanceID},
+						})
+					case "reboot":
+						_, err = awsClient.EC2.RebootInstances(ctx, &ec2.RebootInstancesInput{
+							InstanceIds: []string{instanceID},
+						})
+					}
 				}
 
 				duration := time.Since(startTime)
@@ -567,7 +590,7 @@ func executePowerOperationParallel(ctx context.Context, awsClient *aws.Client, i
 	}()
 
 	// Collect all results
-	var results []PowerOperationResult
+	results := make([]PowerOperationResult, 0, len(instanceIDs))
 	for result := range resultChan {
 		results = append(results, result)
 	}
