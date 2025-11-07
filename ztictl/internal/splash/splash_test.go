@@ -28,34 +28,35 @@ func TestShowSplash(t *testing.T) {
 		_ = os.Setenv("USERPROFILE", tempDir) // #nosec G104
 	}
 
-	// Test first run - should return true (splash shown)
+	// When running tests, there's no terminal attached, so splash should not be shown
+	// This tests that the function correctly detects non-terminal environments
 	shown, err := ShowSplash("2.1.0-test")
 	if err != nil {
 		t.Fatalf("ShowSplash failed: %v", err)
 	}
 
-	if !shown {
-		t.Error("Expected splash to be shown on first run")
+	if shown {
+		t.Error("Expected splash NOT to be shown in non-terminal environment (test)")
 	}
 
-	// Test subsequent run with same version - should return false
+	// Verify it consistently returns false in non-terminal environments
 	shown, err = ShowSplash("2.1.0-test")
 	if err != nil {
 		t.Fatalf("ShowSplash failed on second call: %v", err)
 	}
 
 	if shown {
-		t.Error("Expected splash NOT to be shown on subsequent run with same version")
+		t.Error("Expected splash NOT to be shown on subsequent run in non-terminal environment")
 	}
 
-	// Test with new version - should return true
+	// Even with a new version, splash should not be shown in non-terminal environments
 	shown, err = ShowSplash("2.2.0-test")
 	if err != nil {
 		t.Fatalf("ShowSplash failed with new version: %v", err)
 	}
 
-	if !shown {
-		t.Error("Expected splash to be shown with new version")
+	if shown {
+		t.Error("Expected splash NOT to be shown with new version in non-terminal environment")
 	}
 }
 

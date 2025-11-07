@@ -1,10 +1,12 @@
 package version
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,6 +18,8 @@ const (
 	githubAPIURL    = "https://api.github.com/repos/zsoftly/ztiaws/releases/latest"
 	cacheExpiration = 24 * time.Hour
 	installDocsURL  = "https://github.com/zsoftly/ztiaws/blob/main/INSTALLATION.md"
+	maxRetries      = 3
+	retryDelay      = 1 * time.Second
 )
 
 type GitHubRelease struct {
@@ -30,40 +34,111 @@ type VersionCache struct {
 
 // CheckLatestVersion checks if there's a newer version available
 func CheckLatestVersion(currentVersion string) (isOutdated bool, latestVersion string, err error) {
+	// Check if version check is explicitly disabled
+	if os.Getenv("ZTICTL_SKIP_VERSION_CHECK") == "true" {
+		return false, "", fmt.Errorf("version check disabled by ZTICTL_SKIP_VERSION_CHECK")
+	}
+
 	// Try to get from cache first
 	cached, err := getFromCache()
 	if err == nil && time.Since(cached.CheckedAt) < cacheExpiration {
 		return compareVersions(currentVersion, cached.LatestVersion), cached.LatestVersion, nil
 	}
 
-	// Fetch from GitHub API
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(githubAPIURL)
-	if err != nil {
-		return false, "", err
+	// Fetch from GitHub API with retry logic
+	client := createHTTPClient()
+
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			time.Sleep(retryDelay * time.Duration(attempt))
+		}
+
+		req, err := http.NewRequest("GET", githubAPIURL, nil)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+
+		// Add GitHub token authentication if available (increases rate limit from 60 to 5000/hour)
+		if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+			req.Header.Set("Authorization", "token "+token)
+		}
+
+		// Set User-Agent to identify the client
+		req.Header.Set("User-Agent", "ztictl-version-checker")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("network request failed (attempt %d/%d): %w", attempt+1, maxRetries, err)
+			continue
+		}
+
+		// Handle response
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if err != nil {
+			lastErr = fmt.Errorf("failed to read response: %w", err)
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("GitHub API returned status %d: %s", resp.StatusCode, string(body))
+			// Don't retry on client errors (4xx)
+			if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+				break
+			}
+			continue
+		}
+
+		var release GitHubRelease
+		if err := json.Unmarshal(body, &release); err != nil {
+			lastErr = fmt.Errorf("failed to parse response: %w", err)
+			continue
+		}
+
+		latestVersion = strings.TrimPrefix(release.TagName, "v")
+
+		// Cache the result
+		_ = saveToCache(latestVersion)
+
+		return compareVersions(currentVersion, latestVersion), latestVersion, nil
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return false, "", fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+	return false, "", lastErr
+}
+
+// createHTTPClient creates an HTTP client configured for production environments
+func createHTTPClient() *http.Client {
+	// Create transport with proxy support
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment, // Respects HTTP_PROXY, HTTPS_PROXY, NO_PROXY
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12, // Use TLS 1.2 or higher
+		},
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return false, "", err
+	// SECURITY WARNING: This option disables TLS certificate verification and makes
+	// connections vulnerable to man-in-the-middle (MITM) attacks. Only use this in
+	// trusted corporate environments with custom certificate authorities where you
+	// cannot install the CA certificates. This should NEVER be used in production
+	// without understanding the security implications.
+	if os.Getenv("ZTICTL_INSECURE_SKIP_VERIFY") == "true" {
+		transport.TLSClientConfig.InsecureSkipVerify = true
 	}
 
-	var release GitHubRelease
-	if err := json.Unmarshal(body, &release); err != nil {
-		return false, "", err
+	// Support custom proxy configuration
+	if proxyURL := os.Getenv("ZTICTL_HTTPS_PROXY"); proxyURL != "" {
+		if proxy, err := url.Parse(proxyURL); err == nil {
+			transport.Proxy = http.ProxyURL(proxy)
+		}
 	}
 
-	latestVersion = strings.TrimPrefix(release.TagName, "v")
-
-	// Cache the result
-	_ = saveToCache(latestVersion)
-
-	return compareVersions(currentVersion, latestVersion), latestVersion, nil
+	return &http.Client{
+		Timeout:   10 * time.Second, // Increased timeout for production networks
+		Transport: transport,
+	}
 }
 
 // compareVersions returns true if current is older than latest
@@ -178,12 +253,32 @@ func PrintVersionWithCheck(currentVersion string) {
 
 	isOutdated, latestVersion, err := CheckLatestVersion(currentVersion)
 	if err != nil {
-		// Silently ignore errors - don't interrupt version output
+		// Show error in debug mode or if explicitly requested
+		if os.Getenv("ZTICTL_DEBUG") == "true" || os.Getenv("ZTICTL_VERBOSE_VERSION") == "true" {
+			fmt.Fprintf(os.Stderr, "\n[WARN] Version check failed: %v\n", err)
+			fmt.Fprintf(os.Stderr, "       This is normal in restricted network environments.\n")
+			fmt.Fprintf(os.Stderr, "       To disable this check, set: ZTICTL_SKIP_VERSION_CHECK=true\n")
+
+			// Provide helpful hints for common issues
+			if strings.Contains(err.Error(), "network request failed") {
+				fmt.Fprintf(os.Stderr, "\n[INFO] Troubleshooting tips:\n")
+				fmt.Fprintf(os.Stderr, "       - Check network connectivity to api.github.com\n")
+				fmt.Fprintf(os.Stderr, "       - Configure proxy: export HTTPS_PROXY=http://proxy:port\n")
+				fmt.Fprintf(os.Stderr, "       - Or use: export ZTICTL_HTTPS_PROXY=http://proxy:port\n")
+				fmt.Fprintf(os.Stderr, "       - For corporate proxies with custom certs: export ZTICTL_INSECURE_SKIP_VERIFY=true\n")
+				fmt.Fprintf(os.Stderr, "       - Authenticate to GitHub: export GITHUB_TOKEN=your_token\n")
+			}
+		}
 		return
 	}
 
 	if isOutdated {
-		fmt.Printf("\nYour version of ztictl is out of date! The latest version\n")
-		fmt.Printf("is %s. You can update by downloading from %s\n", latestVersion, installDocsURL)
+		fmt.Printf("\n[WARN] Update Available: %s -> %s\n", currentVersion, latestVersion)
+		fmt.Printf("[INFO] Download: %s\n", installDocsURL)
+	} else {
+		// Only show "up to date" message in verbose mode
+		if os.Getenv("ZTICTL_VERBOSE_VERSION") == "true" {
+			fmt.Printf("\n[OK] You are using the latest version!\n")
+		}
 	}
 }

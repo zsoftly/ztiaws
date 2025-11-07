@@ -10,6 +10,7 @@ import (
 	"ztictl/pkg/security"
 
 	"github.com/fatih/color"
+	"golang.org/x/term"
 )
 
 const (
@@ -42,8 +43,44 @@ type SplashConfig struct {
 	IsNewVersion bool
 }
 
+// isCI detects if running in a CI/CD environment
+func isCI() bool {
+	ciEnvVars := []string{
+		"CI",                     // Generic CI indicator
+		"GITHUB_ACTIONS",         // GitHub Actions
+		"GITLAB_CI",              // GitLab CI
+		"JENKINS_HOME",           // Jenkins
+		"JENKINS_URL",            // Jenkins
+		"CIRCLECI",               // CircleCI
+		"TRAVIS",                 // Travis CI
+		"BUILDKITE",              // Buildkite
+		"DRONE",                  // Drone CI
+		"TF_BUILD",               // Azure Pipelines
+		"CODEBUILD_BUILD_ID",     // AWS CodeBuild
+		"ZTICTL_NON_INTERACTIVE", // Explicit non-interactive mode
+	}
+
+	for _, envVar := range ciEnvVars {
+		if os.Getenv(envVar) != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isTerminal checks if stdin is connected to a terminal
+func isTerminal() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
 // ShowSplash displays the welcome splash screen if appropriate
 func ShowSplash(version string) (bool, error) {
+	// Never show splash in CI/CD environments or when not connected to a terminal
+	if isCI() || !isTerminal() {
+		return false, nil
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return false, fmt.Errorf("failed to get home directory: %w", err)
@@ -56,12 +93,13 @@ func ShowSplash(version string) (bool, error) {
 		return false, fmt.Errorf("invalid version file path: %w", err)
 	}
 
-	// Check if this is first run or new version
+	// Check if this is first run
 	isFirstRun := false
-	isNewVersion := false
+	shouldUpdateVersionFile := false
 
 	if _, err := os.Stat(versionFile); os.IsNotExist(err) {
 		isFirstRun = true
+		shouldUpdateVersionFile = true
 	} else {
 		// Read the last version (path already validated above)
 		lastVersionBytes, err := os.ReadFile(versionFile) // #nosec G304
@@ -71,18 +109,18 @@ func ShowSplash(version string) (bool, error) {
 
 		lastVersion := strings.TrimSpace(string(lastVersionBytes))
 		if lastVersion != version {
-			isNewVersion = true
+			shouldUpdateVersionFile = true
 		}
 	}
 
-	// Show splash if first run or new version
-	if isFirstRun || isNewVersion {
+	// Show splash ONLY on first installation
+	if isFirstRun {
 		config := SplashConfig{
 			AppVersion:   version,
 			AppName:      "ztictl",
 			Description:  "Unified AWS SSO & Systems Manager CLI",
-			IsFirstRun:   isFirstRun,
-			IsNewVersion: isNewVersion,
+			IsFirstRun:   true,
+			IsNewVersion: false,
 			Features: []string{
 				"⚡ EC2 Power Management - Start/Stop/Reboot instances individually or in bulk",
 				"🏷️  Advanced Tag-Based Operations - Target multiple instances with flexible filtering",
@@ -96,16 +134,17 @@ func ShowSplash(version string) (bool, error) {
 		}
 
 		displaySplash(config)
+		shouldUpdateVersionFile = true
+	}
 
-		// Update version tracking file
+	// Update version tracking file silently for version tracking
+	if shouldUpdateVersionFile {
 		if err := os.WriteFile(versionFile, []byte(version), 0600); err != nil {
 			return false, fmt.Errorf("failed to write version file: %w", err)
 		}
-
-		return true, nil
 	}
 
-	return false, nil
+	return isFirstRun, nil
 }
 
 // displaySplash renders the colored splash screen
@@ -131,15 +170,10 @@ func displaySplash(config SplashConfig) {
 	_, _ = versionColor.Printf("v%s\n", config.AppVersion)  // #nosec G104
 	_, _ = descColor.Printf("  %s\n\n", config.Description) // #nosec G104
 
-	// Welcome message
-	if config.IsFirstRun {
-		_, _ = headerColor.Println("  🎉 Welcome to ztictl!")                        // #nosec G104
-		_, _ = descColor.Println("  Small commands, powerful AWS transformations.") // #nosec G104
-		fmt.Println("  Let's get you set up with everything you need.")
-	} else if config.IsNewVersion {
-		_, _ = headerColor.Printf("  ✨ ztictl v%s is ready!\n", config.AppVersion) // #nosec G104
-		_, _ = descColor.Println("  Small updates, big improvements.")             // #nosec G104
-	}
+	// Welcome message (splash only shown on first installation)
+	_, _ = headerColor.Println("  🎉 Welcome to ztictl!")                        // #nosec G104
+	_, _ = descColor.Println("  Small commands, powerful AWS transformations.") // #nosec G104
+	fmt.Println("  Let's get you set up with everything you need.")
 
 	// Feature showcase
 	fmt.Println()
@@ -155,24 +189,17 @@ func displaySplash(config SplashConfig) {
 	_, _ = headerColor.Println("  🚀 Quick Start Guide:")       // #nosec G104
 	_, _ = headerColor.Println("  " + strings.Repeat("═", 25)) // #nosec G104
 
-	if config.IsFirstRun {
-		_, _ = accentColor.Println("    1. Configure your settings:") // #nosec G104
-		fmt.Println("       ztictl config init")
-		fmt.Println()
-		_, _ = accentColor.Println("    2. Check system requirements:") // #nosec G104
-		fmt.Println("       ztictl config check")
-		fmt.Println()
-		_, _ = accentColor.Println("    3. Authenticate with AWS SSO:") // #nosec G104
-		fmt.Println("       ztictl auth login")
-		fmt.Println()
-		_, _ = accentColor.Println("    4. List your EC2 instances:") // #nosec G104
-		fmt.Println("       ztictl ssm list")
-	} else {
-		_, _ = accentColor.Println("    • View help:           ztictl --help")      // #nosec G104
-		_, _ = accentColor.Println("    • Check configuration: ztictl config show") // #nosec G104
-		_, _ = accentColor.Println("    • Login to AWS:        ztictl auth login")  // #nosec G104
-		_, _ = accentColor.Println("    • List instances:      ztictl ssm list")    // #nosec G104
-	}
+	_, _ = accentColor.Println("    1. Configure your settings:") // #nosec G104
+	fmt.Println("       ztictl config init")
+	fmt.Println()
+	_, _ = accentColor.Println("    2. Check system requirements:") // #nosec G104
+	fmt.Println("       ztictl config check")
+	fmt.Println()
+	_, _ = accentColor.Println("    3. Authenticate with AWS SSO:") // #nosec G104
+	fmt.Println("       ztictl auth login")
+	fmt.Println()
+	_, _ = accentColor.Println("    4. List your EC2 instances:") // #nosec G104
+	fmt.Println("       ztictl ssm list")
 
 	// Footer
 	fmt.Println()
@@ -187,15 +214,15 @@ func displaySplash(config SplashConfig) {
 	animateMessage("  🎯" + strings.Repeat("═", 56) + "🎯")
 	fmt.Println()
 
-	// Pause for user to read
-	if config.IsFirstRun {
-		_, _ = headerColor.Print("  🚀 Press Enter to continue...") // #nosec G104
-		_, _ = fmt.Scanln()                                        // Ignore error as user input is not critical
-	} else {
-		time.Sleep(3 * time.Second)
-		_, _ = descColor.Println("  🚀 Starting ztictl...") // #nosec G104
-		time.Sleep(1 * time.Second)
+	// Pause for user to read (skip in CI/CD environments)
+	if isCI() || !isTerminal() {
+		// Non-interactive mode - skip all pauses and prompts
+		return
 	}
+
+	// Prompt user to continue (splash only shown on first installation)
+	_, _ = headerColor.Print("  🚀 Press Enter to continue...") // #nosec G104
+	_, _ = fmt.Scanln()                                        // Ignore error as user input is not critical
 }
 
 // animateMessage displays a message with a simple animation effect

@@ -110,7 +110,112 @@ See [Fuzzy Finder Features](docs/FUZZY_FINDER_FEATURES.md) for complete keyboard
 - **[Command Reference](../docs/COMMANDS.md)** - All commands with detailed examples
 - **[Configuration Guide](../docs/CONFIGURATION.md)** - Setup and configuration options
 - **[Multi-Region Operations](../docs/MULTI_REGION.md)** - Cross-region execution guide
+- **[CI/CD Authentication](../docs/CI_CD_AUTHENTICATION.md)** - Using ztictl in CI/CD pipelines
 - **[Troubleshooting](../docs/TROUBLESHOOTING.md)** - Common issues and solutions
+
+## Authentication Methods
+
+`ztictl` supports multiple authentication methods depending on your environment:
+
+### Interactive Development (AWS SSO)
+
+For local development and manual operations:
+
+```bash
+# AWS SSO authentication (requires browser)
+ztictl auth login
+
+# Check current credentials
+ztictl auth whoami
+```
+
+**Best for:**
+- Local development
+- Manual operations
+- Multi-account access with role switching
+
+**Requirements:**
+- AWS SSO configured
+- Browser access for authentication
+- Interactive terminal
+
+### CI/CD Pipelines (IAM-based)
+
+For automated pipelines, AWS SSO **cannot be used** (requires browser interaction). Use IAM-based authentication instead:
+
+| Method | When to Use | Security | Setup Complexity |
+|--------|-------------|----------|------------------|
+| **OIDC Federation** | GitHub Actions, GitLab CI, modern platforms | ⭐⭐⭐⭐⭐ Best | Medium |
+| **EC2 Instance Profile** | Self-hosted runners on EC2 | ⭐⭐⭐⭐⭐ Best | Easy |
+| **ECS Task Role** | Containerized CI/CD on ECS/Fargate | ⭐⭐⭐⭐⭐ Best | Easy |
+| **IAM Access Keys** | Legacy systems, quick testing | ⭐⭐ Poor | Easy |
+
+**OIDC Federation Example (Recommended):**
+```yaml
+# GitHub Actions
+- name: Configure AWS Credentials
+  uses: aws-actions/configure-aws-credentials@v2
+  with:
+    role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsRole
+    aws-region: ca-central-1
+
+- name: Use ztictl
+  run: |
+    ztictl config init --non-interactive
+    ztictl ssm exec-multi --tag Environment=prod --command "deploy.sh"
+```
+
+**EC2 Instance Profile Example:**
+```bash
+# No credential configuration needed - automatic from instance metadata
+ztictl config init --non-interactive
+ztictl ssm list --table
+```
+
+**IAM Access Keys Example (Not Recommended):**
+```bash
+# Set environment variables (store in CI/CD secrets)
+export AWS_ACCESS_KEY_ID="AKIAIOSFODNN7EXAMPLE"
+export AWS_SECRET_ACCESS_KEY="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+export AWS_DEFAULT_REGION="ca-central-1"
+
+ztictl config init --non-interactive
+ztictl ssm list --table
+```
+
+### Non-Interactive Mode
+
+`ztictl` automatically detects CI/CD environments and enables non-interactive mode when:
+- `CI` environment variable is set (most platforms set this automatically)
+- `ZTICTL_NON_INTERACTIVE=true` is set
+- `--non-interactive` flag is used
+
+**In non-interactive mode:**
+- No splash screen or prompts
+- Commands requiring instance selection will fail with clear error messages
+- Use explicit instance IDs or tag-based commands
+
+```bash
+# These commands work in CI/CD (no interactive prompts)
+ztictl ssm list --table
+ztictl ssm exec i-1234567890abcdef0 --command "uptime"
+ztictl ssm exec-multi --tag Environment=prod --command "deploy.sh"
+ztictl ssm power start --tag Environment=test
+
+# These require interactive selection (will fail in CI/CD)
+ztictl ssm connect  # ❌ No instance ID specified
+ztictl ssm exec "uptime"  # ❌ No instance ID specified
+
+# Fix: Provide instance identifier
+ztictl ssm connect i-1234567890abcdef0  # ✅ Works
+ztictl ssm connect web-server-prod  # ✅ Works (name lookup)
+```
+
+**Complete Guide:** See [docs/CI_CD_AUTHENTICATION.md](../docs/CI_CD_AUTHENTICATION.md) for:
+- Detailed authentication setup for each platform
+- IAM permission requirements
+- Complete workflow examples
+- Troubleshooting
 
 ## Core Operations
 

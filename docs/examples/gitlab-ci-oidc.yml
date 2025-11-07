@@ -1,0 +1,348 @@
+# GitLab CI - OIDC Authentication Example
+#
+# This pipeline demonstrates how to use ztictl in GitLab CI with OIDC authentication.
+# OIDC provides short-lived credentials without storing access keys.
+#
+# Prerequisites:
+# 1. Create an IAM OIDC identity provider for GitLab
+# 2. Create an IAM role with the appropriate trust policy (see below)
+# 3. Attach necessary permissions to the role (see docs/IAM_PERMISSIONS.md)
+# 4. Set CI/CD variables in GitLab:
+#    - AWS_ROLE_ARN: ARN of the IAM role to assume
+#    - AWS_REGION: Default AWS region (e.g., ca-central-1)
+#
+# IAM Role Trust Policy Example:
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Principal": {
+#         "Federated": "arn:aws:iam::123456789012:oidc-provider/gitlab.com"
+#       },
+#       "Action": "sts:AssumeRoleWithWebIdentity",
+#       "Condition": {
+#         "StringEquals": {
+#           "gitlab.com:aud": "https://gitlab.com"
+#         },
+#         "StringLike": {
+#           "gitlab.com:sub": "project_path:your-group/your-project:ref_type:branch:ref:main"
+#         }
+#       }
+#     }
+#   ]
+# }
+
+variables:
+  AWS_REGION: ca-central-1
+  ZTICTL_DEFAULT_REGION: ca-central-1
+  ZTICTL_NON_INTERACTIVE: "true"
+  ZTICTL_LOG_ENABLED: "false"
+
+stages:
+  - setup
+  - deploy
+  - test
+  - cleanup
+
+# Define OIDC token for authentication
+.aws_auth:
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://gitlab.com
+  before_script:
+    # Configure AWS credentials using OIDC token
+    - |
+      export AWS_WEB_IDENTITY_TOKEN_FILE=/tmp/web-identity-token
+      echo $GITLAB_OIDC_TOKEN > $AWS_WEB_IDENTITY_TOKEN_FILE
+      export AWS_ROLE_ARN=$AWS_ROLE_ARN
+      export AWS_DEFAULT_REGION=$AWS_REGION
+    # Install AWS CLI
+    - apk add --no-cache aws-cli curl bash
+    # Verify AWS credentials
+    - aws sts get-caller-identity
+    # Install ztictl
+    - |
+      curl -L https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-amd64 -o ztictl
+      chmod +x ztictl
+      mv ztictl /usr/local/bin/
+      ztictl --version
+    # Install AWS Session Manager plugin
+    - |
+      curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" \
+        -o "session-manager-plugin.deb"
+      apk add --no-cache dpkg
+      dpkg -i session-manager-plugin.deb || true
+    # Initialize ztictl configuration
+    - ztictl config init --non-interactive
+
+verify-config:
+  stage: setup
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Verifying ztictl configuration..."
+    - ztictl config check
+    - echo "Configuration verified successfully"
+  only:
+    - branches
+
+list-instances:
+  stage: setup
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Listing EC2 instances..."
+    - ztictl ssm list --region $AWS_REGION --table
+  artifacts:
+    reports:
+      dotenv: instance-list.env
+  only:
+    - branches
+
+deploy-production:
+  stage: deploy
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Deploying to production..."
+    - |
+      ztictl ssm exec $AWS_REGION web-server-prod \
+        "cd /app && git pull && systemctl restart app"
+  only:
+    - main
+  environment:
+    name: production
+
+deploy-all-web-servers:
+  stage: deploy
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Deploying to all web servers..."
+    - |
+      ztictl ssm exec-tagged $AWS_REGION \
+        --tags Environment=production,Service=web \
+        "/app/deploy.sh"
+  only:
+    - main
+  environment:
+    name: production
+
+verify-deployment:
+  stage: test
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Verifying deployment..."
+    - |
+      ztictl ssm exec $AWS_REGION web-server-prod \
+        "systemctl status app && curl -f http://localhost:8080/health"
+  only:
+    - main
+  needs:
+    - deploy-production
+
+# Test environment management
+start-test-instances:
+  stage: setup
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Starting test instances..."
+    - |
+      ztictl ssm start-tagged \
+        --region $AWS_REGION \
+        --tags Environment=test,AutoStart=true
+    - echo "Waiting for instances to be ready..."
+    - sleep 60
+  only:
+    - merge_requests
+  environment:
+    name: test
+    on_stop: stop-test-instances
+
+run-integration-tests:
+  stage: test
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Running integration tests..."
+    - |
+      ztictl ssm exec-tagged $AWS_REGION \
+        --tags Environment=test \
+        "cd /app && npm test"
+  only:
+    - merge_requests
+  needs:
+    - start-test-instances
+
+stop-test-instances:
+  stage: cleanup
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Stopping test instances..."
+    - |
+      ztictl ssm stop-tagged \
+        --region $AWS_REGION \
+        --tags Environment=test
+  when: manual
+  only:
+    - merge_requests
+  environment:
+    name: test
+    action: stop
+
+# File transfer example
+upload-configuration:
+  stage: deploy
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Uploading configuration file..."
+    - |
+      ztictl ssm transfer upload \
+        $PRODUCTION_INSTANCE_ID \
+        ./config/production.json \
+        /etc/app/config.json \
+        --region $AWS_REGION
+  only:
+    - main
+
+download-logs:
+  stage: test
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Downloading application logs..."
+    - mkdir -p artifacts
+    - |
+      ztictl ssm transfer download \
+        $PRODUCTION_INSTANCE_ID \
+        /var/log/app/error.log \
+        ./artifacts/error.log \
+        --region $AWS_REGION
+  artifacts:
+    paths:
+      - artifacts/
+    expire_in: 30 days
+  when: on_failure
+  only:
+    - main
+
+# Multi-region deployment
+.deploy-region:
+  stage: deploy
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Deploying to $DEPLOY_REGION..."
+    - |
+      ztictl ssm exec-tagged $DEPLOY_REGION \
+        --tags Environment=production,Service=web \
+        "/app/deploy.sh"
+    - echo "Verifying deployment in $DEPLOY_REGION..."
+    - |
+      ztictl ssm exec-tagged $DEPLOY_REGION \
+        --tags Environment=production,Service=web \
+        "curl -f http://localhost:8080/health || exit 1"
+  only:
+    - main
+
+deploy-us-east-1:
+  extends: .deploy-region
+  variables:
+    DEPLOY_REGION: us-east-1
+
+deploy-ca-central-1:
+  extends: .deploy-region
+  variables:
+    DEPLOY_REGION: ca-central-1
+
+deploy-eu-west-1:
+  extends: .deploy-region
+  variables:
+    DEPLOY_REGION: eu-west-1
+
+# Scheduled cleanup job
+cleanup-old-resources:
+  stage: cleanup
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Running cleanup dry run..."
+    - ztictl ssm cleanup --region $AWS_REGION --dry-run
+    - echo "Cleaning up old resources..."
+    - ztictl ssm cleanup --region $AWS_REGION
+  only:
+    - schedules
+  when: manual
+
+# Development branch deployment
+deploy-dev:
+  stage: deploy
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Deploying to development environment..."
+    - |
+      ztictl ssm exec-tagged $AWS_REGION \
+        --tags Environment=development \
+        "cd /app && git fetch && git checkout $CI_COMMIT_REF_NAME && git pull && systemctl restart app"
+  only:
+    - develop
+  environment:
+    name: development
+
+# Canary deployment example
+deploy-canary:
+  stage: deploy
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Deploying canary release..."
+    - |
+      ztictl ssm exec $AWS_REGION canary-instance \
+        "cd /app && git pull && systemctl restart app"
+    - echo "Waiting for canary health checks..."
+    - sleep 30
+    - |
+      ztictl ssm exec $AWS_REGION canary-instance \
+        "curl -f http://localhost:8080/health || exit 1"
+  only:
+    - main
+  when: manual
+
+deploy-full-rollout:
+  stage: deploy
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Full rollout after canary success..."
+    - |
+      ztictl ssm exec-tagged $AWS_REGION \
+        --tags Environment=production,Canary=false \
+        "cd /app && git pull && systemctl restart app"
+  only:
+    - main
+  needs:
+    - deploy-canary
+  when: manual
+
+# Health check job
+health-check:
+  stage: test
+  image: alpine:latest
+  extends: .aws_auth
+  script:
+    - echo "Running health checks on all production instances..."
+    - |
+      ztictl ssm exec-tagged $AWS_REGION \
+        --tags Environment=production \
+        "curl -f http://localhost:8080/health && systemctl is-active app"
+  only:
+    - schedules
+  retry:
+    max: 2
+    when: script_failure

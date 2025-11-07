@@ -153,6 +153,61 @@ ztictl ssm --help
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for detailed configuration options.
 
+#### CI/CD Pipeline Integration
+
+**ztictl** works seamlessly in CI/CD environments with automatic non-interactive mode detection.
+
+> **Important:** AWS SSO (`ztictl auth login`) requires browser interaction and **cannot be used in CI/CD**. Use IAM-based authentication instead (OIDC, EC2 instance profiles, or IAM access keys).
+
+**Quick Start for CI/CD:**
+```bash
+# ztictl auto-detects CI environments (GitHub Actions, GitLab CI, Jenkins, etc.)
+# and disables interactive prompts automatically
+
+# Initialize configuration (non-interactive)
+ztictl config init --non-interactive
+
+# List instances (table format for parsing)
+ztictl ssm list --region ca-central-1 --table
+
+# Execute on specific instance
+ztictl ssm exec i-1234567890abcdef0 --command "deploy.sh" --region ca-central-1
+
+# Execute on multiple instances by tag
+ztictl ssm exec-multi --tag Environment=production --command "deploy.sh"
+
+# Power management by tag
+ztictl ssm power start --tag Environment=test
+```
+
+**Supported CI/CD Platforms:**
+- GitHub Actions (OIDC recommended)
+- GitLab CI (OIDC recommended)
+- Jenkins (EC2 instance profile or IAM keys)
+- CircleCI, AWS CodeBuild, and others
+
+**Complete Guide:** See [docs/CI_CD_AUTHENTICATION.md](docs/CI_CD_AUTHENTICATION.md) for:
+- Authentication methods (OIDC, instance profiles, IAM keys)
+- Platform-specific examples (GitHub Actions, GitLab CI, Jenkins)
+- Environment variable reference
+- Troubleshooting CI/CD issues
+
+**Example GitHub Actions Workflow:**
+```yaml
+- name: Configure AWS Credentials
+  uses: aws-actions/configure-aws-credentials@v2
+  with:
+    role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+    aws-region: ca-central-1
+
+- name: Deploy with ztictl
+  run: |
+    ztictl config init --non-interactive
+    ztictl ssm exec-multi --tag Environment=prod --command "deploy.sh"
+```
+
+See [docs/examples/](docs/examples/) for complete CI/CD workflow examples.
+
 ### Legacy Bash Tools (Deprecated)
 
 > **⚠️ Deprecation Notice:** The bash tools are being phased out. New users should use `ztictl` above.
@@ -368,8 +423,10 @@ For CI/CD pipeline architecture and development workflow, see [docs/CI_CD_PIPELI
 
 ### Core Documentation
 - **[Command Reference](docs/COMMANDS.md)** - Complete list of all commands with examples
-- **[Configuration Guide](docs/CONFIGURATION.md)** - Detailed configuration file reference  
+- **[Configuration Guide](docs/CONFIGURATION.md)** - Detailed configuration file reference
 - **[Multi-Region Operations](docs/MULTI_REGION.md)** - Guide for cross-region command execution
+- **[CI/CD Authentication](docs/CI_CD_AUTHENTICATION.md)** - Using ztictl in CI/CD pipelines
+- **[Version Checking](docs/VERSION_CHECKING.md)** - Architecture and design decisions for version checking
 - **[Installation Guide](INSTALLATION.md)** - Platform-specific installation instructions
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 - **[IAM Permissions](docs/IAM_PERMISSIONS.md)** - Required AWS permissions

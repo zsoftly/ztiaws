@@ -168,9 +168,12 @@ Examples:
 			return
 		}
 
+		// Create SSM manager for validation
+		ssmManager := ssm.NewManager(logger)
+
 		// Execute power operations in parallel
 		startTime := time.Now()
-		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "start", parallelFlag, region)
+		results := executePowerOperationParallel(ctx, awsClient, ssmManager, instanceIDs, "start", parallelFlag, region)
 		totalDuration := time.Since(startTime)
 
 		// Process and display results
@@ -246,9 +249,12 @@ Examples:
 			return
 		}
 
+		// Create SSM manager for validation
+		ssmManager := ssm.NewManager(logger)
+
 		// Execute power operations in parallel
 		startTime := time.Now()
-		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "stop", parallelFlag, region)
+		results := executePowerOperationParallel(ctx, awsClient, ssmManager, instanceIDs, "stop", parallelFlag, region)
 		totalDuration := time.Since(startTime)
 
 		// Process and display results
@@ -324,9 +330,12 @@ Examples:
 			return
 		}
 
+		// Create SSM manager for validation
+		ssmManager := ssm.NewManager(logger)
+
 		// Execute power operations in parallel
 		startTime := time.Now()
-		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, "reboot", parallelFlag, region)
+		results := executePowerOperationParallel(ctx, awsClient, ssmManager, instanceIDs, "reboot", parallelFlag, region)
 		totalDuration := time.Since(startTime)
 
 		// Process and display results
@@ -367,8 +376,11 @@ func performPowerOperation(args []string, regionCode, instancesFlag string, para
 			return fmt.Errorf("failed to create AWS client: %w", err)
 		}
 
+		// Create SSM manager for validation
+		ssmManager := ssm.NewManager(logger)
+
 		startTime := time.Now()
-		results := executePowerOperationParallel(ctx, awsClient, instanceIDs, operation, parallelFlag, region)
+		results := executePowerOperationParallel(ctx, awsClient, ssmManager, instanceIDs, operation, parallelFlag, region)
 		totalDuration := time.Since(startTime)
 		return displayPowerOperationResults(results, operation, totalDuration, parallelFlag)
 	}
@@ -394,15 +406,9 @@ func performPowerOperation(args []string, regionCode, instancesFlag string, para
 	logging.LogInfo("%s instance %s in region: %s", capitalize(operation), instanceID, region)
 
 	// Validate instance state before attempting power operation
-	requirements := InstanceValidationRequirements{
-		RequireSSMOnline: false,
-		Operation:        operation,
-	}
-	switch operation {
-	case "start":
-		requirements.AllowedStates = []string{"stopped"}
-	case "stop", "reboot":
-		requirements.AllowedStates = []string{"running"}
+	requirements, err := buildRequirementsForOperation(operation)
+	if err != nil {
+		return err
 	}
 	if err := ValidateInstanceState(ctx, ssmManager, instanceID, region, requirements); err != nil {
 		return err
@@ -462,6 +468,23 @@ func validateTaggedCommandArgs(tagsFlag, instancesFlag string, parallelFlag int)
 	return nil
 }
 
+// buildRequirementsForOperation creates validation requirements for a power operation
+func buildRequirementsForOperation(operation string) (InstanceValidationRequirements, error) {
+	req := InstanceValidationRequirements{
+		RequireSSMOnline: false,
+		Operation:        operation,
+	}
+	switch operation {
+	case "start":
+		req.AllowedStates = []string{"stopped"}
+	case "stop", "reboot":
+		req.AllowedStates = []string{"running"}
+	default:
+		return req, fmt.Errorf("unknown operation: %s", operation)
+	}
+	return req, nil
+}
+
 // capitalize returns a copy of the string with the first letter capitalized
 func capitalize(s string) string {
 	if s == "" {
@@ -509,10 +532,11 @@ func getInstanceIDsByTags(ctx context.Context, awsClient *aws.Client, tagsFlag s
 }
 
 // executePowerOperationParallel runs power operations in parallel across multiple instances
-func executePowerOperationParallel(ctx context.Context, awsClient *aws.Client, instanceIDs []string, operation string, maxParallel int, region string) []PowerOperationResult {
-	ssmManager := ssm.NewManager(logger)
-
+func executePowerOperationParallel(ctx context.Context, awsClient *aws.Client, ssmManager *ssm.Manager, instanceIDs []string, operation string, maxParallel int, region string) []PowerOperationResult {
 	// Create channels for work distribution and result collection
+	// Buffers sized to instance count for simplicity - memory scales linearly with instance count.
+	// For typical operations (< 1000 instances), memory overhead is negligible (~100KB).
+	// For very large deployments (> 10000 instances), consider refactoring to smaller buffers.
 	instanceChan := make(chan string, len(instanceIDs))
 	resultChan := make(chan PowerOperationResult, len(instanceIDs))
 
@@ -532,21 +556,8 @@ func executePowerOperationParallel(ctx context.Context, awsClient *aws.Client, i
 				startTime := time.Now()
 				logging.LogInfo("Executing %s operation on instance %s", operation, instanceID)
 
-				var err error
-
 				// Validate instance state before attempting operation
-				requirements := InstanceValidationRequirements{
-					RequireSSMOnline: false,
-					Operation:        operation,
-				}
-				switch operation {
-				case "start":
-					requirements.AllowedStates = []string{"stopped"}
-				case "stop", "reboot":
-					requirements.AllowedStates = []string{"running"}
-				default:
-					err = fmt.Errorf("unknown operation: %s", operation)
-				}
+				requirements, err := buildRequirementsForOperation(operation)
 
 				// Only proceed with validation and operation if no error yet
 				if err == nil {
@@ -568,6 +579,8 @@ func executePowerOperationParallel(ctx context.Context, awsClient *aws.Client, i
 						_, err = awsClient.EC2.RebootInstances(ctx, &ec2.RebootInstancesInput{
 							InstanceIds: []string{instanceID},
 						})
+					default:
+						err = fmt.Errorf("unknown operation: %s", operation)
 					}
 				}
 

@@ -179,7 +179,7 @@ func TestInitializeConfigFile(t *testing.T) {
 		}
 
 		// The function should return an error or succeed, not call os.Exit
-		err := initializeConfigFile(false, false)
+		err := initializeConfigFile(false, false, nil)
 
 		// We expect this might fail (no config creation), but it shouldn't panic
 		// The important thing is that it returns an error instead of calling os.Exit

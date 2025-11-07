@@ -177,6 +177,7 @@ func (m *Manager) initializeManagers(ctx context.Context, region string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// Check if already initialized (inside lock to prevent race condition)
 	if m.iamManager != nil && m.s3LifecycleManager != nil {
 		return nil
 	}
