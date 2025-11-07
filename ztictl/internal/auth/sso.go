@@ -148,9 +148,9 @@ func DetectEnvironmentCredentials() (bool, CredentialType) {
 // isEC2Instance checks if running on an EC2 instance by querying IMDS
 // Uses a short timeout to avoid blocking if not on EC2
 func isEC2Instance() bool {
-	// Create HTTP client with very short timeout
+	// Create HTTP client with short timeout (AWS recommends 1 second minimum)
 	client := &http.Client{
-		Timeout: 100 * time.Millisecond,
+		Timeout: 1000 * time.Millisecond,
 	}
 
 	// Try to reach EC2 instance metadata service (IMDSv2 token endpoint)

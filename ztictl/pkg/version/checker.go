@@ -132,6 +132,8 @@ func createHTTPClient() *http.Client {
 	if proxyURL := os.Getenv("ZTICTL_HTTPS_PROXY"); proxyURL != "" {
 		if proxy, err := url.Parse(proxyURL); err == nil {
 			transport.Proxy = http.ProxyURL(proxy)
+		} else {
+			fmt.Fprintf(os.Stderr, "[WARN] Failed to parse ZTICTL_HTTPS_PROXY '%s': %v\n", proxyURL, err)
 		}
 	}
 
