@@ -300,7 +300,7 @@ git clone https://github.com/zsoftly/ztiaws.git
 cd ztiaws
 
 # Step 2: Install (no build tools required)
-./install.sh
+./01_install.sh
 
 # Step 3: Verify
 authaws --check
@@ -313,7 +313,7 @@ The installation script automatically:
 - ✅ Sets up proper permissions
 - ✅ Verifies installation works correctly
 
-**To uninstall:** `./uninstall.sh`
+**To uninstall:** `./02_uninstall.sh`
 
 ### **For Developers (Development Setup):**
 

@@ -311,7 +311,7 @@ git push origin v1.1.0
 # ✅ Uploads cross-platform binaries
 ```
 
-> **📋 Details:** See [RELEASE.md](../RELEASE.md) for complete release procedures.
+> **📋 Details:** See [RELEASE.md](../docs/development/RELEASE.md) for complete release procedures.
 
 ## Contributing
 
