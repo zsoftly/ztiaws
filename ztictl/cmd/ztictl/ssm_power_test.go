@@ -863,38 +863,45 @@ func TestStateValidationRequirements(t *testing.T) {
 		operation        string
 		expectedStates   []string
 		requireSSMOnline bool
+		expectError      bool
 	}{
 		{
 			name:             "start operation requires stopped state",
 			operation:        "start",
 			expectedStates:   []string{"stopped"},
 			requireSSMOnline: false,
+			expectError:      false,
 		},
 		{
 			name:             "stop operation requires running state",
 			operation:        "stop",
 			expectedStates:   []string{"running"},
 			requireSSMOnline: false,
+			expectError:      false,
 		},
 		{
 			name:             "reboot operation requires running state",
 			operation:        "reboot",
 			expectedStates:   []string{"running"},
 			requireSSMOnline: false,
+			expectError:      false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var requirements InstanceValidationRequirements
-			requirements.RequireSSMOnline = false
-			requirements.Operation = tt.operation
+			requirements, err := buildRequirementsForOperation(tt.operation)
 
-			switch tt.operation {
-			case "start":
-				requirements.AllowedStates = []string{"stopped"}
-			case "stop", "reboot":
-				requirements.AllowedStates = []string{"running"}
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+				return
 			}
 
 			if requirements.Operation != tt.operation {

@@ -57,8 +57,8 @@ stages:
       echo $GITLAB_OIDC_TOKEN > $AWS_WEB_IDENTITY_TOKEN_FILE
       export AWS_ROLE_ARN=$AWS_ROLE_ARN
       export AWS_DEFAULT_REGION=$AWS_REGION
-    # Install AWS CLI
-    - apk add --no-cache aws-cli curl bash
+    # Install AWS CLI and glibc compatibility layer
+    - apk add --no-cache aws-cli curl bash libc6-compat
     # Verify AWS credentials
     - aws sts get-caller-identity
     # Install ztictl
@@ -67,12 +67,14 @@ stages:
       chmod +x ztictl
       mv ztictl /usr/local/bin/
       ztictl --version
-    # Install AWS Session Manager plugin
+    # Install AWS Session Manager plugin (tarball for Alpine compatibility)
     - |
-      curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" \
-        -o "session-manager-plugin.deb"
-      apk add --no-cache dpkg
-      dpkg -i session-manager-plugin.deb || true
+      curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.tar.gz" \
+        -o "session-manager-plugin.tar.gz"
+      tar -xzf session-manager-plugin.tar.gz
+      mv sessionmanager-bundle/bin/session-manager-plugin /usr/local/bin/
+      chmod +x /usr/local/bin/session-manager-plugin
+      session-manager-plugin --version
     # Initialize ztictl configuration
     - ztictl config init --non-interactive
 

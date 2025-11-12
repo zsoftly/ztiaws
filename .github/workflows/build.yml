@@ -76,7 +76,7 @@ jobs:
     - name: Test shell script syntax
       run: |
         echo "Testing shell script syntax..."
-        for script in authaws ssm src/*.sh tools/*.sh; do
+        for script in authaws ssm src/*.sh tools/*.sh scripts/*.sh 01_install.sh 02_uninstall.sh; do
           if [ -f "$script" ]; then
             bash -n "$script" || exit 1
           fi
