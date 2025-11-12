@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || {
 }
 
 if [ -f "${SCRIPT_DIR}/../src/00_utils.sh" ]; then
-    # shellcheck source=../src/00_utils.sh
+    # shellcheck source=../src/00_utils.sh disable=SC1091
     source "${SCRIPT_DIR}/../src/00_utils.sh" || {
         echo "Error: Failed to source utilities file" >&2
         exit 1
@@ -83,18 +83,24 @@ parse_arguments() {
     fi
 
     # Validate required parameters using centralized function
+    # shellcheck disable=SC2317
     validate_release_params "$WEBHOOK_URL" "$VERSION" "$RELEASE_URL" "$REPOSITORY" || { usage; exit 1; }
 }
 
 # --- Create Google Chat App Card JSON ---
 create_chat_payload() {
     log_debug "Creating Google Chat App Card payload"
-    
-    local escaped_version=$(escape_json "$VERSION")
-    local escaped_repository=$(escape_json "$REPOSITORY")
-    local escaped_release_url=$(escape_json "$RELEASE_URL")
+
+    local escaped_version
+    local escaped_repository
+    local escaped_release_url
+    local escaped_changelog_url
+
+    escaped_version=$(escape_json "$VERSION")
+    escaped_repository=$(escape_json "$REPOSITORY")
+    escaped_release_url=$(escape_json "$RELEASE_URL")
     local changelog_url="https://github.com/$REPOSITORY/blob/main/CHANGELOG.md"
-    local escaped_changelog_url=$(escape_json "$changelog_url")
+    escaped_changelog_url=$(escape_json "$changelog_url")
     
     cat << EOF
 {

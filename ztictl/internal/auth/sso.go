@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -98,6 +99,89 @@ type Account struct {
 type Role struct {
 	RoleName  string `json:"role_name"`
 	AccountID string `json:"account_id"`
+}
+
+// CredentialType represents the type of AWS credentials detected
+type CredentialType string
+
+const (
+	// CredentialTypeNone indicates no credentials detected
+	CredentialTypeNone CredentialType = "none"
+	// CredentialTypeAccessKeys indicates IAM access keys in environment
+	CredentialTypeAccessKeys CredentialType = "IAM access keys"
+	// CredentialTypeEC2Instance indicates EC2 instance profile
+	CredentialTypeEC2Instance CredentialType = "EC2 instance profile" // #nosec G101
+	// CredentialTypeECSTask indicates ECS task role
+	CredentialTypeECSTask CredentialType = "ECS task role" // #nosec G101
+	// CredentialTypeOIDC indicates OIDC assumed role
+	CredentialTypeOIDC CredentialType = "OIDC assumed role"
+)
+
+// DetectEnvironmentCredentials checks for AWS credentials in the environment
+// Returns true if credentials are found, along with the credential type
+func DetectEnvironmentCredentials() (bool, CredentialType) {
+	// Check for IAM access keys in environment variables
+	if os.Getenv("AWS_ACCESS_KEY_ID") != "" {
+		return true, CredentialTypeAccessKeys
+	}
+
+	// Check for ECS task role
+	// ECS provides credentials via a relative URI
+	if os.Getenv("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") != "" {
+		return true, CredentialTypeECSTask
+	}
+
+	// Check for OIDC assumed role
+	// When using OIDC (GitHub Actions, GitLab CI, etc.), AWS_ROLE_ARN is set
+	if os.Getenv("AWS_ROLE_ARN") != "" {
+		return true, CredentialTypeOIDC
+	}
+
+	// Check for EC2 instance metadata (IMDS)
+	if isEC2Instance() {
+		return true, CredentialTypeEC2Instance
+	}
+
+	return false, CredentialTypeNone
+}
+
+// isEC2Instance checks if running on an EC2 instance by querying IMDS
+// Uses a short timeout to avoid blocking if not on EC2
+func isEC2Instance() bool {
+	// Create HTTP client with short timeout (AWS recommends 1 second minimum)
+	client := &http.Client{
+		Timeout: 1000 * time.Millisecond,
+	}
+
+	// Try to reach EC2 instance metadata service (IMDSv2 token endpoint)
+	// Using the token endpoint because it's available on both IMDSv1 and IMDSv2
+	req, err := http.NewRequest("PUT", "http://169.254.169.254/latest/api/token", nil)
+	if err != nil {
+		return false
+	}
+
+	// IMDSv2 requires this header
+	req.Header.Set("X-aws-ec2-metadata-token-ttl-seconds", "1")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		// Also try IMDSv1 as fallback (simple GET request)
+		req, err = http.NewRequest("GET", "http://169.254.169.254/latest/meta-data/", nil)
+		if err != nil {
+			return false
+		}
+
+		resp, err = client.Do(req)
+		if err != nil {
+			return false
+		}
+	}
+
+	defer resp.Body.Close()
+
+	// If we get a 200 or 404, we're on EC2
+	// 404 can happen on IMDSv1 with certain endpoints
+	return resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound
 }
 
 // NewManager creates a new authentication manager with a no-op logger

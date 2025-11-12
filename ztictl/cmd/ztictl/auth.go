@@ -31,10 +31,56 @@ var authLoginCmd = &cobra.Command{
 	Use:   "login [profile]",
 	Short: "Login to AWS SSO",
 	Long: `Login to AWS SSO with interactive account and role selection.
-A profile name must be specified to ensure intentional credential management.`,
+A profile name must be specified to ensure intentional credential management.
+
+Note: AWS SSO authentication requires browser interaction and cannot be used in CI/CD pipelines.
+For automated environments, use IAM-based authentication (OIDC, EC2 instance profiles, or IAM access keys).
+See docs/CI_CD_AUTHENTICATION.md for details.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		profileName := args[0]
+
+		// Check if running in non-interactive mode (CI/CD environment)
+		execCtx := GetExecutionContext(cmd)
+		if execCtx.NonInteractive || execCtx.IsCI {
+			// Check if AWS credentials are already configured
+			hasCredentials, credType := auth.DetectEnvironmentCredentials()
+
+			if hasCredentials {
+				logging.LogError("\nDetected CI/CD environment with %s\n", credType)
+				fmt.Fprintf(os.Stderr, `
+AWS SSO authentication requires browser interaction and cannot be used in CI/CD pipelines.
+
+Your environment already has AWS credentials configured.
+Use ztictl commands directly without 'auth login'.
+
+For more information, see: docs/CI_CD_AUTHENTICATION.md
+`)
+				os.Exit(1)
+			} else {
+				logging.LogError("\nDetected CI/CD environment without AWS credentials\n")
+				fmt.Fprintf(os.Stderr, `
+AWS SSO authentication requires browser interaction and cannot be used in CI/CD pipelines.
+
+To authenticate in CI/CD, you must configure IAM-based authentication:
+  - GitHub Actions: Use OIDC federation
+  - GitLab CI: Use OIDC federation
+  - Jenkins: Use IAM access keys or EC2 instance profiles
+  - Other platforms: See docs/CI_CD_AUTHENTICATION.md
+
+Example GitHub Actions workflow:
+  - name: Configure AWS Credentials
+    uses: aws-actions/configure-aws-credentials@v2
+    with:
+      role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+      aws-region: ca-central-1
+
+For complete examples and setup instructions:
+  https://github.com/zsoftly/ztiaws/blob/main/docs/CI_CD_AUTHENTICATION.md
+`)
+				os.Exit(1)
+			}
+		}
 
 		if err := performLogin(profileName); err != nil {
 			logging.LogError("Login failed: %v", err)

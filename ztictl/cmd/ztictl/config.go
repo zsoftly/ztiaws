@@ -32,12 +32,16 @@ var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize configuration",
 	Long: `Initialize ztictl configuration by creating a configuration file.
-This will guide you through an interactive setup process to configure AWS SSO settings.`,
+This will guide you through an interactive setup process to configure AWS SSO settings.
+
+In non-interactive mode (CI/CD), configuration can be created using environment variables.
+See docs/CI_CD_AUTHENTICATION.md for details.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		force, _ := cmd.Flags().GetBool("force")
 		interactive, _ := cmd.Flags().GetBool("interactive")
+		execCtx := GetExecutionContext(cmd)
 
-		if err := initializeConfigFile(force, interactive); err != nil {
+		if err := initializeConfigFile(force, interactive, execCtx); err != nil {
 			logger.Error("Configuration initialization failed", "error", err)
 			os.Exit(1)
 		}
@@ -136,7 +140,7 @@ This command will identify invalid values and prompt you for correct replacement
 }
 
 // initializeConfigFile handles the config initialization logic and returns errors instead of calling os.Exit
-func initializeConfigFile(force, interactive bool) error {
+func initializeConfigFile(force, interactive bool, execCtx *ExecutionContext) error {
 	// Determine config file path
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -149,19 +153,30 @@ func initializeConfigFile(force, interactive bool) error {
 	if _, err := os.Stat(configPath); err == nil {
 		// File exists - check if we should overwrite
 		if !force {
-			fmt.Printf("\n⚠️  Configuration file already exists at %s\n", configPath)
-			fmt.Println("Would you like to overwrite it? (yes/no)")
-
-			reader := bufio.NewReader(os.Stdin)
-			response, _ := reader.ReadString('\n')
-			response = strings.TrimSpace(strings.ToLower(response))
-
-			if response != "yes" && response != "y" {
-				fmt.Println("Configuration initialization cancelled.")
-				return nil
+			// In non-interactive mode, require --force flag
+			if execCtx != nil && execCtx.NonInteractive {
+				return fmt.Errorf("config file exists at %s, use --force to overwrite in non-interactive mode", configPath)
 			}
-			// User confirmed, proceed as if --force was provided
-			force = true
+
+			// Auto-yes mode - proceed without prompting
+			if execCtx != nil && execCtx.AutoYes {
+				force = true
+			} else {
+				// Interactive mode - ask user
+				fmt.Printf("\n⚠️  Configuration file already exists at %s\n", configPath)
+				fmt.Println("Would you like to overwrite it? (yes/no)")
+
+				reader := bufio.NewReader(os.Stdin)
+				response, _ := reader.ReadString('\n')
+				response = strings.TrimSpace(strings.ToLower(response))
+
+				if response != "yes" && response != "y" {
+					fmt.Println("Configuration initialization cancelled.")
+					return nil
+				}
+				// User confirmed, proceed as if --force was provided
+				force = true
+			}
 		}
 
 		// Run interactive setup if force is now true (either from flag or user confirmation)
@@ -181,7 +196,15 @@ func initializeConfigFile(force, interactive bool) error {
 		return nil
 	}
 
-	// Create sample configuration (non-interactive)
+	// In non-interactive mode, create config from environment variables
+	if execCtx != nil && execCtx.NonInteractive {
+		if err := runNonInteractiveConfig(configPath); err != nil {
+			return fmt.Errorf("non-interactive configuration failed: %w", err)
+		}
+		return nil
+	}
+
+	// Create sample configuration (default non-interactive, no env vars)
 	if err := config.CreateSampleConfig(configPath); err != nil {
 		return fmt.Errorf("failed to create configuration file: %w", err)
 	}

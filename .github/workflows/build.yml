@@ -20,8 +20,8 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'tools/**'
-      - 'install.sh'
-      - 'uninstall.sh'
+      - '01_install.sh'
+      - '02_uninstall.sh'
       - '.github/workflows/build.yml'
       - 'go.mod'
       - 'go.sum'
@@ -36,8 +36,8 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'tools/**'
-      - 'install.sh'
-      - 'uninstall.sh'
+      - '01_install.sh'
+      - '02_uninstall.sh'
       - '.github/workflows/build.yml'
       - 'go.mod'
       - 'go.sum'
@@ -70,13 +70,13 @@ jobs:
     - name: Run shellcheck on shell scripts
       run: |
         echo "Checking shell scripts..."
-        shellcheck -x authaws ssm src/*.sh tools/*.sh install.sh uninstall.sh
+        shellcheck -x authaws ssm src/*.sh tools/*.sh scripts/*.sh 01_install.sh 02_uninstall.sh
         echo "Shell scripts passed validation"
 
     - name: Test shell script syntax
       run: |
         echo "Testing shell script syntax..."
-        for script in authaws ssm src/*.sh tools/*.sh; do
+        for script in authaws ssm src/*.sh tools/*.sh scripts/*.sh 01_install.sh 02_uninstall.sh; do
           if [ -f "$script" ]; then
             bash -n "$script" || exit 1
           fi

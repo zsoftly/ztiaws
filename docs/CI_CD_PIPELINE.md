@@ -34,9 +34,9 @@ on:
   push:
     branches: [ main, 'feature/*', 'feat/*', 'issue/*', 'release/*' ]
     tags: [ 'v*' ]
-    paths: [ 
-      'ztictl/**', 'authaws', 'ssm', 'src/**', 'tools/**', 
-      'install.sh', 'uninstall.sh', 'go.mod', 'go.sum', 'Makefile'
+    paths: [
+      'ztictl/**', 'authaws', 'ssm', 'src/**', 'tools/**',
+      '01_install.sh', '02_uninstall.sh', 'go.mod', 'go.sum', 'Makefile'
     ]
   pull_request:
     branches: [ main, 'release/*' ]
@@ -309,7 +309,7 @@ needs: [release]
 ## Release Process Integration
 
 ### **Git Flow with Automation**
-The CI/CD pipeline integrates with the release process defined in [RELEASE.md](../RELEASE.md):
+The CI/CD pipeline integrates with the release process defined in [RELEASE.md](development/RELEASE.md):
 
 1. **Create release branch**: `git checkout -b release/v2.7.0`
 2. **Push triggers docs generation**: Auto-generates CHANGELOG.md via workflow
@@ -385,7 +385,7 @@ The CI/CD pipeline integrates with the release process defined in [RELEASE.md](.
 
 * Main pipeline: `.github/workflows/build.yml`
 * Documentation: `.github/workflows/auto-generate-docs.yml`
-* Release process: `RELEASE.md`
+* Release process: `docs/development/RELEASE.md`
 * Build config: `ztictl/Makefile`
 * Dependencies: `ztictl/go.mod`, `ztictl/go.sum`
 * Notification scripts: `scripts/send-*.sh`

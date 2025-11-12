@@ -1,0 +1,349 @@
+# GitHub Actions - OIDC Authentication Example
+#
+# This workflow demonstrates how to use ztictl in GitHub Actions with OIDC authentication.
+# OIDC provides short-lived credentials without storing access keys.
+#
+# Prerequisites:
+# 1. Create an IAM OIDC identity provider for GitHub Actions
+# 2. Create an IAM role with the appropriate trust policy (see below)
+# 3. Attach necessary permissions to the role (see docs/IAM_PERMISSIONS.md)
+# 4. Store the role ARN in GitHub secrets as AWS_ROLE_ARN
+#
+# IAM Role Trust Policy Example:
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Principal": {
+#         "Federated": "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+#       },
+#       "Action": "sts:AssumeRoleWithWebIdentity",
+#       "Condition": {
+#         "StringEquals": {
+#           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+#         },
+#         "StringLike": {
+#           "token.actions.githubusercontent.com:sub": "repo:your-org/your-repo:*"
+#         }
+#       }
+#     }
+#   ]
+# }
+
+name: Deploy with ztictl (OIDC)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Required for OIDC authentication
+permissions:
+  id-token: write  # Required to request OIDC token
+  contents: read   # Required to checkout code
+
+env:
+  AWS_REGION: ca-central-1
+  ZTICTL_DEFAULT_REGION: ca-central-1
+
+jobs:
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Configure AWS credentials using OIDC
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-${{ github.run_id }}
+
+      # Verify credentials work
+      - name: Verify AWS credentials
+        run: |
+          echo "Verifying AWS credentials..."
+          aws sts get-caller-identity
+          echo "Credentials verified successfully"
+
+      # Install ztictl
+      - name: Install ztictl
+        run: |
+          echo "Installing ztictl..."
+          curl -L https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-amd64 -o ztictl
+          chmod +x ztictl
+          sudo mv ztictl /usr/local/bin/
+          ztictl --version
+
+      # Install AWS Session Manager plugin (required for ssm connect)
+      - name: Install Session Manager plugin
+        run: |
+          echo "Installing AWS Session Manager plugin..."
+          curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" \
+            -o "session-manager-plugin.deb"
+          sudo dpkg -i session-manager-plugin.deb
+          session-manager-plugin --version
+
+      # Initialize ztictl configuration
+      - name: Initialize ztictl config
+        run: |
+          echo "Initializing ztictl configuration..."
+          ztictl config init --non-interactive
+        env:
+          ZTICTL_DEFAULT_REGION: ${{ env.AWS_REGION }}
+          ZTICTL_LOG_ENABLED: "false"
+
+      # Verify configuration
+      - name: Verify ztictl configuration
+        run: |
+          echo "Verifying ztictl configuration..."
+          ztictl config check
+
+      # List EC2 instances
+      - name: List EC2 instances
+        run: |
+          echo "Listing EC2 instances..."
+          ztictl ssm list --region ${{ env.AWS_REGION }} --table
+
+      # Example: Deploy to specific instance
+      - name: Deploy to production instance
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "Deploying to production..."
+          ztictl ssm exec ${{ env.AWS_REGION }} web-server-prod \
+            "cd /app && git pull && systemctl restart app"
+
+      # Example: Deploy to multiple instances using tags
+      - name: Deploy to all web servers
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "Deploying to all web servers..."
+          ztictl ssm exec-tagged ${{ env.AWS_REGION }} \
+            --tags Environment=production,Service=web \
+            "/app/deploy.sh"
+
+      # Example: Verify deployment
+      - name: Verify deployment
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "Verifying deployment..."
+          ztictl ssm exec ${{ env.AWS_REGION }} web-server-prod \
+            "systemctl status app"
+
+  test-environment:
+    name: Test Environment Management
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install ztictl
+        run: |
+          curl -L https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-amd64 -o ztictl
+          chmod +x ztictl
+          sudo mv ztictl /usr/local/bin/
+
+      - name: Initialize ztictl
+        run: ztictl config init --non-interactive
+        env:
+          ZTICTL_DEFAULT_REGION: ${{ env.AWS_REGION }}
+
+      # Start test instances
+      - name: Start test instances
+        run: |
+          echo "Starting test instances..."
+          ztictl ssm start-tagged \
+            --region ${{ env.AWS_REGION }} \
+            --tags Environment=test,AutoStart=true
+
+      # Wait for instances to be ready
+      - name: Wait for instances
+        run: |
+          echo "Waiting for instances to be ready..."
+          sleep 60
+
+      # Run tests
+      - name: Run integration tests
+        run: |
+          echo "Running integration tests..."
+          ztictl ssm exec-tagged ${{ env.AWS_REGION }} \
+            --tags Environment=test \
+            "cd /app && npm test"
+
+      # Stop test instances (always run, even if tests fail)
+      - name: Stop test instances
+        if: always()
+        run: |
+          echo "Stopping test instances..."
+          ztictl ssm stop-tagged \
+            --region ${{ env.AWS_REGION }} \
+            --tags Environment=test
+
+  file-transfer:
+    name: File Transfer Example
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install ztictl and Session Manager plugin
+        run: |
+          curl -L https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-amd64 -o ztictl
+          chmod +x ztictl
+          sudo mv ztictl /usr/local/bin/
+          curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" \
+            -o "session-manager-plugin.deb"
+          sudo dpkg -i session-manager-plugin.deb
+
+      - name: Initialize ztictl
+        run: ztictl config init --non-interactive
+        env:
+          ZTICTL_DEFAULT_REGION: ${{ env.AWS_REGION }}
+
+      # Upload configuration file
+      - name: Upload configuration
+        run: |
+          echo "Uploading configuration file..."
+          ztictl ssm transfer upload \
+            ${{ secrets.PRODUCTION_INSTANCE_ID }} \
+            ./config/production.json \
+            /etc/app/config.json \
+            --region ${{ env.AWS_REGION }}
+
+      # Download logs for artifact storage
+      - name: Download application logs
+        run: |
+          echo "Downloading application logs..."
+          mkdir -p artifacts
+          ztictl ssm transfer download \
+            ${{ secrets.PRODUCTION_INSTANCE_ID }} \
+            /var/log/app/error.log \
+            ./artifacts/error.log \
+            --region ${{ env.AWS_REGION }}
+
+      # Upload logs as GitHub artifacts
+      - name: Upload logs as artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: application-logs
+          path: artifacts/
+          retention-days: 30
+
+  multi-region:
+    name: Multi-Region Deployment
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    strategy:
+      matrix:
+        region: [us-east-1, ca-central-1, eu-west-1]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ matrix.region }}
+
+      - name: Install ztictl
+        run: |
+          curl -L https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-amd64 -o ztictl
+          chmod +x ztictl
+          sudo mv ztictl /usr/local/bin/
+
+      - name: Initialize ztictl
+        run: ztictl config init --non-interactive
+        env:
+          ZTICTL_DEFAULT_REGION: ${{ matrix.region }}
+
+      - name: Deploy to region
+        run: |
+          echo "Deploying to ${{ matrix.region }}..."
+          ztictl ssm exec-tagged ${{ matrix.region }} \
+            --tags Environment=production,Service=web \
+            "/app/deploy.sh"
+
+      - name: Verify deployment
+        run: |
+          echo "Verifying deployment in ${{ matrix.region }}..."
+          ztictl ssm exec-tagged ${{ matrix.region }} \
+            --tags Environment=production,Service=web \
+            "curl -f http://localhost:8080/health || exit 1"
+
+  cleanup:
+    name: Cleanup Old Resources
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install ztictl
+        run: |
+          curl -L https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-amd64 -o ztictl
+          chmod +x ztictl
+          sudo mv ztictl /usr/local/bin/
+
+      - name: Initialize ztictl
+        run: ztictl config init --non-interactive
+        env:
+          ZTICTL_DEFAULT_REGION: ${{ env.AWS_REGION }}
+
+      # Dry run first to see what would be cleaned
+      - name: Cleanup dry run
+        run: |
+          echo "Running cleanup dry run..."
+          ztictl ssm cleanup --region ${{ env.AWS_REGION }} --dry-run
+
+      # Actual cleanup
+      - name: Cleanup old resources
+        run: |
+          echo "Cleaning up old resources..."
+          ztictl ssm cleanup --region ${{ env.AWS_REGION }}

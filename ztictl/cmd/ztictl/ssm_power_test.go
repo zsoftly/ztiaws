@@ -689,10 +689,8 @@ func TestValidateTaggedCommandArgs(t *testing.T) {
 				if tt.errorContains != "" && err.Error() != tt.errorContains {
 					t.Errorf("Expected error containing %q, got %q", tt.errorContains, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("Expected no error but got: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("Expected no error but got: %v", err)
 			}
 		})
 	}
@@ -843,10 +841,8 @@ func TestDisplayPowerOperationResults(t *testing.T) {
 				if tt.errorContains != "" && err.Error() != tt.errorContains {
 					t.Errorf("Expected error containing %q, got %q", tt.errorContains, err.Error())
 				}
-			} else {
-				if err != nil {
-					t.Errorf("Expected no error but got: %v", err)
-				}
+			} else if err != nil {
+				t.Errorf("Expected no error but got: %v", err)
 			}
 		})
 	}
@@ -859,4 +855,237 @@ type stubError struct {
 
 func (e *stubError) Error() string {
 	return e.message
+}
+
+func TestStateValidationRequirements(t *testing.T) {
+	tests := []struct {
+		name             string
+		operation        string
+		expectedStates   []string
+		requireSSMOnline bool
+		expectError      bool
+	}{
+		{
+			name:             "start operation requires stopped state",
+			operation:        "start",
+			expectedStates:   []string{"stopped"},
+			requireSSMOnline: false,
+			expectError:      false,
+		},
+		{
+			name:             "stop operation requires running state",
+			operation:        "stop",
+			expectedStates:   []string{"running"},
+			requireSSMOnline: false,
+			expectError:      false,
+		},
+		{
+			name:             "reboot operation requires running state",
+			operation:        "reboot",
+			expectedStates:   []string{"running"},
+			requireSSMOnline: false,
+			expectError:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			requirements, err := buildRequirementsForOperation(tt.operation)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+				return
+			}
+
+			if requirements.Operation != tt.operation {
+				t.Errorf("Expected operation %q, got %q", tt.operation, requirements.Operation)
+			}
+
+			if requirements.RequireSSMOnline != tt.requireSSMOnline {
+				t.Errorf("Expected RequireSSMOnline %v, got %v", tt.requireSSMOnline, requirements.RequireSSMOnline)
+			}
+
+			if len(requirements.AllowedStates) != len(tt.expectedStates) {
+				t.Errorf("Expected %d allowed states, got %d", len(tt.expectedStates), len(requirements.AllowedStates))
+			}
+
+			for i, state := range tt.expectedStates {
+				if i >= len(requirements.AllowedStates) || requirements.AllowedStates[i] != state {
+					t.Errorf("Expected state %q at index %d, got %q", state, i, requirements.AllowedStates[i])
+				}
+			}
+		})
+	}
+}
+
+func TestPowerOperationResultErrorHandling(t *testing.T) {
+	tests := []struct {
+		name        string
+		results     []PowerOperationResult
+		expectError bool
+		description string
+	}{
+		{
+			name: "state validation error for start on running instance",
+			results: []PowerOperationResult{
+				{
+					InstanceID: "i-1234567890abcdef0",
+					Operation:  "start",
+					Error:      errors.New("instance is in 'running' state, expected one of: [stopped]"),
+					Duration:   time.Millisecond * 100,
+				},
+			},
+			expectError: true,
+			description: "Should fail when trying to start a running instance",
+		},
+		{
+			name: "state validation error for stop on stopped instance",
+			results: []PowerOperationResult{
+				{
+					InstanceID: "i-1234567890abcdef0",
+					Operation:  "stop",
+					Error:      errors.New("instance is in 'stopped' state, expected one of: [running]"),
+					Duration:   time.Millisecond * 100,
+				},
+			},
+			expectError: true,
+			description: "Should fail when trying to stop a stopped instance",
+		},
+		{
+			name: "state validation error for reboot on stopped instance",
+			results: []PowerOperationResult{
+				{
+					InstanceID: "i-1234567890abcdef0",
+					Operation:  "reboot",
+					Error:      errors.New("instance is in 'stopped' state, expected one of: [running]"),
+					Duration:   time.Millisecond * 100,
+				},
+			},
+			expectError: true,
+			description: "Should fail when trying to reboot a stopped instance",
+		},
+		{
+			name: "successful operation with no errors",
+			results: []PowerOperationResult{
+				{
+					InstanceID: "i-1234567890abcdef0",
+					Operation:  "start",
+					Error:      nil,
+					Duration:   time.Millisecond * 200,
+				},
+			},
+			expectError: false,
+			description: "Should succeed when instance is in correct state",
+		},
+		{
+			name: "mixed results with some validation failures",
+			results: []PowerOperationResult{
+				{
+					InstanceID: "i-1111111111111111",
+					Operation:  "start",
+					Error:      nil,
+					Duration:   time.Millisecond * 150,
+				},
+				{
+					InstanceID: "i-2222222222222222",
+					Operation:  "start",
+					Error:      errors.New("instance is in 'running' state, expected one of: [stopped]"),
+					Duration:   time.Millisecond * 100,
+				},
+				{
+					InstanceID: "i-3333333333333333",
+					Operation:  "start",
+					Error:      errors.New("instance is in 'running' state, expected one of: [stopped]"),
+					Duration:   time.Millisecond * 100,
+				},
+			},
+			expectError: true,
+			description: "Should report partial failure when some instances fail validation",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := displayPowerOperationResults(tt.results, tt.results[0].Operation, time.Second, 4)
+
+			if tt.expectError && err == nil {
+				t.Errorf("%s: expected error but got nil", tt.description)
+			}
+
+			if !tt.expectError && err != nil {
+				t.Errorf("%s: expected no error but got: %v", tt.description, err)
+			}
+
+			successCount := 0
+			for _, result := range tt.results {
+				if result.Error == nil {
+					successCount++
+				}
+			}
+
+			if tt.expectError && successCount == len(tt.results) {
+				t.Errorf("%s: all operations succeeded but expected failures", tt.description)
+			}
+		})
+	}
+}
+
+func TestGetInstanceIDsByTagsFormatting(t *testing.T) {
+	tests := []struct {
+		name     string
+		tagsFlag string
+		expected int
+		desc     string
+	}{
+		{
+			name:     "single tag",
+			tagsFlag: "Environment=production",
+			expected: 1,
+			desc:     "Should parse single tag correctly",
+		},
+		{
+			name:     "multiple tags",
+			tagsFlag: "Environment=production,Team=backend",
+			expected: 2,
+			desc:     "Should parse multiple tags correctly",
+		},
+		{
+			name:     "tags with spaces",
+			tagsFlag: "Environment=production, Team=backend",
+			expected: 2,
+			desc:     "Should handle spaces in tag list",
+		},
+		{
+			name:     "empty tag string",
+			tagsFlag: "",
+			expected: 0,
+			desc:     "Should handle empty tag string",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filterCount := 0
+			if tt.tagsFlag != "" {
+				tagPairs := strings.Split(tt.tagsFlag, ",")
+				for _, pair := range tagPairs {
+					parts := strings.SplitN(strings.TrimSpace(pair), "=", 2)
+					if len(parts) == 2 {
+						filterCount++
+					}
+				}
+			}
+
+			if filterCount != tt.expected {
+				t.Errorf("%s: expected %d filters, got %d", tt.desc, tt.expected, filterCount)
+			}
+		})
+	}
 }

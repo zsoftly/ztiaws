@@ -22,7 +22,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || {
 }
 
 if [ -f "${SCRIPT_DIR}/../src/00_utils.sh" ]; then
-    # shellcheck source=../src/00_utils.sh
+    # shellcheck source=../src/00_utils.sh disable=SC1091
     source "${SCRIPT_DIR}/../src/00_utils.sh" || {
         echo "Error: Failed to source utilities file" >&2
         exit 1
@@ -105,6 +105,7 @@ parse_arguments() {
     fi
 
     # Validate required parameters using centralized function
+    # shellcheck disable=SC2317
     validate_notification_params "$WEBHOOK_URL" "$PR_TITLE" "$PR_NUMBER" "$PR_URL" "$AUTHOR" "$REPOSITORY" || { usage; exit 1; }
 }
 
@@ -112,28 +113,33 @@ parse_arguments() {
 create_chat_payload() {
     log_debug "Creating Google Chat App Card payload"
     
-    local escaped_title=$(escape_json "$PR_TITLE")
-    local escaped_author=$(escape_json "$AUTHOR")
-    local escaped_repository=$(escape_json "$REPOSITORY")
-    local escaped_pr_number=$(escape_json "$PR_NUMBER")
+    local escaped_title
+    local escaped_author
+    local escaped_repository
+    local escaped_pr_number
+    local escaped_pr_url
+    local escaped_files_url
+    local escaped_message
+
+    escaped_title=$(escape_json "$PR_TITLE")
+    escaped_author=$(escape_json "$AUTHOR")
+    escaped_repository=$(escape_json "$REPOSITORY")
+    escaped_pr_number=$(escape_json "$PR_NUMBER")
     local files_url="${PR_URL}/files"
-    local escaped_pr_url=$(escape_json "$PR_URL")
-    local escaped_files_url=$(escape_json "$files_url")
-    local escaped_message=$(escape_json "${MESSAGE:-🔄 New pull request opened}")
+    escaped_pr_url=$(escape_json "$PR_URL")
+    escaped_files_url=$(escape_json "$files_url")
+    escaped_message=$(escape_json "${MESSAGE:-🔄 New pull request opened}")
     
     # Determine status icon and header
     local status_icon="NOTIFICATION_ICON"
     local header_title="🔄 New Pull Request"
-    local status_color=""
-    
+
     if [[ "$STATUS" == "success" ]]; then
         status_icon="STAR"
         header_title="✅ PR Ready for Review"
-        status_color=""
     elif [[ "$STATUS" == "failure" ]]; then
         status_icon="ERROR"
         header_title="❌ PR Tests Failed"
-        status_color=""
     fi
     
     cat << EOF

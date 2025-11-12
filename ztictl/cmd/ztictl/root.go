@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"ztictl/internal/config"
@@ -22,12 +24,88 @@ var (
 	// Version represents the current version of ztictl
 	// This can be set at build time using -ldflags "-X main.version=X.Y.Z"
 	// Default version is "2.5.0"; override at build time with -ldflags "-X main.Version=X.Y.Z"
-	Version    = "2.10.0"
-	configFile string
-	debug      bool
-	showSplash bool
-	logger     *logging.Logger
+	Version        = "2.10.0"
+	configFile     string
+	debug          bool
+	showSplash     bool
+	nonInteractive bool
+	autoYes        bool
+	logger         *logging.Logger
 )
+
+// ExecutionContext contains runtime execution context
+type ExecutionContext struct {
+	NonInteractive bool // Disable all interactive prompts
+	AutoYes        bool // Automatically answer yes to confirmations
+	IsCI           bool // Detected CI/CD environment
+}
+
+// Context key for storing execution context
+type contextKey string
+
+const execContextKey contextKey = "execContext"
+
+// detectCIEnvironment checks if running in a CI/CD environment
+func detectCIEnvironment() bool {
+	ciEnvVars := []string{
+		"CI",                 // Generic CI indicator (Travis, CircleCI, GitLab, etc.)
+		"GITHUB_ACTIONS",     // GitHub Actions
+		"GITLAB_CI",          // GitLab CI
+		"JENKINS_HOME",       // Jenkins
+		"JENKINS_URL",        // Jenkins
+		"CIRCLECI",           // CircleCI
+		"TRAVIS",             // Travis CI
+		"BUILDKITE",          // Buildkite
+		"DRONE",              // Drone CI
+		"TF_BUILD",           // Azure Pipelines
+		"CODEBUILD_BUILD_ID", // AWS CodeBuild
+	}
+
+	for _, envVar := range ciEnvVars {
+		if os.Getenv(envVar) != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// createExecutionContext creates the execution context based on flags and environment
+func createExecutionContext() *ExecutionContext {
+	isCI := detectCIEnvironment()
+
+	// Non-interactive mode is enabled if:
+	// 1. --non-interactive flag is set, OR
+	// 2. ZTICTL_NON_INTERACTIVE=true, OR
+	// 3. CI environment is detected
+	nonInteractiveMode := nonInteractive ||
+		os.Getenv("ZTICTL_NON_INTERACTIVE") == "true" ||
+		isCI
+
+	return &ExecutionContext{
+		NonInteractive: nonInteractiveMode,
+		AutoYes:        autoYes,
+		IsCI:           isCI,
+	}
+}
+
+// GetExecutionContext retrieves the execution context from a command
+func GetExecutionContext(cmd *cobra.Command) *ExecutionContext {
+	if cmd == nil {
+		return &ExecutionContext{}
+	}
+
+	ctx := cmd.Context()
+	if ctx == nil {
+		return &ExecutionContext{}
+	}
+
+	if execCtx, ok := ctx.Value(execContextKey).(*ExecutionContext); ok {
+		return execCtx
+	}
+
+	return &ExecutionContext{}
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -54,6 +132,18 @@ Features:
 		_ = cmd.Help()
 	},
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Create and store execution context
+		execCtx := createExecutionContext()
+
+		// Get parent context, use Background if nil (e.g., in tests)
+		parentCtx := cmd.Context()
+		if parentCtx == nil {
+			parentCtx = context.Background()
+		}
+
+		ctx := context.WithValue(parentCtx, execContextKey, execCtx)
+		cmd.SetContext(ctx)
+
 		// Skip splash for help, version, and completion commands
 		if cmd.Name() == "help" || cmd.Name() == "version" || cmd.Name() == cobra.ShellCompRequestCmd || cmd.Parent() == nil {
 			return
@@ -82,7 +172,7 @@ Features:
 				_ = os.Rename(tempFile, versionFile) // Ignore error as restore is optional
 			}
 		} else {
-			// Normal splash behavior
+			// Normal splash behavior (automatically skipped in CI by splash.ShowSplash)
 			showedSplash, err = splash.ShowSplash(Version)
 		}
 
@@ -92,7 +182,8 @@ Features:
 		}
 
 		// If this is the first run, show helpful message instead of automatic setup
-		if showedSplash {
+		// Skip in non-interactive mode
+		if showedSplash && !execCtx.NonInteractive {
 			cfg := config.Get()
 			if cfg != nil && cfg.SSO.StartURL == "" {
 				fmt.Println("\n🚀 Welcome to ztictl!")
@@ -117,6 +208,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file (default is $HOME/.ztictl.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug output")
 	rootCmd.PersistentFlags().BoolVar(&showSplash, "show-splash", false, "force display of welcome splash screen")
+	rootCmd.PersistentFlags().BoolVar(&nonInteractive, "non-interactive", false, "disable all interactive prompts (fail with error if input required)")
+	rootCmd.PersistentFlags().BoolVarP(&autoYes, "yes", "y", false, "automatically answer yes to all confirmation prompts")
 
 	// Bind flags to viper
 	_ = viper.BindPFlag("debug", rootCmd.PersistentFlags().Lookup("debug")) // #nosec G104
@@ -360,6 +453,119 @@ region_shortcuts:
 	fmt.Println("3. Run 'ztictl ssm list' to see your EC2 instances")
 
 	return nil
+}
+
+// runNonInteractiveConfig creates configuration from environment variables
+func runNonInteractiveConfig(configPath string) error {
+	// Get values from environment variables with fallback to sensible defaults
+	defaultRegion := getEnvOrDefault("ZTICTL_DEFAULT_REGION", "ca-central-1")
+
+	// SSO configuration (optional - CI/CD uses IAM auth, not SSO)
+	ssoStartURL := os.Getenv("ZTICTL_SSO_START_URL")
+	if ssoStartURL == "" {
+		// If domain ID is provided, construct the URL
+		if domainID := os.Getenv("ZTICTL_SSO_DOMAIN_ID"); domainID != "" {
+			ssoStartURL = fmt.Sprintf("https://%s.awsapps.com/start", domainID)
+		}
+	}
+	ssoRegion := getEnvOrDefault("ZTICTL_SSO_REGION", "ca-central-1")
+
+	// Get home directory for log paths
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("unable to get home directory: %w", err)
+	}
+
+	// Logging configuration - default to disabled in CI/CD
+	logDir := getEnvOrDefault("ZTICTL_LOG_DIR", filepath.Join(home, "logs"))
+	logDir = filepath.ToSlash(logDir)
+	fileLogging := getEnvBoolOrDefault("ZTICTL_LOG_ENABLED", false)
+	logLevel := getEnvOrDefault("ZTICTL_LOG_LEVEL", "info")
+
+	// System configuration
+	tempDir := getEnvOrDefault("ZTICTL_TEMP_DIR", os.TempDir())
+	tempDir = filepath.ToSlash(tempDir)
+	iamDelay := getEnvIntOrDefault("ZTICTL_IAM_DELAY", 5)
+	s3Prefix := getEnvOrDefault("ZTICTL_S3_PREFIX", "")
+
+	// Build config content
+	configContent := fmt.Sprintf(`# ztictl Configuration File
+# Generated in non-interactive mode from environment variables
+
+# AWS SSO Configuration (optional in CI/CD)
+sso:
+  start_url: "%s"
+  region: "%s"
+
+# Default AWS region for operations
+default_region: "%s"
+
+# Logging configuration
+logging:
+  directory: "%s"
+  file_logging: %t
+  level: "%s"
+
+# System configuration
+system:
+  session_manager_plugin_path: ""  # Auto-detected if empty
+  temp_directory: "%s"
+  iam_propagation_delay: %d
+  s3_bucket_prefix: "%s"
+
+# Region shortcuts for convenience
+region_shortcuts:
+  cac1: "ca-central-1"
+  use1: "us-east-1"
+  use2: "us-east-2"
+  usw1: "us-west-1"
+  usw2: "us-west-2"
+  euw1: "eu-west-1"
+  euw2: "eu-west-2"
+  euc1: "eu-central-1"
+  apne1: "ap-northeast-1"
+  apne2: "ap-northeast-2"
+  apse1: "ap-southeast-1"
+  apse2: "ap-southeast-2"
+  aps1: "ap-south-1"
+`, ssoStartURL, ssoRegion, defaultRegion, logDir, fileLogging, logLevel, tempDir, iamDelay, s3Prefix)
+
+	// Write configuration file
+	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
+		return fmt.Errorf("failed to write configuration file: %w", err)
+	}
+
+	logger.Info("Configuration created from environment variables", "path", configPath)
+	return nil
+}
+
+// getEnvOrDefault gets environment variable or returns default value
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// getEnvBoolOrDefault gets boolean environment variable or returns default
+func getEnvBoolOrDefault(key string, defaultValue bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value == "true" || value == "1" || value == "yes"
+}
+
+// getEnvIntOrDefault gets integer environment variable or returns default
+func getEnvIntOrDefault(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	if intValue, err := strconv.Atoi(value); err == nil {
+		return intValue
+	}
+	return defaultValue
 }
 
 // isValidAWSRegion checks if a region string follows AWS region format

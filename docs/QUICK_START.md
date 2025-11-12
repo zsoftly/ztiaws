@@ -85,6 +85,6 @@ curl -I https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-
 ```
 
 ## 📚 Full Documentation
-- **Installation Guide**: [INSTALLATION.md](INSTALLATION.md)
-- **Release Process**: [RELEASE.md](RELEASE.md)
-- **User Guide**: [README.md](README.md)
+- **Installation Guide**: [INSTALLATION.md](../INSTALLATION.md)
+- **Release Process**: [RELEASE.md](development/RELEASE.md)
+- **User Guide**: [README.md](../README.md)
