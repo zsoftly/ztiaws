@@ -1,5 +1,38 @@
 # Changelog
 
+## [v2.11.0] - 2025-11-13
+
+### Added
+- Enhance AWS SSO and CI/CD Integration
+- Enhance AWS SSO and CI/CD Integration
+- Enhance power operation handling and validation
+- Add finalized ZTiAWS demo images and update Markdown paths
+- Add files via upload
+- Create .gitkeep
+- Create .gitkeep
+- Add ZTiAWS Demo Documentation (Installation, Authentication, and Use Cases)
+- feat: Update EC2 Test Manager script with default subnet and security group IDs, add dry run option, and improve resource discovery logging
+
+### Fixed
+- fix: Update build scripts and enhance error handling in OIDC examples
+- fix: Update script paths and improve error handling in notification scripts
+- fix: Increase HTTP client timeout for EC2 instance detection and add warning for proxy parsing errors
+
+### Changed
+- Wrap commands in proper markdown code blocks
+- docs: finalize ZTiAWS demo documentation with consistent numbering and formatting
+- Docs: add proper Markdown headers and syntax highlighting for config section
+- docs(README): removed emojis
+- docs(ztiaws-demo): finalize demo walkthrough with screenshots and stakeholder-focused updates
+- Rename 04-confirm ssm-ec2.png to 04-confirm-ssm-ec2.png
+- Rename 12-uploading- loca-to-ec2-file.png to 12-uploading-local-to-ec2-file.png
+- Rename 11-creating- folder-file.png to 11-creating-folder-file.png
+- docs: reordered demo flow, updated region codes, and refined next steps per review feedback
+- refactor: Remove unused file modification time check in IAM cache validation
+- Refs #130: Refactor EC2 Manager Script to Dynamically Fetch VPC Resources
+
+**Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.10.0...v2.11.0
+
 ## [v2.10.0] - 2025-10-12
 
 ### Added
