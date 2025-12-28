@@ -16,6 +16,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// rdsClientPool is reused across RDS commands for efficiency
+var rdsClientPool = ssm.NewClientPool()
+
 // rdsListCmd represents the rds list command
 var rdsListCmd = &cobra.Command{
 	Use:   "list",
@@ -123,8 +126,7 @@ func performRDSList(regionCode string) error {
 	region := resolveRegion(regionCode)
 	ctx := context.Background()
 
-	clientPool := ssm.NewClientPool()
-	rdsClient, err := clientPool.GetRDSClient(ctx, region)
+	rdsClient, err := rdsClientPool.GetRDSClient(ctx, region)
 	if err != nil {
 		return fmt.Errorf("failed to create RDS client: %w", err)
 	}
@@ -174,8 +176,7 @@ func performRDSStart(regionCode, dbIdentifier string, wait bool) error {
 	region := resolveRegion(regionCode)
 	ctx := context.Background()
 
-	clientPool := ssm.NewClientPool()
-	rdsClient, err := clientPool.GetRDSClient(ctx, region)
+	rdsClient, err := rdsClientPool.GetRDSClient(ctx, region)
 	if err != nil {
 		return fmt.Errorf("failed to create RDS client: %w", err)
 	}
@@ -210,8 +211,7 @@ func performRDSStop(regionCode, dbIdentifier string, wait bool) error {
 	region := resolveRegion(regionCode)
 	ctx := context.Background()
 
-	clientPool := ssm.NewClientPool()
-	rdsClient, err := clientPool.GetRDSClient(ctx, region)
+	rdsClient, err := rdsClientPool.GetRDSClient(ctx, region)
 	if err != nil {
 		return fmt.Errorf("failed to create RDS client: %w", err)
 	}
@@ -247,8 +247,7 @@ func performRDSReboot(regionCode, dbIdentifier string, forceFailover, wait bool)
 	region := resolveRegion(regionCode)
 	ctx := context.Background()
 
-	clientPool := ssm.NewClientPool()
-	rdsClient, err := clientPool.GetRDSClient(ctx, region)
+	rdsClient, err := rdsClientPool.GetRDSClient(ctx, region)
 	if err != nil {
 		return fmt.Errorf("failed to create RDS client: %w", err)
 	}
@@ -289,14 +288,25 @@ func waitForRDSStatus(ctx context.Context, rdsClient *rds.Client, dbIdentifier, 
 	maxWait := 30 * time.Minute
 	pollInterval := 30 * time.Second
 	deadline := time.Now().Add(maxWait)
+	consecutiveErrors := 0
+	maxConsecutiveErrors := 3
 
 	for time.Now().Before(deadline) {
 		resp, err := rdsClient.DescribeDBInstances(ctx, &rds.DescribeDBInstancesInput{
 			DBInstanceIdentifier: aws.String(dbIdentifier),
 		})
 		if err != nil {
-			return fmt.Errorf("failed to check instance status: %w", err)
+			consecutiveErrors++
+			if consecutiveErrors > maxConsecutiveErrors {
+				return fmt.Errorf("failed to check instance status after %d retries: %w", maxConsecutiveErrors, err)
+			}
+			// Exponential backoff for transient errors
+			backoff := pollInterval * time.Duration(consecutiveErrors)
+			fmt.Printf("  Error checking status, retrying in %v... (%d/%d)\n", backoff, consecutiveErrors, maxConsecutiveErrors)
+			time.Sleep(backoff)
+			continue
 		}
+		consecutiveErrors = 0
 
 		if len(resp.DBInstances) == 0 {
 			return fmt.Errorf("instance %s not found", dbIdentifier)

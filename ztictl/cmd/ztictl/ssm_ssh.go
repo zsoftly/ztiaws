@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"ztictl/internal/ssm"
 	"ztictl/pkg/logging"
@@ -327,9 +328,9 @@ func performRDPConnection(regionCode, instanceIdentifier string, localPort int, 
 	fmt.Printf("\nConnect your RDP client to: localhost:%d\n", localPort)
 
 	if launch {
-		// Launch RDP client in background before starting the tunnel
+		// Launch RDP client in background after giving tunnel time to establish
 		go func() {
-			// Give the tunnel a moment to start
+			time.Sleep(2 * time.Second) // Wait for tunnel to be ready
 			launchRDPClient(localPort)
 		}()
 	} else {

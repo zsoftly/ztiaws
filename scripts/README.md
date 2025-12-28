@@ -7,13 +7,14 @@ Automation scripts for the ZTiAWS project, focusing on **Google Chat notificatio
 These scripts send **professional, interactive notifications** instead of plain text because:
 
 - **Rich visual formatting** with headers, icons, and structured sections
-- **Interactive elements** like clickable buttons for direct actions  
+- **Interactive elements** like clickable buttons for direct actions
 - **Enterprise-grade appearance** that matches professional tools
 - **Quick access** to related resources without copy/paste
 
 ## Notification Scripts
 
 ### `send-pr-notification.sh`
+
 **Purpose:** Notify team when PRs are opened to the main branch  
 **Triggered:** After security scans complete in CI/CD  
 **Benefits:** Enables quick review and collaboration
@@ -28,7 +29,8 @@ These scripts send **professional, interactive notifications** instead of plain 
   --repository "org/repo"
 ```
 
-### `send-release-notification.sh`  
+### `send-release-notification.sh`
+
 **Purpose:** Announce new releases to stakeholders  
 **Triggered:** After GitHub releases are created  
 **Benefits:** Coordinates deployment activities and provides direct access to release assets

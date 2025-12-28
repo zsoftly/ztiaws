@@ -5,9 +5,11 @@ The `ztictl` fuzzy finder provides interactive selection across multiple command
 ## Available in Commands
 
 ### Authentication
+
 - **`ztictl auth login`** - Interactive account/role selection
 
 ### SSM Instance Operations (v2.1+)
+
 All SSM commands support interactive instance selection by omitting the instance identifier:
 
 - **`ztictl ssm connect [--region <region>]`** - Connect to an instance
@@ -20,6 +22,7 @@ All SSM commands support interactive instance selection by omitting the instance
 - **`ztictl ssm reboot [--region <region>]`** - Reboot a running instance
 
 ### Usage Example
+
 ```bash
 # Traditional way (still supported)
 ztictl ssm connect i-1234567890abcdef0 --region cac1
@@ -34,14 +37,14 @@ When using the fuzzy finder for SSM operations, `ztictl` automatically validates
 
 ### Validation Rules
 
-| Operation | Required Instance State | Requires SSM Agent Online |
-|-----------|------------------------|---------------------------|
-| `connect` | `running` | ✅ Yes |
-| `exec` | `running` | ✅ Yes |
-| `transfer` | `running` | ✅ Yes |
-| `start` | `stopped` | ❌ No |
-| `stop` | `running` | ❌ No |
-| `reboot` | `running` | ❌ No |
+| Operation  | Required Instance State | Requires SSM Agent Online |
+| ---------- | ----------------------- | ------------------------- |
+| `connect`  | `running`               | ✅ Yes                    |
+| `exec`     | `running`               | ✅ Yes                    |
+| `transfer` | `running`               | ✅ Yes                    |
+| `start`    | `stopped`               | ❌ No                     |
+| `stop`     | `running`               | ❌ No                     |
+| `reboot`   | `running`               | ❌ No                     |
 
 ### Error Feedback
 
@@ -78,6 +81,7 @@ Instance Details:
 ## Keyboard Shortcuts
 
 ### Text Editing
+
 - **Ctrl+V** - Paste text from clipboard into search box
 - **Ctrl+X** - Cut selected text to clipboard
 - **Ctrl+C** - Copy selected text to clipboard
@@ -85,6 +89,7 @@ Instance Details:
 - **Backspace/Delete** - Delete selected text (if any) or single character
 
 ### Navigation (Text)
+
 - **Ctrl+A** / **Home** - Move cursor to beginning of search box
 - **Ctrl+E** / **End** - Move cursor to end of search box
 - **Ctrl+B** / **Left Arrow** - Move cursor left one character
@@ -93,6 +98,7 @@ Instance Details:
 - **Ctrl+U** - Delete everything before cursor (kill line backward)
 
 ### Navigation (List)
+
 - **Up Arrow** / **Ctrl+K** / **Ctrl+P** - Move selection up
 - **Down Arrow** / **Ctrl+J** / **Ctrl+N** - Move selection down
 - **Page Up** - Scroll up one page
@@ -100,18 +106,21 @@ Instance Details:
 - **Tab** - Toggle selection (in multi-select mode)
 
 ### Actions
+
 - **Enter** - Confirm selection
 - **Ctrl+D** / **Ctrl+Q** / **Esc** - Quit/abort the finder
 
 ## Mouse Support
 
 ### Search Box Interactions
+
 - **Left-click on prompt** - Position cursor at click location in search box
 - **Left-click + drag on prompt** - Select text by dragging in search box
 - **Double-click on prompt** - Select word under cursor in search box
 - **Right-click on prompt** - Paste text from clipboard into search box
 
 ### List Interactions
+
 - **Left-click on item** - Select that item in the list
 - **Mouse wheel up/down** - Scroll through the item list
 
@@ -161,11 +170,13 @@ The application will exit cleanly with code 1 instead of crashing with a stack t
 ## Platform Support
 
 All features are supported on:
+
 - ✅ Linux
 - ✅ macOS
 - ✅ Windows (Command Prompt, PowerShell, Windows Terminal)
 
 Clipboard operations require:
+
 - Linux: X11 or Wayland (xclip/xsel/wl-clipboard)
 - macOS: Built-in (pbcopy/pbpaste)
 - Windows: Built-in

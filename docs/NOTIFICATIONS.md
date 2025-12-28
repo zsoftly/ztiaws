@@ -13,12 +13,14 @@ ZTiAWS uses automated notifications to keep the team informed about important re
 **Channel:** Google Chat room (same as zsoftly-services)
 
 **Message format:** Google Chat App Card with:
+
 - **Header:** "New Pull Request" with GitHub avatar
 - **Key-Value sections:** PR title, author, repository, PR number
 - **Action buttons:** "🔍 Review PR" and "📁 View Files"
 - **Professional styling** with icons and structured layout
 
-**Purpose:** 
+**Purpose:**
+
 - Keep team aware of new contributions
 - Enable quick review and collaboration
 - Maintain visibility into main branch changes
@@ -30,12 +32,14 @@ ZTiAWS uses automated notifications to keep the team informed about important re
 **Channel:** Google Chat room (same as zsoftly-services)
 
 **Message format:** Google Chat App Card with:
+
 - **Header:** "🚀 New Release Available" with GitHub avatar
 - **Key-Value sections:** Version number, repository, deployment status
 - **Action buttons:** "📋 View Release", "⬇️ Download", "📝 Changelog"
 - **Professional styling** with icons and structured layout
 
 **Purpose:**
+
 - Announce new releases to stakeholders
 - Provide direct access to release notes and binaries
 - Coordinate deployment activities
@@ -56,12 +60,14 @@ The notification system uses **Google Chat App Cards** instead of simple text me
 ### App Card Structure
 
 **PR Notifications:**
+
 - Header with "New Pull Request" title and GitHub avatar
 - Structured sections showing PR details (title, author, repository, number)
 - Action buttons for reviewing PR and viewing changed files
 
 **Release Notifications:**
-- Header with "New Release Available" title and GitHub avatar  
+
+- Header with "New Release Available" title and GitHub avatar
 - Structured sections showing release details (version, status)
 - Action buttons for viewing release, downloading, and checking changelog
 
@@ -91,8 +97,9 @@ The notification system uses **embedded notifications** architecture in the main
 ### Shell Script Benefits
 
 **Why Shell Scripts Over Inline Curl:**
+
 - **🎨 Rich Google Chat App Cards** with embedded styling
-- **🔧 Maintainable code** separated from workflow logic  
+- **🔧 Maintainable code** separated from workflow logic
 - **🛡️ Enhanced security** with base64 webhook encoding
 - **📝 Comprehensive logging** with colored output and debug mode
 - **⚡ Reusable components** for different notification types
@@ -102,12 +109,14 @@ The notification system uses **embedded notifications** architecture in the main
 ### Configuration
 
 **Webhook Secret:** `GOOGLE_CHAT_WEBHOOK`
+
 - Stored in GitHub repository secrets
 - Can be base64 encoded for enhanced security (following zsoftly-services pattern)
 - Shared across ZSoftly repositories for consistency
 - Points to team's Google Chat room
 
 **Embedded Notification Conditions:**
+
 ```yaml
 # Test Failure Notifications (immediate)
 if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
@@ -115,7 +124,7 @@ if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_requ
 # Success Notification (final, from security job)
 if: success() && github.event_name == 'pull_request'
 
-# Release Notification  
+# Release Notification
 if: startsWith(github.ref, 'refs/tags/v')
 ```
 
@@ -124,18 +133,21 @@ if: startsWith(github.ref, 'refs/tags/v')
 ### **Why Embedded vs Centralized?**
 
 **Previous Design Issues:**
+
 - Centralized `notify` job created dependency chain failures
 - No notifications if any prerequisite job was skipped
 - Single point of failure blocked all notifications
 - Only worked for PRs targeting `main` branch
 
 **New Embedded Design Benefits:**
+
 - **Fail-fast**: Immediate notifications when tests fail
-- **Independent**: Each job notifies without dependencies  
+- **Independent**: Each job notifies without dependencies
 - **Reliable**: Cannot be blocked by other job failures
 - **Comprehensive**: Works for all PRs, any branch target
 
 ### **Implementation Pattern:**
+
 ```yaml
 - name: Notify on test failure
   if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
@@ -151,6 +163,7 @@ if: startsWith(github.ref, 'refs/tags/v')
 ## Notification Flow
 
 ### Pull Request Flow
+
 1. Developer opens PR (to any branch)
 2. CI/CD triggers: `test-shell` + `test-go` jobs run in parallel
 3. **Immediate failure notifications**: If any test fails, notification sent immediately
@@ -159,6 +172,7 @@ if: startsWith(github.ref, 'refs/tags/v')
 6. **Fail-fast feedback**: Team gets alerts as soon as issues occur
 
 ### Release Flow
+
 1. Maintainer pushes version tag (e.g., `git push origin v1.0.0`)
 2. CI/CD triggers: `build` → `release` → `release-notification`
 3. After successful release creation, notification is sent
@@ -167,6 +181,7 @@ if: startsWith(github.ref, 'refs/tags/v')
 ## Benefits
 
 ### For Development Team
+
 - **Fail-fast notifications** - Immediate alerts when any test fails (no waiting for all jobs)
 - **Single success notification** - Clean, consolidated "✅" message when all tests pass
 - **No dependency chain failures** - Each job notifies independently
@@ -176,6 +191,7 @@ if: startsWith(github.ref, 'refs/tags/v')
 - **Integration with existing workflows** (same chat room as zsoftly-services)
 
 ### For Project Management
+
 - **Visibility into development velocity** (PR frequency)
 - **Release tracking** with direct links to release notes
 - **Stakeholder communication** through automated announcements
@@ -185,6 +201,7 @@ if: startsWith(github.ref, 'refs/tags/v')
 ### Notifications Not Received
 
 1. **Check workflow execution:**
+
 ```bash
 # View recent workflow runs
 gh run list --workflow=build.yml --limit=5
@@ -194,11 +211,13 @@ gh run view [RUN_ID] --log
 ```
 
 2. **Verify webhook configuration:**
+
 - Ensure `GOOGLE_CHAT_WEBHOOK` secret is configured
 - Verify webhook URL is active and accessible
 - Check Google Chat room permissions
 
 3. **Check job conditions:**
+
 - PR notifications only trigger for PRs to `main` branch
 - Release notifications only trigger for version tags starting with `v`
 - Jobs must complete successfully in correct order
@@ -206,12 +225,14 @@ gh run view [RUN_ID] --log
 ### Missing Notifications
 
 **Common causes:**
+
 - Previous job failed (notifications won't run)
 - Incorrect branch target (feature PRs don't trigger notifications)
 - Tag format doesn't match `v*` pattern
 - Webhook secret misconfigured
 
 **Debugging steps:**
+
 1. Check GitHub Actions logs for failed jobs
 2. Verify PR target branch is `main`
 3. Confirm tag format: `v1.0.0` (not `1.0.0` or `release-1.0.0`)
@@ -220,12 +241,14 @@ gh run view [RUN_ID] --log
 ### Testing Notifications
 
 **Test PR notification:**
+
 1. Create a test branch
 2. Open PR to `main` branch
 3. Wait for security scans to complete
 4. Check Google Chat for notification
 
 **Test release notification:**
+
 1. Create a test tag: `git tag v0.0.0-test`
 2. Push tag: `git push origin v0.0.0-test`
 3. Wait for release creation

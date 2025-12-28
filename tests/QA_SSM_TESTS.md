@@ -12,11 +12,13 @@ This document outlines the comprehensive test suite for the new flag-based param
 ## Command Usage Context
 
 **Development Testing** (used in this QA suite):
+
 ```bash
 ./ssm --help    # Tests local development version
 ```
 
 **Production Usage** (after `make install`):
+
 ```bash
 ssm --help      # Uses globally installed version
 ```
@@ -26,6 +28,7 @@ This QA document uses `./ssm` to test the local development version before insta
 ## Test Environment Requirements
 
 ### Prerequisites
+
 - AWS CLI v2.x installed and configured
 - AWS Session Manager plugin installed
 - `jq` dependency installed (for some operations)
@@ -36,6 +39,7 @@ This QA document uses `./ssm` to test the local development version before insta
 ### Test Data Setup
 
 **Step 1: Create Environment File**
+
 ```bash
 # Create a test configuration file (NOT committed to version control)
 cat > test-config.env << 'EOF'
@@ -53,6 +57,7 @@ source test-config.env
 ```
 
 **Step 2: Validate Test Data**
+
 ```bash
 # Validate instance ID format before running tests
 validate_instance_id() {
@@ -80,9 +85,11 @@ mkdir -p test-downloads
 ### 1. Backward Compatibility Tests
 
 #### Test 1.1: Positional Parameter Support
+
 **Objective**: Verify existing positional syntax continues to work
 
 **Test Cases**:
+
 ```bash
 # Test 1.1.1: No arguments (show help)
 ./ssm
@@ -126,9 +133,11 @@ Expected: Downloads file from instance
 **Pass Criteria**: All existing positional commands work exactly as before
 
 #### Test 1.2: Existing Functionality Preservation
+
 **Objective**: Ensure all existing features work with new parser
 
 **Test Cases**:
+
 ```bash
 # Test 1.2.1: Help variations
 ./ssm help
@@ -152,9 +161,11 @@ Expected: Shows installation instructions
 ### 2. Flag-Based Parameter Tests
 
 #### Test 2.1: Basic Flag Support
+
 **Objective**: Verify new flag-based syntax works correctly
 
 **Test Cases**:
+
 ```bash
 # Test 2.1.1: List with region flag
 ./ssm --region $TEST_REGION --list
@@ -185,9 +196,11 @@ Expected: Runs system requirements check
 ```
 
 #### Test 2.2: Operation Flags
+
 **Objective**: Test operation-specific flags
 
 **Test Cases**:
+
 ```bash
 # Test 2.2.1: Exec operation
 ./ssm --exec --region $TEST_REGION --instance $TEST_INSTANCE_1 --command "uptime"
@@ -211,9 +224,11 @@ Expected: Shows debug information during execution
 ```
 
 #### Test 2.3: Advanced Operations
+
 **Objective**: Test advanced flag functionality
 
 **Test Cases**:
+
 ```bash
 # Test 2.3.1: Port forwarding (if supported)
 ./ssm --forward --region $TEST_REGION --instance $TEST_INSTANCE_1 --local-port 8080 --remote-port 80
@@ -231,9 +246,11 @@ Expected: Executes complex command with debug output
 ### 3. Mixed Syntax Tests
 
 #### Test 3.1: Positional + Flag Combinations
+
 **Objective**: Test mixed syntax scenarios
 
 **Test Cases**:
+
 ```bash
 # Test 3.1.1: Positional region + flag instance
 ./ssm $TEST_REGION --instance $TEST_INSTANCE_1
@@ -259,9 +276,11 @@ Expected: Error - too many positional arguments
 ### 4. Error Handling Tests
 
 #### Test 4.1: Invalid Flags
+
 **Objective**: Test error handling for invalid parameters
 
 **Test Cases**:
+
 ```bash
 # Test 4.1.1: Unknown flag
 ./ssm --unknown-flag
@@ -285,9 +304,11 @@ Expected: Error message about missing command
 ```
 
 #### Test 4.2: Conflicting Operations
+
 **Objective**: Test validation of mutually exclusive operations
 
 **Test Cases**:
+
 ```bash
 # Test 4.2.1: Multiple operations
 ./ssm --exec --upload --region $TEST_REGION --instance $TEST_INSTANCE_1
@@ -305,9 +326,11 @@ Expected: Error message about invalid instance format
 ### 5. Edge Case Tests
 
 #### Test 5.1: Boundary Conditions
+
 **Objective**: Test edge cases and boundary conditions
 
 **Test Cases**:
+
 ```bash
 # Test 5.1.1: Empty values
 ./ssm --region "" --list
@@ -327,9 +350,11 @@ Expected: Handles Unicode paths correctly
 ```
 
 #### Test 5.2: Environment Variables
+
 **Objective**: Test interaction with environment variables
 
 **Test Cases**:
+
 ```bash
 # Test 5.2.1: SSM_DEBUG environment variable
 export SSM_DEBUG=true
@@ -348,9 +373,11 @@ unset SSM_DEBUG AWS_DEFAULT_REGION
 ### 6. Integration Tests
 
 #### Test 6.1: Full Workflow Tests
+
 **Objective**: Test complete workflows with new syntax
 
 **Test Cases**:
+
 ```bash
 # Test 6.1.1: Complete file transfer workflow
 ./ssm --upload --region $TEST_REGION --instance $TEST_INSTANCE_1 --local-file test-upload.txt --remote-path /tmp/integration-test.txt
@@ -370,9 +397,11 @@ Expected: Mixed syntax works in workflow
 ```
 
 #### Test 6.2: Instance Management
+
 **Objective**: Test instance discovery and management
 
 **Test Cases**:
+
 ```bash
 # Test 6.2.1: List instances
 ./ssm --region $TEST_REGION --list
@@ -390,9 +419,11 @@ Expected: Executes on all instances matching tag
 ## Performance Tests
 
 ### Test 7.1: Parser Performance
+
 **Objective**: Ensure parameter parsing doesn't impact performance
 
 **Test Cases**:
+
 ```bash
 # Test 7.1.1: Parse time measurement
 time ./ssm --help
@@ -410,9 +441,11 @@ Expected: Consistent performance across multiple runs
 ## Regression Tests
 
 ### Test 8.1: Existing Scripts
+
 **Objective**: Ensure existing automation scripts continue to work
 
 **Test Cases**:
+
 ```bash
 # Test 8.1.1: CI/CD script compatibility
 # Create test script using old syntax
@@ -439,6 +472,7 @@ unalias quick-connect
 ## Test Execution Checklist
 
 ### Pre-Test Setup
+
 - [ ] AWS CLI configured with test credentials
 - [ ] Test instances available and SSM-enabled
 - [ ] Test region and instance IDs configured
@@ -446,6 +480,7 @@ unalias quick-connect
 - [ ] Test environment isolated from production
 
 ### Test Execution
+
 - [ ] Run all backward compatibility tests
 - [ ] Run all flag-based parameter tests
 - [ ] Run all mixed syntax tests
@@ -456,6 +491,7 @@ unalias quick-connect
 - [ ] Run regression tests
 
 ### Post-Test Validation
+
 - [ ] All tests pass
 - [ ] No performance degradation
 - [ ] Error messages are clear and helpful
@@ -465,6 +501,7 @@ unalias quick-connect
 ## Expected Results
 
 ### Success Criteria
+
 1. **100% Backward Compatibility**: All existing commands work unchanged
 2. **Flag Support**: All new flag-based syntax works correctly
 3. **Mixed Syntax**: Positional + flag combinations work as expected
@@ -473,6 +510,7 @@ unalias quick-connect
 6. **Documentation**: Help text accurately reflects both syntaxes
 
 ### Failure Criteria
+
 1. Any existing command fails or behaves differently
 2. Flag-based syntax doesn't work as documented
 3. Error messages are unclear or unhelpful
@@ -482,6 +520,7 @@ unalias quick-connect
 ## Test Data Cleanup
 
 After testing, clean up test data:
+
 ```bash
 # Remove test files
 rm -f test-upload.txt
@@ -497,6 +536,7 @@ unset TEST_REGION TEST_INSTANCE_1 TEST_INSTANCE_2 TEST_TAG_KEY TEST_TAG_VALUE
 ## Reporting
 
 ### Test Report Template
+
 ```
 SSM Flag-Based Parameters Test Report
 =====================================
@@ -537,12 +577,14 @@ Status: [PASS/FAIL/NEEDS_REVISION]
 ## Maintenance
 
 ### Ongoing Testing
+
 - Run regression tests after any SSM changes
 - Test new flag combinations as they're added
 - Monitor performance impact over time
 - Update test cases for new features
 
 ### Test Case Updates
+
 - Add test cases for new flags
 - Update expected results for changed behavior
 - Remove obsolete test cases

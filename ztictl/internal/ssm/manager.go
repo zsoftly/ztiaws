@@ -141,6 +141,13 @@ func (m *Manager) StartSession(ctx context.Context, instanceIdentifier, region s
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigChan)
 
+	// Drain signals to prevent channel from filling up
+	go func() {
+		for range sigChan {
+			// Ignore signals - they pass through to subprocess
+		}
+	}()
+
 	if err := cmd.Run(); err != nil {
 		return errors.NewSSMError("failed to start session", err)
 	}
@@ -411,6 +418,13 @@ func (m *Manager) ForwardPort(ctx context.Context, instanceIdentifier, region st
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	defer signal.Stop(sigChan)
+
+	// Drain signals to prevent channel from filling up
+	go func() {
+		for range sigChan {
+			// Ignore signals - they pass through to subprocess
+		}
+	}()
 
 	if err := cmd.Run(); err != nil {
 		return errors.NewSSMError("failed to start port forwarding", err)

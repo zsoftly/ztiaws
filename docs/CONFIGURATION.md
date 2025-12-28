@@ -4,10 +4,10 @@ Complete reference for `ztictl` configuration file (`~/.ztictl.yaml`).
 
 ## Configuration File Location
 
-| Platform | Default Location |
-|----------|-----------------|
-| Linux/macOS | `~/.ztictl.yaml` |
-| Windows | `%USERPROFILE%\.ztictl.yaml` |
+| Platform    | Default Location             |
+| ----------- | ---------------------------- |
+| Linux/macOS | `~/.ztictl.yaml`             |
+| Windows     | `%USERPROFILE%\.ztictl.yaml` |
 
 Override with environment variable: `ZTICTL_CONFIG=/path/to/config.yaml`
 
@@ -18,27 +18,27 @@ Override with environment variable: `ZTICTL_CONFIG=/path/to/config.yaml`
 
 # AWS SSO Configuration
 sso:
-  start_url: "https://d-1234567890.awsapps.com/start"  # Required for SSO
-  region: "ca-central-1"                                # SSO service region (default)
+  start_url: 'https://d-1234567890.awsapps.com/start' # Required for SSO
+  region: 'ca-central-1' # SSO service region (default)
 
 # Default AWS region for operations
-default_region: "ca-central-1"                         # Default region for all operations
+default_region: 'ca-central-1' # Default region for all operations
 
 # Multi-region configuration
 regions:
   # List of enabled regions (shortcodes or full names)
   enabled:
-    - cac1          # ca-central-1
-    - use1          # us-east-1
-    - use2          # us-east-2
-    - euw1          # eu-west-1
-    - euw2          # eu-west-2
-    - apse1         # ap-southeast-1
-    - apse2         # ap-southeast-2
-  
+    - cac1 # ca-central-1
+    - use1 # us-east-1
+    - use2 # us-east-2
+    - euw1 # eu-west-1
+    - euw2 # eu-west-2
+    - apse1 # ap-southeast-1
+    - apse2 # ap-southeast-2
+
   # Region groups for logical organization
   groups:
-    all:            # Special group containing all enabled regions
+    all: # Special group containing all enabled regions
       - cac1
       - use1
       - use2
@@ -66,21 +66,21 @@ regions:
 
 # Logging configuration
 logging:
-  directory: "~/logs"         # Log file directory
-  file_logging: true          # Enable file logging
-  level: "info"              # Log level: debug, info, warn, error
-  max_size: 100              # Max log file size in MB
-  max_backups: 5             # Number of old log files to keep
-  max_age: 30                # Days to keep old log files
+  directory: '~/logs' # Log file directory
+  file_logging: true # Enable file logging
+  level: 'info' # Log level: debug, info, warn, error
+  max_size: 100 # Max log file size in MB
+  max_backups: 5 # Number of old log files to keep
+  max_age: 30 # Days to keep old log files
 
 # System configuration
 system:
-  iam_propagation_delay: 5   # Seconds to wait for IAM changes
-  file_size_threshold: 1048576  # Bytes (1MB) - files larger use S3
-  s3_bucket_prefix: "ztictl-ssm-file-transfer"
-  temp_directory: "/tmp"     # Temporary file directory
-  parallel_operations: 5     # Default parallelism for multi-operations
-  command_timeout: 30        # Default command timeout in seconds
+  iam_propagation_delay: 5 # Seconds to wait for IAM changes
+  file_size_threshold: 1048576 # Bytes (1MB) - files larger use S3
+  s3_bucket_prefix: 'ztictl-ssm-file-transfer'
+  temp_directory: '/tmp' # Temporary file directory
+  parallel_operations: 5 # Default parallelism for multi-operations
+  command_timeout: 30 # Default command timeout in seconds
 ```
 
 ## Configuration Sections
@@ -91,15 +91,17 @@ Controls AWS SSO authentication settings.
 
 ```yaml
 sso:
-  start_url: "https://d-1234567890.awsapps.com/start"  # Your AWS SSO portal URL
-  region: "ca-central-1"                                # Region where SSO is configured (default)
+  start_url: 'https://d-1234567890.awsapps.com/start' # Your AWS SSO portal URL
+  region: 'ca-central-1' # Region where SSO is configured (default)
 ```
 
-**Required for**: 
+**Required for**:
+
 - `ztictl auth login`
 - Any operation requiring AWS credentials
 
 **How to find your SSO domain ID**:
+
 1. Log into AWS SSO portal
 2. Look at the URL: `https://YOUR-DOMAIN-ID.awsapps.com/start`
 3. The domain ID is the part between `https://` and `.awsapps.com`
@@ -110,10 +112,11 @@ sso:
 Sets the default AWS region for operations when not specified via `--region` flag.
 
 ```yaml
-default_region: "ca-central-1"  # Can use shortcode or full name
+default_region: 'ca-central-1' # Can use shortcode or full name
 ```
 
 **Precedence order**:
+
 1. Command flag: `--region`
 2. Environment variable: `AWS_REGION`
 3. Config file: `default_region`
@@ -125,17 +128,18 @@ Defines regions for multi-region operations.
 
 ```yaml
 regions:
-  enabled:           # Regions available for --all-regions
-    - cac1          # Shortcodes supported
-    - us-east-1     # Full names supported
-  
-  groups:           # Logical groupings for --region-group
+  enabled: # Regions available for --all-regions
+    - cac1 # Shortcodes supported
+    - us-east-1 # Full names supported
+
+  groups: # Logical groupings for --region-group
     production:
       - use1
       - euw1
 ```
 
 **Special groups**:
+
 - `all`: Automatically created, contains all enabled regions
 
 ### Logging Configuration
@@ -144,21 +148,23 @@ Controls logging behavior and output.
 
 ```yaml
 logging:
-  directory: "~/logs"        # Where to store log files
-  file_logging: true         # Enable/disable file logging
-  level: "info"             # Verbosity level
-  max_size: 100             # MB per log file
-  max_backups: 5            # Number of old files to keep
-  max_age: 30               # Days to retain logs
+  directory: '~/logs' # Where to store log files
+  file_logging: true # Enable/disable file logging
+  level: 'info' # Verbosity level
+  max_size: 100 # MB per log file
+  max_backups: 5 # Number of old files to keep
+  max_age: 30 # Days to retain logs
 ```
 
 **Log levels** (least to most verbose):
+
 - `error`: Only errors
 - `warn`: Warnings and errors
 - `info`: Informational messages (default)
 - `debug`: Detailed debugging information
 
 **Log file locations**:
+
 - Linux/macOS: `~/logs/ztictl-YYYYMMDD.log`
 - Windows: `%USERPROFILE%\logs\ztictl-YYYYMMDD.log`
 
@@ -168,12 +174,12 @@ Advanced system behavior settings.
 
 ```yaml
 system:
-  iam_propagation_delay: 5      # Seconds to wait after IAM changes
-  file_size_threshold: 1048576  # Bytes - threshold for S3 transfer
-  s3_bucket_prefix: "ztictl"    # Prefix for temporary S3 buckets
-  temp_directory: "/tmp"         # Temporary file storage
-  parallel_operations: 5         # Default parallelism
-  command_timeout: 30           # Default timeout in seconds
+  iam_propagation_delay: 5 # Seconds to wait after IAM changes
+  file_size_threshold: 1048576 # Bytes - threshold for S3 transfer
+  s3_bucket_prefix: 'ztictl' # Prefix for temporary S3 buckets
+  temp_directory: '/tmp' # Temporary file storage
+  parallel_operations: 5 # Default parallelism
+  command_timeout: 30 # Default timeout in seconds
 ```
 
 ## Initial Setup
@@ -214,6 +220,7 @@ ztictl config validate
 ## Configuration Management Commands
 
 ### Initialize Configuration
+
 ```bash
 # Interactive setup (recommended)
 ztictl config init --interactive
@@ -226,24 +233,28 @@ ztictl config init --force
 ```
 
 ### Validate Configuration
+
 ```bash
 # Check for syntax and required fields
 ztictl config validate
 ```
 
 ### Show Configuration
+
 ```bash
 # Display current settings
 ztictl config show
 ```
 
 ### Repair Configuration
+
 ```bash
 # Fix invalid configuration interactively
 ztictl config repair
 ```
 
 ### Check Requirements
+
 ```bash
 # Verify system requirements
 ztictl config check
@@ -256,14 +267,14 @@ ztictl config check --fix
 
 Environment variables can override configuration file settings:
 
-| Variable | Overrides | Example |
-|----------|-----------|---------|
-| `AWS_PROFILE` | AWS profile selection | `AWS_PROFILE=production` |
-| `AWS_REGION` | `default_region` | `AWS_REGION=eu-west-1` |
-| `ZTICTL_CONFIG` | Config file location | `ZTICTL_CONFIG=/etc/ztictl.yaml` |
-| `ZTICTL_LOG_LEVEL` | `logging.level` | `ZTICTL_LOG_LEVEL=debug` |
-| `ZTICTL_LOG_DIR` | `logging.directory` | `ZTICTL_LOG_DIR=/var/log` |
-| `ZTICTL_SELECTOR_HEIGHT` | Fuzzy finder display height | `ZTICTL_SELECTOR_HEIGHT=10` |
+| Variable                 | Overrides                   | Example                          |
+| ------------------------ | --------------------------- | -------------------------------- |
+| `AWS_PROFILE`            | AWS profile selection       | `AWS_PROFILE=production`         |
+| `AWS_REGION`             | `default_region`            | `AWS_REGION=eu-west-1`           |
+| `ZTICTL_CONFIG`          | Config file location        | `ZTICTL_CONFIG=/etc/ztictl.yaml` |
+| `ZTICTL_LOG_LEVEL`       | `logging.level`             | `ZTICTL_LOG_LEVEL=debug`         |
+| `ZTICTL_LOG_DIR`         | `logging.directory`         | `ZTICTL_LOG_DIR=/var/log`        |
+| `ZTICTL_SELECTOR_HEIGHT` | Fuzzy finder display height | `ZTICTL_SELECTOR_HEIGHT=10`      |
 
 ### UI Customization
 
@@ -283,11 +294,13 @@ ztictl auth login
 ```
 
 **Settings**:
+
 - **Default**: 5 items (equivalent to fzf `--height=20%`)
 - **Range**: 1-20 items
 - **Behavior**: Invalid values log a warning and use default
 
 **Features**:
+
 - All accounts/roles remain searchable regardless of display height
 - Full keyboard navigation through entire list with arrow keys
 - Single bordered rectangle at bottom of terminal
@@ -298,6 +311,7 @@ ztictl auth login
 ### Automatic Validation
 
 Configuration is validated automatically when:
+
 - Running any `ztictl` command
 - Using `ztictl config validate`
 - After `ztictl config init`
@@ -305,12 +319,14 @@ Configuration is validated automatically when:
 ### Common Validation Errors
 
 1. **Invalid SSO URL**
+
    ```
    Error: SSO start URL must begin with https://
    Fix: ztictl config repair
    ```
 
 2. **Invalid Region**
+
    ```
    Error: 'caa-central-1' is not a valid AWS region
    Fix: Use 'ca-central-1' or shortcode 'cac1'
@@ -342,6 +358,7 @@ ztictl config init --interactive
 ### Automatic Migration
 
 On first run, `ztictl` will:
+
 1. Check for `~/.ztictl.yaml`
 2. If not found, check for `.env`
 3. Offer to migrate settings
@@ -357,13 +374,13 @@ Future support for multiple profiles:
 profiles:
   default:
     sso:
-      start_url: "https://personal.awsapps.com/start"
-    default_region: "ca-central-1"
-  
+      start_url: 'https://personal.awsapps.com/start'
+    default_region: 'ca-central-1'
+
   work:
     sso:
-      start_url: "https://company.awsapps.com/start"
-    default_region: "ca-central-1"
+      start_url: 'https://company.awsapps.com/start'
+    default_region: 'ca-central-1'
 ```
 
 ### Custom Commands (Planned)
@@ -372,13 +389,14 @@ Define command aliases:
 
 ```yaml
 aliases:
-  prod-status: "exec-multi --region-group production --tags Environment=prod"
-  dev-deploy: "exec-multi --region-group development --tags App=web deploy.sh"
+  prod-status: 'exec-multi --region-group production --tags Environment=prod'
+  dev-deploy: 'exec-multi --region-group development --tags App=web deploy.sh'
 ```
 
 ## Troubleshooting
 
 ### Configuration Not Found
+
 ```bash
 # Check file location
 ls -la ~/.ztictl.yaml
@@ -388,6 +406,7 @@ ztictl config init
 ```
 
 ### Invalid Configuration
+
 ```bash
 # Validate and show errors
 ztictl config validate
@@ -400,6 +419,7 @@ nano ~/.ztictl.yaml
 ```
 
 ### Permission Issues
+
 ```bash
 # Fix file permissions
 chmod 600 ~/.ztictl.yaml

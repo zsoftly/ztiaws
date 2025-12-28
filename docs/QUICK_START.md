@@ -5,6 +5,7 @@
 > **Choose Your Version**: ZTiAWS offers both stable shell scripts and a new unified Go binary
 
 ### 🐚 Shell Scripts (Production Stable)
+
 ```bash
 # Download production-stable shell scripts
 curl -L -o ssm https://raw.githubusercontent.com/zsoftly/ztiaws/main/ssm
@@ -23,6 +24,7 @@ done
 ### 🚀 Go Binary (New Unified Tool)
 
 #### Linux/macOS
+
 ```bash
 # Download and install latest ztictl
 platform="linux"  # or "darwin" for macOS
@@ -36,6 +38,7 @@ rm ztictl.tar.gz
 ```
 
 #### Windows (PowerShell)
+
 ```powershell
 # Download and install latest ztictl
 Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.zip" -OutFile "ztictl.zip"
@@ -47,12 +50,13 @@ Remove-Item ztictl.zip
 ```
 
 ### Verify Installation
+
 ```bash
 # Shell scripts
 ssm --version
 authaws --version
 
-# Go binary  
+# Go binary
 ztictl --version
 
 # Test functionality
@@ -63,6 +67,7 @@ ztictl ssm list --region us-east-1 # Go binary
 ## 📦 Quick Release Process
 
 ### 1. Create Tag and Release
+
 ```bash
 # Update version and create tag
 git tag -a v1.1.0 -m "Release v1.1.0"
@@ -70,12 +75,14 @@ git push origin v1.1.0
 ```
 
 ### 2. GitHub Actions Automatically:
+
 - ✅ Builds for all platforms (Linux, macOS, Windows)
-- ✅ Runs tests and quality checks  
+- ✅ Runs tests and quality checks
 - ✅ Creates GitHub release with binaries
 - ✅ Makes binaries available for download
 
 ### 3. Verify Release
+
 ```bash
 # Check build status
 gh run list --workflow=build.yml
@@ -85,6 +92,7 @@ curl -I https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-linux-
 ```
 
 ## 📚 Full Documentation
+
 - **Installation Guide**: [INSTALLATION.md](../INSTALLATION.md)
 - **Release Process**: [RELEASE.md](development/RELEASE.md)
 - **User Guide**: [README.md](../README.md)

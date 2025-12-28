@@ -1,7 +1,10 @@
 # ZTiAWS Makefile
 # Simple installation and development management
 
-.PHONY: install uninstall dev clean test help
+# Auto-detect version from git tags (e.g., "2.11.0" or "2.11.0-3-g1a2b3c4" for dev builds)
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+
+.PHONY: install uninstall dev clean test fmt help
 
 # Default target
 help:
@@ -12,6 +15,7 @@ help:
 	@echo "  uninstall  - Remove installed tools from /usr/local/bin"
 	@echo "  dev        - Set up development environment (adds local PATH)"
 	@echo "  test       - Run tests and validation"
+	@echo "  fmt        - Format all code (Go + Markdown/JSON/YAML)"
 	@echo "  clean      - Clean up temporary files"
 	@echo "  help       - Show this help message"
 	@echo ""
@@ -61,6 +65,17 @@ test:
 	./authaws --help > /dev/null
 	./ssm --help > /dev/null
 	@echo "✅ Tests passed!"
+
+# Format all code (Go + Markdown/JSON/YAML)
+fmt:
+	@echo "ztiaws $(VERSION)"
+	@echo ""
+	@echo "Formatting Go code..."
+	@cd ztictl && go fmt ./...
+	@echo "Formatting Markdown/JSON/YAML files..."
+	@npx prettier --write "**/*.md" "**/*.json" "**/*.yaml" "**/*.yml" 2>/dev/null || echo "Note: Install Node.js for Prettier support"
+	@echo ""
+	@echo "✅ Formatting complete!"
 
 # Clean up
 clean:

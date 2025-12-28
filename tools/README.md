@@ -29,12 +29,12 @@ The `02_release_docs_generator.sh` script automatically generates `CHANGELOG.md`
 
 ### Options
 
-| Option | Description |
-|--------|-------------|
-| `-v, --version VERSION` | Release version (required, format: v1.2.3 or 1.2.3) |
-| `-t, --latest-tag TAG` | Latest release tag for comparison (auto-detected if not provided) |
-| `-f, --force` | Force regeneration even if files exist |
-| `-h, --help` | Show help message |
+| Option                  | Description                                                       |
+| ----------------------- | ----------------------------------------------------------------- |
+| `-v, --version VERSION` | Release version (required, format: v1.2.3 or 1.2.3)               |
+| `-t, --latest-tag TAG`  | Latest release tag for comparison (auto-detected if not provided) |
+| `-f, --force`           | Force regeneration even if files exist                            |
+| `-h, --help`            | Show help message                                                 |
 
 ## EC2 Test Manager Script
 
@@ -68,11 +68,11 @@ The `01_ec2_test_manager.sh` script was created to streamline EC2 instance manag
 
 ### Commands
 
-| Command | Purpose |
-|---------|---------|
+| Command  | Purpose                                        |
+| -------- | ---------------------------------------------- |
 | `create` | Create EC2 instances with SSM-enabled IAM role |
-| `verify` | Show status of tracked instances |
-| `delete` | Terminate and cleanup all tracked instances |
+| `verify` | Show status of tracked instances               |
+| `delete` | Terminate and cleanup all tracked instances    |
 
 ### Key Options
 
