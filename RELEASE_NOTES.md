@@ -1,45 +1,58 @@
-# ztictl v2.11.0 Release Notes
+# ztictl 2.12.0 Release Notes
 
-**Installation:** [Installation Guide](https://github.com/zsoftly/ztiaws/blob/release/v2.11.0/INSTALLATION.md)
+**Release Date:** December 28, 2025
 
-**Release Date:** November 13, 2025
+## What's New
 
-## Overview
+### SSM SSH & RDP Commands
 
-ztictl is a unified AWS SSM management tool that provides both Go binary and bash script implementations. The Go version (`ztictl`) is the primary implementation with enhanced features, while the bash scripts (`authaws`, `ssm`) are maintained for backward compatibility only.
+- **`ztictl ssm ssh`** - SSH to EC2 instances via SSM tunnel (no open ports required)
+- **`ztictl ssm ssh-config`** - Generate `~/.ssh/config` entries for SSM-based SSH
+- **`ztictl ssm rdp`** - RDP tunneling for Windows instances with auto-launch support
 
-**Note:** The bash scripts are no longer receiving new features or updates. All development efforts are focused on the Go implementation.
+### RDS Management Commands
 
-## New Features
+- **`ztictl rds list`** - List all RDS instances in a region
+- **`ztictl rds start`** - Start a stopped RDS instance (with `--wait` option)
+- **`ztictl rds stop`** - Stop a running RDS instance (with `--wait` option)
+- **`ztictl rds reboot`** - Reboot an RDS instance (with `--force-failover` for Multi-AZ)
 
-- Enhance AWS SSO and CI/CD Integration
-- Enhance AWS SSO and CI/CD Integration
-- Enhance power operation handling and validation
-- Add finalized ZTiAWS demo images and update Markdown paths
-- Add files via upload
-- Create .gitkeep
-- Create .gitkeep
-- Add ZTiAWS Demo Documentation (Installation, Authentication, and Use Cases)
-- feat: Update EC2 Test Manager script with default subnet and security group IDs, add dry run option, and improve resource discovery logging
+### Modernized CI/CD Pipeline
+
+- Smart change detection using `dorny/paths-filter` - only runs relevant jobs
+- Numbered job names for clear pipeline visibility
+- SHA256 checksums included in releases
+- One-liner install scripts for all platforms
 
 ## Bug Fixes
 
-- fix: Update build scripts and enhance error handling in OIDC examples
-- fix: Update script paths and improve error handling in notification scripts
-- fix: Increase HTTP client timeout for EC2 instance detection and add warning for proxy parsing errors
+- **Fixed Ctrl+C handling** in WSL2/Windows Terminal - signals now properly pass to SSM subprocess
+- **Fixed script injection vulnerability** in GitHub Actions notification steps
+- **Fixed signal channel leak** - proper goroutine cleanup for signal handling
+- **Fixed RDS polling** - added exponential backoff for transient errors
 
-## Other Changes
+## Installation
 
-- Wrap commands in proper markdown code blocks
-- docs: finalize ZTiAWS demo documentation with consistent numbering and formatting
-- Docs: add proper Markdown headers and syntax highlighting for config section
-- docs(README): removed emojis
-- docs(ztiaws-demo): finalize demo walkthrough with screenshots and stakeholder-focused updates
-- Rename 04-confirm ssm-ec2.png to 04-confirm-ssm-ec2.png
-- Rename 12-uploading- loca-to-ec2-file.png to 12-uploading-local-to-ec2-file.png
-- Rename 11-creating- folder-file.png to 11-creating-folder-file.png
-- docs: reordered demo flow, updated region codes, and refined next steps per review feedback
-- refactor: Remove unused file modification time check in IAM cache validation
-- Refs #130: Refactor EC2 Manager Script to Dynamically Fetch VPC Resources
+**Linux/macOS:**
+```bash
+curl -fsSL https://github.com/zsoftly/ztiaws/releases/latest/download/install.sh | bash
+```
 
-**Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.10.0...v2.11.0
+**Windows (PowerShell):**
+```powershell
+irm https://github.com/zsoftly/ztiaws/releases/latest/download/install.ps1 | iex
+```
+
+## Documentation Updates
+
+- Fixed inconsistent heading syntax in issue templates
+- Updated Go version policy documentation (staying on Go 1.24.x intentionally)
+- Fixed outdated version references in CI/CD documentation
+- Removed duplicate steps in contributing guide
+
+## Breaking Changes
+
+- **Tag format changed**: Use `2.12.0` instead of `v2.12.0` for releases
+- **Release notes format**: Changed from `.txt` to `.md`
+
+**Full Changelog**: https://github.com/zsoftly/ztiaws/compare/v2.11.0...2.12.0
