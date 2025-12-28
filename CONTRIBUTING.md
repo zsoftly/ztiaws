@@ -142,23 +142,21 @@ ZTiAWS uses an automated CI/CD pipeline for releases. See [docs/CI_CD_PIPELINE.m
    git checkout main && git pull origin main
    ```
 
-2. **Update version** in relevant files:
-   - `ssm`/`authaws` scripts (VERSION variable)
-   - `CHANGELOG.md` (add new entry)
-   - `RELEASE_NOTES.txt` (release description)
+2. **Update release notes**:
+   - Edit `RELEASE_NOTES.md` with new features, fixes, and changes
 
-3. **Create and push tag**:
+3. **Create and push tag** (no `v` prefix):
 
    ```bash
-   git add . && git commit -m "Bump version to vX.Y.Z"
-   git tag -a vX.Y.Z -m "Version X.Y.Z: Brief description"
-   git push origin main vX.Y.Z
+   git add . && git commit -m "Release X.Y.Z"
+   git tag X.Y.Z
+   git push origin main X.Y.Z
    ```
 
 4. **Automated pipeline** handles:
    - Cross-platform builds (6 platforms)
-   - GitHub release creation
-   - Binary distribution
-   - Release notes from RELEASE_NOTES.txt
+   - SHA256 checksums generation
+   - GitHub release creation with binaries
+   - One-liner install scripts included
 
 > **💡 Pro tip:** Use semantic versioning (major.minor.patch) and watch the GitHub Actions pipeline for build status.

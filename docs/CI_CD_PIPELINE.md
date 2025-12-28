@@ -72,9 +72,8 @@ graph TD
 
     B -->|PR or Push| C[test-shell + test-go]
     B -->|PR to main| D[test-shell + test-go + security]
-    B -->|Tag Push v*| E[build → release → notify]
+    B -->|Tag Push 2.*| E[build → release → notify]
     B -->|Manual Dispatch| F[build only]
-    B -->|Push to release/*| G[auto-generate-docs]
 
     C --> H[Parallel Testing]
     D --> I[Sequential: Tests → Security]
@@ -84,28 +83,11 @@ graph TD
     I -->|Any Fail| L[Failure Notification]
 
     E --> M[6-Platform Build]
-    M --> N[GitHub Release]
+    M --> N[GitHub Release + Checksums]
     N --> O[Release Notification]
 
     F --> P[6-Platform Build Only]
-
-    G --> Q[Generate CHANGELOG]
-    Q --> R[Auto-commit to Branch]
 ```
-
-### Documentation Workflow: `.github/workflows/auto-generate-docs.yml`
-
-**Focus**: Automated release documentation generation
-
-**Triggers**: Push to `release/*` branches  
-**Purpose**: Automatically generates CHANGELOG.md and RELEASE_NOTES.txt when a release branch is created
-**Process**:
-
-1. Extracts version from branch name (e.g., `release/v2.7.0` → `v2.7.0`)
-2. Finds latest git tag for comparison
-3. Runs `tools/02_release_docs_generator.sh` to generate documentation
-4. Auto-commits generated files back to release branch
-5. Uses GitHub Action bot for commits
 
 ### **Job Details**
 
@@ -236,7 +218,7 @@ needs: [build]
 1. Download all build artifacts from matrix jobs
 2. Create direct binary downloads (users expect this)
 3. Also create archives: tar.gz for Unix, zip for Windows
-4. Use RELEASE_NOTES.txt for release body (from auto-generate-docs)
+4. Use RELEASE_NOTES.md for release body
 5. Create non-draft, non-prerelease GitHub release
 6. Attach both direct binaries and archives
 

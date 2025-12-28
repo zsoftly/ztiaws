@@ -34,11 +34,13 @@
 ## Installation
 
 **Linux/macOS:**
+
 ```bash
 curl -fsSL https://github.com/zsoftly/ztiaws/releases/latest/download/install.sh | bash
 ```
 
 **Windows (PowerShell):**
+
 ```powershell
 irm https://github.com/zsoftly/ztiaws/releases/latest/download/install.ps1 | iex
 ```
