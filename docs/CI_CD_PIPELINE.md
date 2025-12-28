@@ -171,7 +171,7 @@ needs: [test-shell, test-go]
 **Tools used:**
 
 - **Trivy**: Filesystem vulnerability scanning by Aqua Security
-- **golangci-lint v2.4.0**: With GoSec security linters enabled
+- **golangci-lint v1.61.0**: With GoSec security linters enabled
 - **Standalone GoSec**: Backup security analysis (latest version)
 - **govulncheck**: Official Go vulnerability database checker
 - **Dependency audit**: Lists outdated packages with `go list -u -m all`
@@ -407,8 +407,8 @@ As of December 2025, Go 1.25.5 is the latest stable release. This project **inte
 
 ### **Potential Improvements**
 
-- **Go version**: Upgrade to Go 1.26 when stable
-- **golangci-lint**: Update from v2.4.0 to latest version
+- **Go version**: Upgrade to Go 1.25+ when stable (see Go Version Policy above)
+- **golangci-lint**: Update from v1.61.0 to latest stable (sync with Maintenance section)
 - **Test coverage**: Add coverage reporting and badges
 - **AWS integration tests**: Mock AWS services for deeper testing
 - **Binary signing**: GPG signing for release artifacts
