@@ -8,12 +8,15 @@ import (
 var ssmCmd = &cobra.Command{
 	Use:   "ssm",
 	Short: "SSM operations",
-	Long: `Manage AWS Systems Manager operations including instance connections, command execution, 
+	Long: `Manage AWS Systems Manager operations including instance connections, command execution,
 file transfers, and port forwarding through SSM.
 
 Examples:
   ztictl ssm connect <instance>         # Connect to instance via SSM
-  ztictl ssm list [filters]             # List SSM-enabled instances  
+  ztictl ssm ssh <instance>             # SSH to instance via SSM tunnel
+  ztictl ssm ssh-config <instance>      # Generate SSH config for SSM access
+  ztictl ssm rdp <instance>             # RDP to Windows instance via SSM tunnel
+  ztictl ssm list [filters]             # List SSM-enabled instances
   ztictl ssm forward <instance> <ports> # Port forwarding via SSM
   ztictl ssm transfer <src> <dst>       # File transfer via SSM
   ztictl ssm command <instance> <cmd>   # Execute command via SSM
@@ -50,4 +53,7 @@ func init() {
 	ssmCmd.AddCommand(ssmStartTaggedCmd)      // ssm_power.go
 	ssmCmd.AddCommand(ssmStopTaggedCmd)       // ssm_power.go
 	ssmCmd.AddCommand(ssmRebootTaggedCmd)     // ssm_power.go
+	ssmCmd.AddCommand(ssmSSHCmd)              // ssm_ssh.go
+	ssmCmd.AddCommand(ssmSSHConfigCmd)        // ssm_ssh.go
+	ssmCmd.AddCommand(ssmRDPCmd)              // ssm_ssh.go
 }

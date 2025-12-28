@@ -1,9 +1,11 @@
 # ZTiAWS - Claude Memory File
 
 ## Repository Overview
+
 **ZTiAWS** (ZSoftly Tools for AWS) - A collection of AWS management CLI tools by ZSoftly that simplify AWS SSO authentication and EC2 Systems Manager operations.
 
 ## Architecture
+
 - **Legacy Production**: Bash scripts (`authaws`, `ssm`) - currently in production
 - **Next-Gen Go Tool**: `ztictl` - modern replacement with enhanced features
 - **Migration Strategy**: Both tools coexist during transition period
@@ -11,12 +13,14 @@
 ## Key Directories
 
 ### Root Level
-- `src/` - Bash script modules (00_*.sh, 01_*.sh, etc.)
+
+- `src/` - Bash script modules (00*\*.sh, 01*\*.sh, etc.)
 - `ztictl/` - Go implementation (primary focus)
 - `docs/` - Documentation (IAM_PERMISSIONS.md, TROUBLESHOOTING.md, etc.)
 - `tools/` - Utility scripts for testing and releases
 
 ### Go Implementation (`ztictl/`)
+
 ```
 ztictl/
 ├── cmd/ztictl/           # CLI commands
@@ -31,7 +35,7 @@ ztictl/
 │   ├── config/config.go  # Configuration management
 │   ├── splash/splash.go  # Welcome screen
 │   └── ssm/              # SSM managers (IAM, S3 lifecycle)
-├── pkg/                 # Public packages  
+├── pkg/                 # Public packages
 │   ├── aws/             # AWS clients & utilities
 │   ├── colors/          # Terminal colors
 │   ├── errors/          # Error handling
@@ -42,6 +46,7 @@ ztictl/
 ## Key Features
 
 ### ztictl (Go Version)
+
 - **Cross-platform**: Linux, macOS, Windows (AMD64/ARM64)
 - **Smart file transfers**: <1MB direct SSM, ≥1MB via S3 with lifecycle management
 - **Advanced IAM**: Temporary policies with automatic cleanup and filesystem locking
@@ -49,21 +54,24 @@ ztictl/
 - **Modern CLI**: Cobra/Viper with comprehensive help and validation
 
 ### Legacy Bash Tools
+
 - **authaws**: AWS SSO authentication with interactive account/role selection
 - **ssm**: EC2 instance management via SSM (connect, exec, file transfer, port forwarding)
 
 ## Common Commands
 
 ### Development
+
 ```bash
 # Build Go version
 cd ztictl && make build-local
 
-# Run tests  
+# Run tests
 make test
 ```
 
 ### **Standard Development Quality Checklist**
+
 **IMPORTANT**: Run these commands after ANY development work in the `ztictl/` directory:
 
 ```bash
@@ -88,17 +96,21 @@ golangci-lint run ./...
 ```
 
 **Installation of golangci-lint** (one-time setup):
+
 ```bash
 curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
 ```
 
 **These quality checks are MANDATORY before:**
+
 - Creating commits
-- Opening pull requests  
+- Opening pull requests
 - Considering development work "complete"
 
 ### Post-Development Cleanup
+
 After any development session, run:
+
 ```bash
 # Clean test artifacts
 go clean -testcache
@@ -110,6 +122,7 @@ find . -name "test_*.sh" -delete
 ```
 
 ### Usage Examples
+
 ```bash
 # ztictl (recommended)
 ztictl config check
@@ -124,6 +137,7 @@ ssm i-1234abcd  # Connect to instance
 ```
 
 ## Configuration
+
 - **ztictl**: `~/.ztictl.yaml` (YAML format)
   - Default region: `ca-central-1` (both for SSO and operations)
   - SSO setup: Only asks for domain ID (e.g., `d-1234567890` or `zsoftly`)
@@ -131,18 +145,21 @@ ssm i-1234abcd  # Connect to instance
 - **Legacy tools**: `.env` file with SSO_START_URL, SSO_REGION, DEFAULT_PROFILE
 
 ## Build & Release
+
 - **Build system**: Makefiles for both root and ztictl
 - **CI/CD**: GitHub Actions for cross-platform builds
 - **Release process**: Git tags trigger automated builds and releases
 
 ## Important Files
+
 - `README.md` - Main documentation
-- `ztictl/README.md` - Go tool documentation  
+- `ztictl/README.md` - Go tool documentation
 - `INSTALLATION.md` - Platform-specific setup instructions
 - `CONTRIBUTING.md` - Development guidelines
 - `docs/IAM_PERMISSIONS.md` - Required AWS permissions
 
 ## Development Notes
+
 - Repository uses MIT License
 - Active development focused on ztictl Go implementation
 - Bash tools maintained for backward compatibility
@@ -150,6 +167,7 @@ ssm i-1234abcd  # Connect to instance
 - AWS CLI and Session Manager plugin required
 
 ## Testing Commands
+
 ```bash
 # Check system requirements
 ztictl config check  # or authaws --check
@@ -161,7 +179,9 @@ ssm --help
 ```
 
 ## Test Infrastructure
+
 **AWS Credential Handling in Tests**:
+
 - Centralized test utilities in `internal/testutil/aws.go` define mock AWS credentials
 - Each test package has an `init_test.go` file that calls `testutil.SetupAWSTestEnvironment()`
 - Mock credentials (AWS documentation examples):
@@ -179,7 +199,8 @@ ssm --help
 
 **Cross-Platform Test Writing Guidelines**:
 **CRITICAL**: All tests MUST be platform-agnostic and work on Unix (Linux/macOS) AND Windows:
-- **File Paths**: 
+
+- **File Paths**:
   - ALWAYS use `filepath.Join()` instead of hardcoding paths with `/` or `\`
   - NEVER use absolute Unix paths like `/tmp` or `/var/log` - use `t.TempDir()` or `os.TempDir()`
   - NEVER use Windows-specific paths like `C:\` or `D:\`
@@ -188,7 +209,7 @@ ssm --help
   - Use `filepath.ToSlash()` to convert paths to forward slashes for URLs/YAML
   - Use `filepath.FromSlash()` to convert from forward slashes to OS format
 - **Invalid Path Testing**:
-  - Don't rely on Unix-specific invalid paths like `/nonexistent` 
+  - Don't rely on Unix-specific invalid paths like `/nonexistent`
   - Create reliably invalid paths by placing files where directories are expected
   - Use permission-based failures cautiously as they behave differently across OS
 - **Home Directory**:
@@ -198,24 +219,27 @@ ssm --help
   - Be aware that Windows doesn't support Unix permission bits the same way
   - Read-only directories behave differently on Windows
 - **Test Examples**:
+
   ```go
   // BAD - Unix-specific path
   invalidPath := "/nonexistent/directory/config.yaml"
-  
+
   // GOOD - Platform-agnostic approach
   invalidPath := filepath.Join(t.TempDir(), "subdir", "config.yaml")
   // Then create a file at "subdir" to make the path invalid
   ```
 
 ## Test File Management Guidelines
+
 **IMPORTANT**: When creating test files or scripts during development:
 
 ### Temporary Files to Clean Up
+
 1. **One-time test files**: Delete after use
    - `*_repair_test.go`, `*_init_test.go` (unless part of permanent suite)
    - `test_coverage.sh`, `run_tests.sh` (temporary scripts)
-   
 2. **Coverage artifacts**: Remove after review
+
    ```bash
    rm -rf coverage/ *.out *.html
    ```
@@ -227,18 +251,22 @@ ssm --help
    ```
 
 ### Permanent Test Files (Keep These)
+
 - `*_test.go` files that test actual functionality
 - Test fixtures in `testdata/` directories
 - Benchmark tests for performance validation
 
 ### Best Practices
+
 - **Before committing**: Clean up all temporary test artifacts
 - **After debugging**: Remove one-off test files
 - **Duplicate tests**: Update existing tests rather than creating new files
-- **Use .gitignore**: Ensure coverage/, *.out, *.test are ignored
+- **Use .gitignore**: Ensure coverage/, _.out, _.test are ignored
 
 ## Code Maintenance Guidelines
+
 **CRITICAL**: When removing deprecated, redundant, or obsolete code:
+
 - **NO COMMENTS**: Never leave comments explaining what was removed or why
 - **CLEAN REMOVAL**: Completely remove all traces of deprecated functionality
 - **NO DEAD CODE**: Remove entire functions, variables, and imports that are no longer needed
@@ -251,18 +279,22 @@ ssm --help
   - Documentation references
   - Configuration options
 - **Examples of what NOT to do**:
+
   ```go
   // BAD - Don't do this:
   // Removed deprecated auth method
   // func oldAuthMethod() { } // Deprecated
-  
+
   // GOOD - Just remove it completely with no trace
   ```
+
 - **Principal**: When deprecating/removing code, act as a principal engineer - leave the codebase cleaner with no remnants of removed functionality
 
 ## Security Validation Guidelines
+
 **IMPORTANT**: Security validations must be comprehensive:
-- **Path Traversal Protection**: 
+
+- **Path Traversal Protection**:
   - **Use `ztictl/pkg/security` package**: The project has a comprehensive security package
   - Call `security.ContainsUnsafePath()` for path validation
   - Call `security.ValidateFilePath()` for directory-scoped validation
@@ -277,8 +309,10 @@ ssm --help
   - Validate base64 data before embedding in commands
 
 ## Logging Best Practices
+
 **CRITICAL**: Proper logging configuration:
-- **Logger Instances**: 
+
+- **Logger Instances**:
   - Use dependency injection for loggers (pass them as parameters)
   - Never hardcode debug levels in production code
   - Provide factory methods like `NewDetectorWithLogger()` for custom loggers
@@ -288,7 +322,9 @@ ssm --help
   - Log command length or hash at Info level instead
 
 ## Resource Management
+
 **IMPORTANT**: Prevent resource leaks:
+
 - **AWS Client Pooling**:
   - Reuse AWS clients across operations
   - Implement client pools with proper synchronization

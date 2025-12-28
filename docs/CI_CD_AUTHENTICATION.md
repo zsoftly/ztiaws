@@ -28,6 +28,7 @@ AWS SSO uses the **OAuth2 Device Authorization Grant** flow (RFC 8628), which re
 5. Browser redirects and provides credentials
 
 **CI/CD pipelines cannot:**
+
 - Open web browsers
 - Display interactive prompts
 - Wait for user input
@@ -44,17 +45,20 @@ AWS SSO uses the **OAuth2 Device Authorization Grant** flow (RFC 8628), which re
 **Best for:** GitHub Actions, GitLab CI, modern CI/CD platforms
 
 **Advantages:**
+
 - No long-lived credentials stored
 - Automatic credential rotation
 - Fine-grained permission control
 - Audit trail via CloudTrail
 
 **How it works:**
+
 1. CI/CD platform provides OIDC token
 2. AWS STS exchanges token for temporary credentials
 3. `ztictl` uses temporary credentials via AWS SDK
 
 **Platforms with OIDC support:**
+
 - GitHub Actions
 - GitLab CI/CD
 - CircleCI
@@ -66,11 +70,13 @@ AWS SSO uses the **OAuth2 Device Authorization Grant** flow (RFC 8628), which re
 **Best for:** Self-hosted runners on EC2 instances
 
 **Advantages:**
+
 - No credential management needed
 - Automatic credential rotation
 - Seamless integration with AWS services
 
 **How it works:**
+
 1. Attach IAM role to EC2 instance
 2. Instance metadata service provides credentials
 3. `ztictl` automatically uses instance credentials
@@ -80,16 +86,19 @@ AWS SSO uses the **OAuth2 Device Authorization Grant** flow (RFC 8628), which re
 **Best for:** Quick testing, legacy systems
 
 **Disadvantages:**
+
 - Long-lived credentials (security risk)
 - Manual rotation required
 - Stored in secrets manager (additional exposure)
 
 **Use only when:**
+
 - OIDC not available
 - Not running on AWS infrastructure
 - Temporary solution during migration
 
 **How it works:**
+
 1. Create IAM user with access keys
 2. Store keys in CI/CD secrets
 3. Export as environment variables
@@ -100,11 +109,13 @@ AWS SSO uses the **OAuth2 Device Authorization Grant** flow (RFC 8628), which re
 **Best for:** Containerized CI/CD on ECS/Fargate
 
 **Advantages:**
+
 - No credential management
 - Automatic credential rotation
 - Container-level isolation
 
 **How it works:**
+
 1. Define task role in ECS task definition
 2. ECS provides credentials to container
 3. `ztictl` uses credentials automatically
@@ -118,6 +129,7 @@ AWS SSO uses the **OAuth2 Device Authorization Grant** flow (RFC 8628), which re
 **Recommended:** OIDC Federation
 
 **Required IAM Role Trust Policy:**
+
 ```json
 {
   "Version": "2012-10-17",
@@ -142,12 +154,13 @@ AWS SSO uses the **OAuth2 Device Authorization Grant** flow (RFC 8628), which re
 ```
 
 **Workflow Example:**
+
 ```yaml
 name: Deploy with ztictl
 on: [push]
 
 permissions:
-  id-token: write  # Required for OIDC
+  id-token: write # Required for OIDC
   contents: read
 
 jobs:
@@ -184,6 +197,7 @@ See: [docs/examples/github-actions-oidc.yml](examples/github-actions-oidc.yml)
 **Recommended:** OIDC Federation
 
 **Required IAM Role Trust Policy:**
+
 ```json
 {
   "Version": "2012-10-17",
@@ -208,6 +222,7 @@ See: [docs/examples/github-actions-oidc.yml](examples/github-actions-oidc.yml)
 ```
 
 **Pipeline Example:**
+
 ```yaml
 deploy:
   image: alpine:latest
@@ -239,6 +254,7 @@ See: [docs/examples/gitlab-ci-oidc.yml](examples/gitlab-ci-oidc.yml)
 **Recommended:** EC2 Instance Profile (if self-hosted on EC2) or IAM Access Keys
 
 **Option A: EC2 Instance Profile**
+
 ```groovy
 pipeline {
     agent { label 'ec2' }  // EC2-based Jenkins agent
@@ -263,6 +279,7 @@ pipeline {
 ```
 
 **Option B: IAM Access Keys (stored in Jenkins credentials)**
+
 ```groovy
 pipeline {
     agent any
@@ -298,6 +315,7 @@ See: [docs/examples/jenkins-iam-keys.groovy](examples/jenkins-iam-keys.groovy)
 **Recommended:** OIDC Federation or IAM Access Keys
 
 **OIDC Example:**
+
 ```yaml
 version: 2.1
 
@@ -339,6 +357,7 @@ workflows:
 **Recommended:** Service Role (automatic)
 
 **buildspec.yml:**
+
 ```yaml
 version: 0.2
 
@@ -361,7 +380,7 @@ phases:
 
 env:
   variables:
-    ZTICTL_NON_INTERACTIVE: "true"
+    ZTICTL_NON_INTERACTIVE: 'true'
 ```
 
 **Note:** CodeBuild automatically provides credentials via the service role attached to the build project.
@@ -375,6 +394,7 @@ env:
 The IAM role or user must have permissions for the operations you plan to perform:
 
 **SSM Operations:**
+
 ```json
 {
   "Version": "2012-10-17",
@@ -401,6 +421,7 @@ For complete permission requirements, see: [IAM_PERMISSIONS.md](IAM_PERMISSIONS.
 ### Environment Variables
 
 **Required for ztictl:**
+
 ```bash
 # AWS credentials (provided automatically by most CI/CD platforms)
 AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE        # (or via OIDC/instance profile)
@@ -413,6 +434,7 @@ ZTICTL_NON_INTERACTIVE=true                   # Disable all interactive prompts
 ```
 
 **Optional:**
+
 ```bash
 ZTICTL_LOG_ENABLED=false                      # Disable file logging in CI
 ZTICTL_LOG_LEVEL=info                         # Log verbosity
@@ -429,12 +451,14 @@ ZTICTL_INSTANCE_ID=i-1234567890abcdef0        # Default instance for SSM command
 3. `--non-interactive` flag is used
 
 **In non-interactive mode:**
+
 - Splash screen is suppressed
 - All interactive prompts are skipped
 - Commands requiring input will fail with clear error messages
 - Operations use environment variables or fail fast
 
 **Example:**
+
 ```bash
 # Explicit non-interactive mode
 ztictl --non-interactive ssm list --table
@@ -579,12 +603,14 @@ jobs:
 **Problem:** AWS SDK cannot find credentials
 
 **Solutions:**
+
 1. Verify OIDC configuration is correct
 2. Check that `id-token: write` permission is set (GitHub Actions)
 3. Verify IAM role trust policy allows your CI/CD platform
 4. Check environment variables are set correctly
 
 **Debug:**
+
 ```bash
 # Check which credentials are being used
 aws sts get-caller-identity
@@ -598,11 +624,13 @@ aws ec2 describe-instances --region ca-central-1 --max-items 1
 **Problem:** IAM role/user lacks required permissions
 
 **Solutions:**
+
 1. Review [IAM_PERMISSIONS.md](IAM_PERMISSIONS.md) for required permissions
 2. Attach appropriate IAM policies to role/user
 3. Verify resource-based policies allow access
 
 **Debug:**
+
 ```bash
 # Check current identity
 aws sts get-caller-identity
@@ -616,12 +644,15 @@ aws ssm describe-instance-information --region ca-central-1 --max-items 1
 **Problem:** SSM command needs explicit instance identifier in CI
 
 **Solutions:**
+
 1. Provide instance ID as argument:
+
    ```bash
    ztictl ssm connect i-1234567890abcdef0 --region ca-central-1
    ```
 
 2. Use instance name (auto-resolved):
+
    ```bash
    ztictl ssm connect web-server-prod --region ca-central-1
    ```
@@ -638,6 +669,7 @@ aws ssm describe-instance-information --region ca-central-1 --max-items 1
 **Solution:** Don't use SSO in CI/CD. Use IAM-based authentication instead (see above).
 
 This error appears when:
+
 - Running `ztictl auth login` in a CI environment
 - CI environment is detected (CI=true) but no AWS credentials exist
 
@@ -650,18 +682,21 @@ This error appears when:
 **Solutions:**
 
 **Ubuntu/Debian:**
+
 ```bash
 curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb"
 sudo dpkg -i session-manager-plugin.deb
 ```
 
 **Amazon Linux/RHEL:**
+
 ```bash
 curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.rpm" -o "session-manager-plugin.rpm"
 sudo yum install -y session-manager-plugin.rpm
 ```
 
 **Docker (add to Dockerfile):**
+
 ```dockerfile
 RUN curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "/tmp/session-manager-plugin.deb" && \
     dpkg -i /tmp/session-manager-plugin.deb && \
@@ -681,6 +716,7 @@ ztictl ssm list
 ```
 
 If issue persists, verify CI environment variable is set:
+
 ```bash
 export CI=true
 ```
@@ -690,17 +726,20 @@ export CI=true
 ## Best Practices
 
 ### 1. Use OIDC When Possible
+
 - No credential management
 - Automatic rotation
 - Better security posture
 - Audit trail
 
 ### 2. Minimize Permission Scope
+
 - Use least-privilege IAM policies
 - Scope permissions to specific resources when possible
 - Separate roles for different environments
 
 ### 3. Use Tag-Based Operations
+
 - More resilient than instance IDs
 - Works with auto-scaling groups
 - Easier to manage
@@ -714,6 +753,7 @@ ztictl ssm exec ca-central-1 i-1234567890abcdef0 "deploy.sh"
 ```
 
 ### 4. Set Explicit Regions
+
 - Don't rely on defaults
 - Specify region in commands or environment variables
 
@@ -724,6 +764,7 @@ env:
 ```
 
 ### 5. Enable Debug Logging for Troubleshooting
+
 ```yaml
 env:
   ZTICTL_LOG_ENABLED: "true"
@@ -739,12 +780,14 @@ env:
 ```
 
 ### 6. Use `--table` Output for Parsing
+
 ```bash
 # Machine-readable table output
 ztictl ssm list --table --region ca-central-1 | grep running
 ```
 
 ### 7. Test with `--dry-run` When Available
+
 ```bash
 ztictl ssm cleanup --region ca-central-1 --dry-run
 ```
@@ -754,17 +797,21 @@ ztictl ssm cleanup --region ca-central-1 --dry-run
 ## Security Considerations
 
 ### 1. Rotate Access Keys Regularly
+
 If using IAM access keys:
+
 - Rotate every 90 days minimum
 - Use AWS Secrets Manager or CI/CD secrets
 - Never commit keys to source control
 
 ### 2. Use Temporary Credentials
+
 - OIDC provides short-lived credentials (1 hour default)
 - Instance profiles rotate automatically
 - Avoid long-lived access keys
 
 ### 3. Restrict OIDC Trust Policies
+
 ```json
 {
   "Condition": {
@@ -779,16 +826,19 @@ If using IAM access keys:
 ```
 
 This restricts role assumption to:
+
 - Specific repository
 - Specific branch (main)
 - Prevents unauthorized use
 
 ### 4. Audit CloudTrail Logs
+
 - Monitor API calls from CI/CD
 - Set up alerts for unusual activity
 - Review access patterns regularly
 
 ### 5. Separate Roles by Environment
+
 ```
 GitHubActions-Dev-Role   → Limited permissions, dev resources
 GitHubActions-Prod-Role  → Full permissions, prod resources

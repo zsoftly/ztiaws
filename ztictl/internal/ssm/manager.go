@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	appconfig "ztictl/internal/config"
@@ -131,6 +133,20 @@ func (m *Manager) StartSession(ctx context.Context, instanceIdentifier, region s
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	// Ignore SIGINT in the parent process so it passes through to the AWS CLI subprocess.
+	// This fixes Ctrl+C handling in WSL2/Windows Terminal where the signal would otherwise
+	// kill the parent Go process and disconnect the SSM session.
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
+
+	// Drain signals to prevent channel from filling up
+	go func() {
+		for range sigChan {
+			// Ignore signals - they pass through to subprocess
+		}
+	}()
 
 	if err := cmd.Run(); err != nil {
 		return errors.NewSSMError("failed to start session", err)
@@ -395,6 +411,20 @@ func (m *Manager) ForwardPort(ctx context.Context, instanceIdentifier, region st
 
 	fmt.Printf("Port forwarding: localhost:%d -> %s:%d\n", localPort, instanceID, remotePort)
 	fmt.Printf("Press Ctrl+C to stop port forwarding\n\n")
+
+	// Ignore SIGINT in the parent process so it passes through to the AWS CLI subprocess.
+	// This fixes Ctrl+C handling in WSL2/Windows Terminal where the signal would otherwise
+	// kill the parent Go process and disconnect the port forwarding session.
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
+
+	// Drain signals to prevent channel from filling up
+	go func() {
+		for range sigChan {
+			// Ignore signals - they pass through to subprocess
+		}
+	}()
 
 	if err := cmd.Run(); err != nil {
 		return errors.NewSSMError("failed to start port forwarding", err)

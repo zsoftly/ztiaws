@@ -1,15 +1,13 @@
 # ztictl Makefile
 # Cross-platform build automation
 
-.PHONY: all build clean test help install
+.PHONY: all build clean test fmt help install
 
 # Default target
 all: build
 
-# Version - can be overridden via environment
-BASE_VERSION ?= 2.11.0
-GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-VERSION := $(BASE_VERSION)-$(GIT_COMMIT)
+# Auto-detect version from git tags (e.g., "2.11.0" or "2.11.0-3-g1a2b3c4" for dev builds)
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
 # Build directories
 BUILD_DIR := builds
@@ -97,6 +95,17 @@ test:
 		go test -v ./...
 	@echo "✓ Tests completed"
 
+# Format code (Go + Markdown/JSON/YAML)
+fmt:
+	@echo "ztictl $(VERSION)"
+	@echo ""
+	@echo "Formatting Go code..."
+	@go fmt ./...
+	@echo "Formatting Markdown/JSON/YAML files..."
+	@cd .. && npx prettier --write "**/*.md" "**/*.json" "**/*.yaml" "**/*.yml" 2>/dev/null || echo "Install Node.js for Prettier support: npm install -g prettier"
+	@echo ""
+	@echo "✓ Formatting completed"
+
 # Install locally (for development)
 install: build-local
 	@echo "Installing ztictl to local system..."
@@ -119,16 +128,16 @@ help:
 	@echo "  build-local - Build for current platform only"
 	@echo "  clean       - Clean build artifacts"
 	@echo "  test        - Run tests"
+	@echo "  fmt         - Format code (Go + Markdown/JSON/YAML)"
 	@echo "  install     - Install locally (requires sudo)"
 	@echo "  help        - Show this help"
 	@echo ""
-	@echo "Environment variables:"
-	@echo "  VERSION     - Set build version (default: $(VERSION))"
+	@echo "Version: $(VERSION) (auto-detected from git tags)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make                    # Build all platforms"
 	@echo "  make build-local        # Build for current platform"
-	@echo "  VERSION=2.1.0 make      # Build with custom version"
+	@echo "  make fmt                # Format Go + Markdown/JSON/YAML"
 
 # Function to build for a specific platform
 define build_platform

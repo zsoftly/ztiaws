@@ -1,398 +1,290 @@
 name: CI/CD Pipeline
 
-# Git Flow Pattern:
-# 1. Create release branch from main (e.g., release/v2.0.0)
-# 2. Make release preparations (version updates, changelog, etc.)
-# 3. Push tag to trigger this workflow (e.g., v2.0.0)
-# 4. Workflow builds, tests, and creates GitHub release
-# 5. MANUAL: Merge release branch back to main when ready
-# 6. Main branch stays up-to-date with all release changes
+# Efficient path-based triggering:
+# - Go code changes → test + security jobs
+# - Script changes → lint-scripts job
+# - Tags → build + release jobs only
 
 on:
   push:
-    branches: [ main, 'feature/*', 'feat/*', 'issue/*', 'release/*' ]
+    branches: [main, 'feature/*', 'feat/*', 'issue/*', 'release/*']
     tags:
-      - 'v*'
-    paths:
-      - 'ztictl/**'
-      - 'authaws'
-      - 'ssm'
-      - 'src/**'
-      - 'tests/**'
-      - 'tools/**'
-      - '01_install.sh'
-      - '02_uninstall.sh'
-      - '.github/workflows/build.yml'
-      - 'go.mod'
-      - 'go.sum'
-      - 'Makefile'
-      - 'CHANGELOG.md'
+      - '[0-9]*'
   pull_request:
-    branches: [ main, 'release/*' ]
-    paths:
-      - 'ztictl/**'
-      - 'authaws'
-      - 'ssm'
-      - 'src/**'
-      - 'tests/**'
-      - 'tools/**'
-      - '01_install.sh'
-      - '02_uninstall.sh'
-      - '.github/workflows/build.yml'
-      - 'go.mod'
-      - 'go.sum'
-      - 'Makefile'
-      - 'CHANGELOG.md'
+    branches: [main, 'release/*']
   workflow_dispatch:
 
 jobs:
-  test-shell:
-    name: Test Shell Scripts
+  # Determine which jobs to run based on changed files
+  changes:
+    name: 1. Detect Changes
+    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/')
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+      scripts: ${{ steps.filter.outputs.scripts }}
+      workflow: ${{ steps.filter.outputs.workflow }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            go:
+              - 'ztictl/**'
+              - 'go.mod'
+              - 'go.sum'
+              - 'Makefile'
+            scripts:
+              - 'authaws'
+              - 'ssm'
+              - 'src/**'
+              - 'scripts/**'
+              - 'tools/**'
+              - '01_install.sh'
+              - '02_uninstall.sh'
+            workflow:
+              - '.github/workflows/**'
+
+  lint-scripts:
+    name: 2a. Lint Scripts
     runs-on: ${{ matrix.os }}
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
-    
+    needs: changes
+    if: needs.changes.outputs.scripts == 'true' || needs.changes.outputs.workflow == 'true'
+
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install shellcheck
-      run: |
-        if [ "$RUNNER_OS" == "Linux" ]; then
-          sudo apt-get update && sudo apt-get install -y shellcheck
-        else
-          brew install shellcheck
-        fi
-      shell: bash
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Run shellcheck on shell scripts
-      run: |
-        echo "Checking shell scripts..."
-        shellcheck -x authaws ssm src/*.sh tools/*.sh scripts/*.sh 01_install.sh 02_uninstall.sh
-        echo "Shell scripts passed validation"
-
-    - name: Test shell script syntax
-      run: |
-        echo "Testing shell script syntax..."
-        for script in authaws ssm src/*.sh tools/*.sh scripts/*.sh 01_install.sh 02_uninstall.sh; do
-          if [ -f "$script" ]; then
-            bash -n "$script" || exit 1
+      - name: Install shellcheck
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update && sudo apt-get install -y shellcheck
+          else
+            brew install shellcheck
           fi
-        done
-        echo "Shell script syntax is valid"
+        shell: bash
 
-    - name: Notify on shell test failure
-      if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
-      env:
-        GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-      run: |
-        if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
-          ./scripts/send-pr-notification.sh \
-            --pr-title '${{ github.event.pull_request.title }}' \
-            --pr-number '${{ github.event.pull_request.number }}' \
-            --pr-url '${{ github.event.pull_request.html_url }}' \
-            --author '${{ github.event.pull_request.user.login }}' \
-            --repository '${{ github.repository }}' \
-            --status "failure" \
-            --message "❌ Shell script tests failed - PR needs attention" || true
-        fi
-      continue-on-error: true
+      - name: Lint shell scripts (shellcheck)
+        run: |
+          echo "Checking shell scripts with shellcheck..."
+          shellcheck -x authaws ssm src/*.sh tools/*.sh scripts/*.sh 01_install.sh 02_uninstall.sh
+          echo "Shell scripts passed shellcheck"
 
-  test-go:
-    name: Test Go Code
+      - name: Validate shell script syntax
+        run: |
+          echo "Validating shell script syntax..."
+          for script in authaws ssm src/*.sh tools/*.sh scripts/*.sh 01_install.sh 02_uninstall.sh; do
+            if [ -f "$script" ]; then
+              bash -n "$script" || exit 1
+            fi
+          done
+          echo "Shell script syntax is valid"
+
+      - name: Notify on shell test failure
+        if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
+        env:
+          GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
+            ./scripts/send-pr-notification.sh \
+              --pr-title "$PR_TITLE" \
+              --pr-number "$PR_NUMBER" \
+              --pr-url "$PR_URL" \
+              --author "$PR_AUTHOR" \
+              --repository "$REPO" \
+              --status "failure" \
+              --message "Shell script tests failed - PR needs attention" || true
+          fi
+        continue-on-error: true
+
+  test:
+    name: 2b. Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
-    
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.workflow == 'true'
+
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.25'
-        
-    - name: Get dependencies
-      working-directory: ./ztictl
-      run: go mod download
-    
-    - name: Run tests
-      working-directory: ./ztictl
-      env:
-        # Use mock AWS credentials for testing - matches internal/testutil/aws.go
-        AWS_EC2_METADATA_DISABLED: "true"
-        AWS_ACCESS_KEY_ID: "AKIAIOSFODNN7EXAMPLE"
-        AWS_SECRET_ACCESS_KEY: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-        AWS_SESSION_TOKEN: "test-session-token"
-        AWS_REGION: "ca-central-1"
-      run: go test ./...
-        
-    - name: Run go vet
-      working-directory: ./ztictl
-      run: go vet ./...
-      
-    - name: Check formatting
-      working-directory: ./ztictl
-      shell: bash
-      run: |
-        # Ensure consistent line endings across platforms
-        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          # Configure git to handle line endings properly for this check
-          git config core.autocrlf false
-          # Re-checkout files with correct line endings
-          git checkout HEAD -- .
-        fi
-        
-        # Check if any files need formatting
-        UNFORMATTED=$(gofmt -s -l .)
-        if [ -n "$UNFORMATTED" ]; then
-          echo "The following files are not formatted correctly:"
-          echo "$UNFORMATTED"
-          echo ""
-          echo "Please run 'gofmt -s -w .' to fix formatting issues."
-          exit 1
-        fi
-        echo "All Go files are properly formatted."
-    
-    - name: Test build
-      working-directory: ./ztictl
-      run: go build -o ztictl${{ matrix.os == 'windows-latest' && '.exe' || '' }} ./cmd/ztictl
-    
-    - name: Test CLI commands (no auth required)
-      working-directory: ./ztictl
-      shell: bash
-      run: |
-        # Set executable name based on OS
-        if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-          ZTICTL_EXE="./ztictl.exe"
-        else
-          ZTICTL_EXE="./ztictl"
-        fi
-        
-        # Test help commands
-        $ZTICTL_EXE --help
-        $ZTICTL_EXE config --help
-        $ZTICTL_EXE auth --help
-        $ZTICTL_EXE ssm --help
-        
-        # Test version
-        $ZTICTL_EXE --version
-        
-        # Test config validation (should fail gracefully without config)
-        $ZTICTL_EXE config validate || echo "Expected to fail without config"
-        
-        # Test config show (should show defaults)
-        $ZTICTL_EXE config show || echo "Expected to work with defaults"
-        
-        # Test system check (should work without AWS)
-        $ZTICTL_EXE config check || echo "Expected to show missing dependencies"
 
-    - name: Notify on Go test failure
-      if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
-      env:
-        GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-      run: |
-        if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
-          ./scripts/send-pr-notification.sh \
-            --pr-title '${{ github.event.pull_request.title }}' \
-            --pr-number '${{ github.event.pull_request.number }}' \
-            --pr-url '${{ github.event.pull_request.html_url }}' \
-            --author '${{ github.event.pull_request.user.login }}' \
-            --repository '${{ github.repository }}' \
-            --status "failure" \
-            --message "❌ Go tests failed - PR needs attention" || true
-        fi
-      continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Get dependencies
+        working-directory: ./ztictl
+        run: go mod download
+
+      - name: Run tests
+        working-directory: ./ztictl
+        env:
+          AWS_EC2_METADATA_DISABLED: 'true'
+          AWS_ACCESS_KEY_ID: 'AKIAIOSFODNN7EXAMPLE'
+          AWS_SECRET_ACCESS_KEY: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+          AWS_SESSION_TOKEN: 'test-session-token'
+          AWS_REGION: 'ca-central-1'
+        run: go test -v ./...
+
+      - name: Run go vet
+        working-directory: ./ztictl
+        run: go vet ./...
+
+      - name: Check formatting
+        working-directory: ./ztictl
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            git config core.autocrlf false
+            git checkout HEAD -- .
+          fi
+
+          UNFORMATTED=$(gofmt -s -l .)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "The following files are not formatted correctly:"
+            echo "$UNFORMATTED"
+            echo ""
+            echo "Please run 'gofmt -s -w .' to fix formatting issues."
+            exit 1
+          fi
+          echo "All Go files are properly formatted."
+
+      - name: Test build
+        working-directory: ./ztictl
+        run: go build -o ztictl${{ matrix.os == 'windows-latest' && '.exe' || '' }} ./cmd/ztictl
+
+      - name: Test CLI commands
+        working-directory: ./ztictl
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            ZTICTL_EXE="./ztictl.exe"
+          else
+            ZTICTL_EXE="./ztictl"
+          fi
+
+          $ZTICTL_EXE --help
+          $ZTICTL_EXE config --help
+          $ZTICTL_EXE auth --help
+          $ZTICTL_EXE ssm --help
+          $ZTICTL_EXE --version
+          $ZTICTL_EXE config validate || echo "Expected to fail without config"
+          $ZTICTL_EXE config show || echo "Expected to work with defaults"
+          $ZTICTL_EXE config check || echo "Expected to show missing dependencies"
+
+      - name: Notify on Go test failure
+        if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
+        env:
+          GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
+            ./scripts/send-pr-notification.sh \
+              --pr-title "$PR_TITLE" \
+              --pr-number "$PR_NUMBER" \
+              --pr-url "$PR_URL" \
+              --author "$PR_AUTHOR" \
+              --repository "$REPO" \
+              --status "failure" \
+              --message "Go tests failed - PR needs attention" || true
+          fi
+        continue-on-error: true
 
   security:
-    name: Security Analysis
+    name: 3. Security Analysis
     runs-on: ubuntu-latest
-    needs: [test-shell, test-go]
-    if: github.event_name == 'pull_request' && github.base_ref == 'main'
-    env:
-      GOPROXY: proxy.golang.org,direct
-      GOSUMDB: sum.golang.org
-    
+    needs: [changes, test]
+    if: |
+      github.event_name == 'pull_request' &&
+      github.base_ref == 'main' &&
+      (needs.changes.outputs.go == 'true' || needs.changes.outputs.workflow == 'true')
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.25'
-        
-    - name: Download dependencies
-      working-directory: ./ztictl
-      run: go mod download
-    
-    - name: Install security tools
-      run: |
-        # Install govulncheck for official Go vulnerability checking
-        go install golang.org/x/vuln/cmd/govulncheck@latest
-        
-        # Install golangci-lint v2.4.0 for comprehensive linting and security checks
-        # Using specific version to match local development environment
-        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.4.0
-        
-        # Verify installations
-        govulncheck -version || echo "govulncheck installation failed"
-        $(go env GOPATH)/bin/golangci-lint version || echo "golangci-lint installation failed"
-    
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        scan-type: 'fs'
-        scan-ref: './ztictl'
-        format: 'table'
-        exit-code: '0'  # Don't fail the build
-      continue-on-error: true
-    
-    - name: Run GoSec security scan
-      working-directory: ./ztictl
-      run: |
-        echo "🔒 Running comprehensive security analysis..."
-        
-        # Run golangci-lint with security linters enabled
-        echo "Running golangci-lint with security checks..."
-        $(go env GOPATH)/bin/golangci-lint run --enable gosec --out-format=json > golangci-security-report.json || true
-        $(go env GOPATH)/bin/golangci-lint run --enable gosec || true
-        
-        # Try to install and run standalone gosec as backup
-        echo "Installing standalone GoSec..."
-        curl -sfL https://raw.githubusercontent.com/securego/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest || true
-        
-        if [ -f "$(go env GOPATH)/bin/gosec" ]; then
-          echo "Running standalone GoSec analysis..."
-          $(go env GOPATH)/bin/gosec -fmt json -out gosec-report.json ./... || true
-          $(go env GOPATH)/bin/gosec -fmt table ./... || true
-        else
-          echo "Standalone GoSec installation failed, using golangci-lint results only"
-        fi
-        
-        echo "📊 Security analysis completed"
-      continue-on-error: true
-    
-    - name: Upload security reports
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: security-reports
-        path: |
-          ztictl/gosec-report.json
-          ztictl/golangci-security-report.json
-        retention-days: 30
-      continue-on-error: true
-    
-    - name: Run Go vulnerability check
-      working-directory: ./ztictl
-      run: |
-        echo "🔍 Running Go vulnerability check..."
-        govulncheck ./... || true
-        echo ""
-        echo "📊 Go vulnerability check completed"
-      continue-on-error: true
-    
-    - name: Check for outdated dependencies
-      working-directory: ./ztictl
-      run: |
-        echo "🔍 Checking for outdated Go dependencies..."
-        echo "Current dependencies:"
-        go list -m all
-        echo ""
-        echo "Checking for updates (this is informational only):"
-        go list -u -m all | grep -E '\[.*\]' || echo "All dependencies appear to be up to date"
-        echo ""
-        echo "📊 Dependency update check completed"
-      continue-on-error: true
-    
-    - name: Run comprehensive quality checks
-      working-directory: ./ztictl
-      run: |
-        echo "🔍 Running comprehensive quality checks..."
-        
-        # Standard Go quality checks
-        echo "Running go vet..."
-        go vet ./... || echo "go vet found issues"
-        
-        echo "Running go fmt check..."
-        UNFORMATTED=$(gofmt -s -l .)
-        if [ -n "$UNFORMATTED" ]; then
-          echo "⚠️  The following files need formatting:"
-          echo "$UNFORMATTED"
-        else
-          echo "✅ All Go files are properly formatted"
-        fi
-        
-        # Build test to ensure everything compiles
-        echo "Testing compilation..."
-        go build ./... || echo "❌ Build failed"
-        
-        echo "📊 Quality checks completed"
-      continue-on-error: true
-    
-    - name: Security scan summary
-      run: |
-        echo "🛡️  Security & Quality Analysis Summary"
-        echo "========================================"
-        echo "✅ Trivy filesystem scan completed"
-        echo "✅ golangci-lint with GoSec enabled completed"
-        echo "✅ Standalone GoSec analysis attempted"
-        echo "✅ Go vulnerability check completed"
-        echo "✅ Dependency update check completed"
-        echo "✅ Comprehensive quality checks completed"
-        echo ""
-        echo "ℹ️  This job runs security and quality scans for informational purposes."
-        echo "ℹ️  Review the output above for any security findings or quality issues."
-        echo "ℹ️  Security reports are uploaded as artifacts for detailed review."
-        echo "ℹ️  Consider updating outdated dependencies regularly."
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Notify on security failure
-      if: failure() && github.event_name == 'pull_request'
-      env:
-        GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-      run: |
-        if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
-          ./scripts/send-pr-notification.sh \
-            --pr-title '${{ github.event.pull_request.title }}' \
-            --pr-number '${{ github.event.pull_request.number }}' \
-            --pr-url '${{ github.event.pull_request.html_url }}' \
-            --author '${{ github.event.pull_request.user.login }}' \
-            --repository '${{ github.repository }}' \
-            --status "failure" \
-            --message "❌ Security analysis failed - PR needs attention" || true
-        fi
-      continue-on-error: true
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
 
-    - name: Notify on all tests success
-      if: success() && github.event_name == 'pull_request'
-      env:
-        GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
-      run: |
-        if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
-          ./scripts/send-pr-notification.sh \
-            --pr-title '${{ github.event.pull_request.title }}' \
-            --pr-number '${{ github.event.pull_request.number }}' \
-            --pr-url '${{ github.event.pull_request.html_url }}' \
-            --author '${{ github.event.pull_request.user.login }}' \
-            --repository '${{ github.repository }}' \
-            --status "success" \
-            --message "✅ All tests passed - PR is ready for review" || true
-        fi
-      continue-on-error: true
+      - name: Download dependencies
+        working-directory: ./ztictl
+        run: go mod download
 
+      - name: Install security tools
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.61.0
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'fs'
+          scan-ref: './ztictl'
+          format: 'table'
+          exit-code: '0'
+        continue-on-error: true
+
+      - name: Run golangci-lint with security checks
+        working-directory: ./ztictl
+        run: $(go env GOPATH)/bin/golangci-lint run --enable gosec || true
+        continue-on-error: true
+
+      - name: Run Go vulnerability check
+        working-directory: ./ztictl
+        run: govulncheck ./... || true
+        continue-on-error: true
+
+      - name: Run go vet
+        working-directory: ./ztictl
+        run: go vet ./...
+
+      - name: Notify on security success
+        if: success() && github.event_name == 'pull_request'
+        env:
+          GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
+            ./scripts/send-pr-notification.sh \
+              --pr-title "$PR_TITLE" \
+              --pr-number "$PR_NUMBER" \
+              --pr-url "$PR_URL" \
+              --author "$PR_AUTHOR" \
+              --repository "$REPO" \
+              --status "success" \
+              --message "All tests passed - PR is ready for review" || true
+          fi
+        continue-on-error: true
 
   build:
-    name: Cross-Platform Build
+    name: 4. Build (${{ matrix.goos }}-${{ matrix.goarch }})
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-    
+
     strategy:
       matrix:
         include:
@@ -408,138 +300,136 @@ jobs:
             goarch: amd64
           - goos: windows
             goarch: arm64
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.25'
-        
-    - name: Get dependencies
-      working-directory: ./ztictl
-      run: go mod download
-    
-    - name: Build binary
-      working-directory: ./ztictl
-      env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
-      run: |
-        # Set version from tag or default with git commit
-        GIT_COMMIT=${GITHUB_SHA::8}
-        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-          BASE_VERSION=${GITHUB_REF#refs/tags/v}
-          VERSION="${BASE_VERSION}-${GIT_COMMIT}"
-        else
-          VERSION="dev-${GIT_COMMIT}"
-        fi
-        
-        echo "Building version: ${VERSION}"
-        
-        # Set output filename
-        BINARY_NAME="ztictl-${{ matrix.goos }}-${{ matrix.goarch }}"
-        if [ "${{ matrix.goos }}" = "windows" ]; then
-          BINARY_NAME="${BINARY_NAME}.exe"
-        fi
-        
-        # Build with version and optimization flags
-        go build \
-          -ldflags "-X main.Version=${VERSION} -s -w" \
-          -o "${BINARY_NAME}" \
-          ./cmd/ztictl
-        
-        # Verify binary
-        if [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "amd64" ]; then
-          ./"${BINARY_NAME}" --version
-        fi
-    
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ztictl-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: ztictl/ztictl-${{ matrix.goos }}-${{ matrix.goarch }}*
-        retention-days: 30
 
-  release:
-    name: GitHub Release
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: startsWith(github.ref, 'refs/tags/v')
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts/
-    
-    - name: Prepare release binaries
-      run: |
-        mkdir -p release/
-        
-        # Copy binaries directly for easier installation
-        for dir in artifacts/*/; do
-          platform=$(basename "$dir")
-          cd "$dir"
-          
-          # Copy binary directly (users expect direct download)
-          cp ./* "../../release/"
-          
-          # Also create archives for those who prefer them
-          if [[ "$platform" == *"windows"* ]]; then
-            zip -r "../../release/${platform}.zip" ./*
-          else
-            tar -czf "../../release/${platform}.tar.gz" ./*
-          fi
-          
-          cd - > /dev/null
-        done
-        
-        echo "Direct binaries and archives:"
-        ls -la release/
-    
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: release/*
-        draft: false
-        prerelease: false
-        body_path: RELEASE_NOTES.txt
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-  # Notification for releases (when version tags are pushed)
-  release-notification:
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [release]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Get dependencies
+        working-directory: ./ztictl
+        run: go mod download
+
+      - name: Build binary
+        working-directory: ./ztictl
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          GIT_COMMIT=${GITHUB_SHA::8}
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            VERSION="dev-${GIT_COMMIT}"
+          fi
+
+          echo "Building version: ${VERSION}"
+
+          BINARY_NAME="ztictl-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BINARY_NAME="${BINARY_NAME}.exe"
+          fi
+
+          go build \
+            -ldflags "-X main.Version=${VERSION} -s -w" \
+            -o "${BINARY_NAME}" \
+            ./cmd/ztictl
+
+          if [ "${{ matrix.goos }}" = "linux" ] && [ "${{ matrix.goarch }}" = "amd64" ]; then
+            ./"${BINARY_NAME}" --version
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ztictl-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ztictl/ztictl-${{ matrix.goos }}-${{ matrix.goarch }}*
+          retention-days: 30
+
+  release:
+    name: 5. GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Prepare release binaries
+        run: |
+          mkdir -p release/
+
+          for dir in artifacts/*/; do
+            platform=$(basename "$dir")
+            cd "$dir"
+            cp ./* "../../release/"
+            if [[ "$platform" == *"windows"* ]]; then
+              zip -r "../../release/${platform}.zip" ./*
+            else
+              tar -czf "../../release/${platform}.tar.gz" ./*
+            fi
+            cd - > /dev/null
+          done
+
+          cp scripts/install.sh release/
+          cp scripts/install.ps1 release/
+
+          echo "Release binaries:"
+          ls -la release/
+
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-notification:
+    name: 6. Release Notification
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [release]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Send release notification
         env:
           GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
         run: |
           set -euo pipefail
-          
-          # Extract version from tag with validation
-          if [[ "$GITHUB_REF" =~ ^refs/tags/v.+ ]]; then
+
+          if [[ "$GITHUB_REF" =~ ^refs/tags/[0-9].+ ]]; then
             VERSION=${GITHUB_REF#refs/tags/}
           else
             echo "Error: Invalid tag format in GITHUB_REF: $GITHUB_REF"
             exit 1
           fi
-          
-          # Create release URL
+
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${VERSION}"
-          
+
           ./scripts/send-release-notification.sh \
             --version "$VERSION" \
             --release-url "$RELEASE_URL" \

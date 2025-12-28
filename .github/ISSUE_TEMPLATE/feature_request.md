@@ -5,6 +5,7 @@ title: '[FEATURE] '
 labels: enhancement
 assignees: ''
 ---
+
 **Is your feature request related to a problem? Please describe.**
 A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
 
@@ -15,6 +16,7 @@ A clear and concise description of what you want to happen.
 A clear and concise description of any alternative solutions or features you've considered.
 
 **Additional context**
+
 - Tool affected: [e.g., ssm, authaws, both]
 - AWS Region(s) affected: [e.g., all regions, specific regions]
 - OS Environment: [e.g., Linux, MacOS, Windows]
@@ -28,6 +30,7 @@ If applicable, add examples of how the feature would work, maybe with mock comma
 Optional: If you have any ideas about how this could be implemented, share them here.
 
 **Feature checklist**
+
 - [ ] This feature maintains backward compatibility
 - [ ] This feature requires documentation updates
 - [ ] This feature requires new dependencies

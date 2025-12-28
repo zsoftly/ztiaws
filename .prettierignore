@@ -1,0 +1,8 @@
+ztictl/bin/
+ztictl/builds/
+*.go
+go.mod
+go.sum
+*.exe
+*.test
+coverage.*

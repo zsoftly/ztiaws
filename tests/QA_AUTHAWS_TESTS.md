@@ -12,6 +12,7 @@ This document outlines the comprehensive test suite for the new flag-based param
 ## Test Environment Requirements
 
 ### Prerequisites
+
 - AWS CLI v2.x installed and configured
 - `jq` and `fzf` dependencies installed
 - Valid AWS SSO configuration in `.env` file
@@ -19,6 +20,7 @@ This document outlines the comprehensive test suite for the new flag-based param
 - Access to AWS SSO portal
 
 ### Test Data Setup
+
 ```bash
 # Create test .env file
 # ⚠️  WARNING: Replace with your actual SSO configuration values
@@ -41,9 +43,11 @@ aws configure set profile.test-profile-2.sso_region "us-west-2"
 ### 1. Backward Compatibility Tests
 
 #### Test 1.1: Positional Parameter Support
+
 **Objective**: Verify existing positional syntax continues to work
 
 **Test Cases**:
+
 ```bash
 # Test 1.1.1: No arguments (default profile)
 authaws
@@ -69,9 +73,11 @@ Expected: Uses current AWS_PROFILE or default
 **Pass Criteria**: All existing positional commands work exactly as before
 
 #### Test 1.2: Existing Functionality Preservation
+
 **Objective**: Ensure all existing features work with new parser
 
 **Test Cases**:
+
 ```bash
 # Test 1.2.1: Help command
 authaws help
@@ -89,9 +95,11 @@ Expected: Validates system requirements
 ### 2. Flag-Based Parameter Tests
 
 #### Test 2.1: Basic Flag Support
+
 **Objective**: Verify new flag-based syntax works correctly
 
 **Test Cases**:
+
 ```bash
 # Test 2.1.1: Profile flag
 authaws --profile test-profile-1
@@ -119,9 +127,11 @@ Expected: Shows version
 ```
 
 #### Test 2.2: Command Flags
+
 **Objective**: Test command-specific flags
 
 **Test Cases**:
+
 ```bash
 # Test 2.2.1: Check flag
 authaws --check
@@ -141,9 +151,11 @@ Expected: Lists available AWS profiles
 ```
 
 #### Test 2.3: Advanced Flags
+
 **Objective**: Test new advanced functionality
 
 **Test Cases**:
+
 ```bash
 # Test 2.3.1: Region override
 authaws --profile test-profile-1 --region us-west-2
@@ -165,9 +177,11 @@ Expected: Shows debug information during execution
 ### 3. Mixed Syntax Tests
 
 #### Test 3.1: Positional + Flag Combinations
+
 **Objective**: Test mixed syntax scenarios
 
 **Test Cases**:
+
 ```bash
 # Test 3.1.1: Positional profile + flag
 authaws test-profile-1 --region us-west-2
@@ -185,9 +199,11 @@ Expected: Error - unexpected positional argument
 ### 4. Error Handling Tests
 
 #### Test 4.1: Invalid Flags
+
 **Objective**: Test error handling for invalid parameters
 
 **Test Cases**:
+
 ```bash
 # Test 4.1.1: Unknown flag
 authaws --unknown-flag
@@ -207,9 +223,11 @@ Expected: Error message about invalid SSO URL
 ```
 
 #### Test 4.2: Conflicting Commands
+
 **Objective**: Test validation of mutually exclusive commands
 
 **Test Cases**:
+
 ```bash
 # Test 4.2.1: Multiple commands
 authaws --check --creds
@@ -223,9 +241,11 @@ Expected: Error message about unexpected arguments
 ### 5. Edge Case Tests
 
 #### Test 5.1: Boundary Conditions
+
 **Objective**: Test edge cases and boundary conditions
 
 **Test Cases**:
+
 ```bash
 # Test 5.1.1: Empty profile name
 authaws --profile ""
@@ -245,9 +265,11 @@ Expected: Handles Unicode characters correctly
 ```
 
 #### Test 5.2: Environment Variables
+
 **Objective**: Test interaction with environment variables
 
 **Test Cases**:
+
 ```bash
 # Test 5.2.1: AWS_PROFILE environment variable
 export AWS_PROFILE=env-profile
@@ -263,9 +285,11 @@ Expected: Uses flag-profile, ignores AWS_PROFILE
 ### 6. Integration Tests
 
 #### Test 6.1: Full Authentication Flow
+
 **Objective**: Test complete authentication workflow with new syntax
 
 **Test Cases**:
+
 ```bash
 # Test 6.1.1: Full login with flags
 authaws --profile test-profile-1 --region us-west-2
@@ -281,9 +305,11 @@ Expected: Authenticates and exports credentials
 ```
 
 #### Test 6.2: Profile Management
+
 **Objective**: Test profile listing and management
 
 **Test Cases**:
+
 ```bash
 # Test 6.2.1: List profiles
 authaws --list-profiles
@@ -297,9 +323,11 @@ Expected: Creates new profile with specified settings
 ## Performance Tests
 
 ### Test 7.1: Parser Performance
+
 **Objective**: Ensure parameter parsing doesn't impact performance
 
 **Test Cases**:
+
 ```bash
 # Test 7.1.1: Parse time measurement
 time authaws --help
@@ -313,9 +341,11 @@ Expected: Handles multiple flags efficiently
 ## Regression Tests
 
 ### Test 8.1: Existing Scripts
+
 **Objective**: Ensure existing automation scripts continue to work
 
 **Test Cases**:
+
 ```bash
 # Test 8.1.1: CI/CD script compatibility
 ./ci-script.sh  # Uses authaws with positional parameters
@@ -330,6 +360,7 @@ Expected: Alias works unchanged
 ## Test Execution Checklist
 
 ### Pre-Test Setup
+
 - [ ] AWS CLI configured with test credentials
 - [ ] Test .env file created with valid SSO configuration
 - [ ] Test profiles created in AWS config
@@ -337,6 +368,7 @@ Expected: Alias works unchanged
 - [ ] Test environment isolated from production
 
 ### Test Execution
+
 - [ ] Run all backward compatibility tests
 - [ ] Run all flag-based parameter tests
 - [ ] Run all mixed syntax tests
@@ -347,6 +379,7 @@ Expected: Alias works unchanged
 - [ ] Run regression tests
 
 ### Post-Test Validation
+
 - [ ] All tests pass
 - [ ] No performance degradation
 - [ ] Error messages are clear and helpful
@@ -356,6 +389,7 @@ Expected: Alias works unchanged
 ## Expected Results
 
 ### Success Criteria
+
 1. **100% Backward Compatibility**: All existing commands work unchanged
 2. **Flag Support**: All new flag-based syntax works correctly
 3. **Mixed Syntax**: Positional + flag combinations work as expected
@@ -364,6 +398,7 @@ Expected: Alias works unchanged
 6. **Documentation**: Help text accurately reflects both syntaxes
 
 ### Failure Criteria
+
 1. Any existing command fails or behaves differently
 2. Flag-based syntax doesn't work as documented
 3. Error messages are unclear or unhelpful
@@ -373,6 +408,7 @@ Expected: Alias works unchanged
 ## Test Data Cleanup
 
 After testing, clean up test data:
+
 ```bash
 # Remove test profiles
 aws configure set profile.test-profile-1.sso_start_url ""
@@ -389,6 +425,7 @@ aws sso logout --profile test-profile-2
 ## Reporting
 
 ### Test Report Template
+
 ```
 AuthAWS Flag-Based Parameters Test Report
 ========================================
@@ -418,12 +455,14 @@ Status: [PASS/FAIL/NEEDS_REVISION]
 ## Maintenance
 
 ### Ongoing Testing
+
 - Run regression tests after any authaws changes
 - Test new flag combinations as they're added
 - Monitor performance impact over time
 - Update test cases for new features
 
 ### Test Case Updates
+
 - Add test cases for new flags
 - Update expected results for changed behavior
 - Remove obsolete test cases

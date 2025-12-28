@@ -46,6 +46,7 @@ func ValidateInstanceState(
 ```
 
 **Process:**
+
 1. Fetches instance details from AWS
 2. Validates EC2 instance state
 3. Validates SSM agent status (if required)
@@ -64,10 +65,12 @@ func ValidateInstanceState(
 ### SSM Operations (Connect, Exec, Transfer)
 
 **Requirements:**
+
 - Instance State: `running`
 - SSM Agent: `Online`
 
 **Example:**
+
 ```go
 ValidateInstanceState(ctx, ssmManager, instanceID, region, InstanceValidationRequirements{
     AllowedStates:    []string{"running"},
@@ -79,10 +82,12 @@ ValidateInstanceState(ctx, ssmManager, instanceID, region, InstanceValidationReq
 ### Power Operations - Start
 
 **Requirements:**
+
 - Instance State: `stopped`
 - SSM Agent: Not required
 
 **Example:**
+
 ```go
 ValidateInstanceState(ctx, ssmManager, instanceID, region, InstanceValidationRequirements{
     AllowedStates:    []string{"stopped"},
@@ -94,10 +99,12 @@ ValidateInstanceState(ctx, ssmManager, instanceID, region, InstanceValidationReq
 ### Power Operations - Stop/Reboot
 
 **Requirements:**
+
 - Instance State: `running`
 - SSM Agent: Not required
 
 **Example:**
+
 ```go
 ValidateInstanceState(ctx, ssmManager, instanceID, region, InstanceValidationRequirements{
     AllowedStates:    []string{"running"},
@@ -108,22 +115,22 @@ ValidateInstanceState(ctx, ssmManager, instanceID, region, InstanceValidationReq
 
 ## EC2 Instance States
 
-| State | Symbol | Color | Description | Can Start | Can Stop | Can Connect |
-|-------|--------|-------|-------------|-----------|----------|-------------|
-| `running` | ● | Green | Instance is operational | ❌ | ✅ | ✅ |
-| `stopped` | ○ | Red | Instance is stopped | ✅ | ❌ | ❌ |
-| `stopping` | ◑ | Yellow | Instance is stopping | ❌ | ❌ | ❌ |
-| `pending` | ◐ | Yellow | Instance is starting | ❌ | ❌ | ❌ |
-| `shutting-down` | ◑ | Yellow | Instance is shutting down | ❌ | ❌ | ❌ |
-| `terminated` | ✗ | Red | Instance is deleted | ❌ | ❌ | ❌ |
+| State           | Symbol | Color  | Description               | Can Start | Can Stop | Can Connect |
+| --------------- | ------ | ------ | ------------------------- | --------- | -------- | ----------- |
+| `running`       | ●      | Green  | Instance is operational   | ❌        | ✅       | ✅          |
+| `stopped`       | ○      | Red    | Instance is stopped       | ✅        | ❌       | ❌          |
+| `stopping`      | ◑      | Yellow | Instance is stopping      | ❌        | ❌       | ❌          |
+| `pending`       | ◐      | Yellow | Instance is starting      | ❌        | ❌       | ❌          |
+| `shutting-down` | ◑      | Yellow | Instance is shutting down | ❌        | ❌       | ❌          |
+| `terminated`    | ✗      | Red    | Instance is deleted       | ❌        | ❌       | ❌          |
 
 ## SSM Agent States
 
-| Status | Symbol | Color | Description | Can Connect |
-|--------|--------|-------|-------------|-------------|
-| `Online` | ✓ | Green | Agent is connected and ready | ✅ |
-| `ConnectionLost` | ⚠ | Yellow | Agent was online but disconnected | ⚠️ Allowed |
-| `No Agent` | ✗ | Red | Agent not installed or not running | ❌ |
+| Status           | Symbol | Color  | Description                        | Can Connect |
+| ---------------- | ------ | ------ | ---------------------------------- | ----------- |
+| `Online`         | ✓      | Green  | Agent is connected and ready       | ✅          |
+| `ConnectionLost` | ⚠      | Yellow | Agent was online but disconnected  | ⚠️ Allowed  |
+| `No Agent`       | ✗      | Red    | Agent not installed or not running | ❌          |
 
 **Note:** Operations are allowed with `ConnectionLost` status but may fail. Users receive a warning.
 
@@ -240,6 +247,7 @@ Tests for validation are in `cmd/ztictl/ssm_power_test.go` and related test file
 ### 1. Always Validate Before Operations
 
 **Do:**
+
 ```go
 // Validate first
 if err := ValidateInstanceState(...); err != nil {
@@ -250,6 +258,7 @@ result, err := performOperation(...)
 ```
 
 **Don't:**
+
 ```go
 // Operate without validation - may fail with cryptic AWS errors
 result, err := performOperation(...)
@@ -258,11 +267,13 @@ result, err := performOperation(...)
 ### 2. Use Descriptive Operation Names
 
 **Do:**
+
 ```go
 Operation: "execute commands"  // Clear and user-friendly
 ```
 
 **Don't:**
+
 ```go
 Operation: "exec"  // Too terse for error messages
 ```
@@ -270,11 +281,13 @@ Operation: "exec"  // Too terse for error messages
 ### 3. Specify Exact Required States
 
 **Do:**
+
 ```go
 AllowedStates: []string{"stopped"}  // Explicit
 ```
 
 **Don't:**
+
 ```go
 AllowedStates: []string{"stopped", "stopping"}  // Ambiguous
 ```

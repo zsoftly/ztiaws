@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -25,6 +26,7 @@ type clientSet struct {
 	IAMClient *iam.Client
 	S3Client  *s3.Client
 	STSClient *sts.Client
+	RDSClient *rds.Client
 }
 
 type ClientPool struct {
@@ -80,6 +82,7 @@ func (p *ClientPool) createClientSet(ctx context.Context, region string) (*clien
 		IAMClient: iam.NewFromConfig(cfg),
 		S3Client:  s3.NewFromConfig(cfg),
 		STSClient: sts.NewFromConfig(cfg),
+		RDSClient: rds.NewFromConfig(cfg),
 	}
 
 	return clients, nil
@@ -123,6 +126,14 @@ func (p *ClientPool) GetSTSClient(ctx context.Context, region string) (*sts.Clie
 		return nil, err
 	}
 	return clients.STSClient, nil
+}
+
+func (p *ClientPool) GetRDSClient(ctx context.Context, region string) (*rds.Client, error) {
+	clients, err := p.GetClients(ctx, region)
+	if err != nil {
+		return nil, err
+	}
+	return clients.RDSClient, nil
 }
 
 func (p *ClientPool) GetPlatformClients(ctx context.Context, region string) (*ssm.Client, *ec2.Client, error) {

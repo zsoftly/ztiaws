@@ -7,16 +7,20 @@ Thank you for your interest in contributing to ZTiAWS! We especially welcome con
 1. Fork the repository
 2. Add your region to `src/regions.sh`
 3. Follow this format:
+
 ```bash
 case "$1" in
     "SHORTCODE") echo "aws-region-name" ;;  # Location/City
 ```
+
 Example:
+
 ```bash
     "euw2") echo "eu-west-2" ;;  # London
 ```
 
 ### Region Code Guidelines
+
 - Use 4 characters: area (2) + region number (2)
 - Examples:
   - `use1` - US East 1
@@ -24,7 +28,9 @@ Example:
   - `aps1` - Asia Pacific Singapore
 
 ### Required Information
+
 When submitting a new region, include:
+
 1. AWS Region name (e.g., `eu-west-2`)
 2. Location/City (e.g., "London")
 3. AWS documentation reference
@@ -34,18 +40,22 @@ When submitting a new region, include:
 
 1. Fork the repository
 2. Create a feature branch
+
 ```bash
 git checkout -b feature/add-region-euw2
 ```
+
 3. Make your changes
 4. Run tests locally
+
 ```bash
 # For Go code (ztictl)
 cd ztictl && make test
 
-# For shell scripts
-./tests/test_ssm.sh
+# For shell scripts - run shellcheck
+shellcheck -x authaws ssm src/*.sh
 ```
+
 5. Submit a Pull Request
 
 > **📚 CI/CD Information:** See [docs/CI_CD_PIPELINE.md](docs/CI_CD_PIPELINE.md) for details on our automated testing and build process.
@@ -54,13 +64,11 @@ cd ztictl && make test
 
 1. Update REGIONS.md with new region details (if adding regions)
 2. Update tests to cover new functionality
-3. Ensure all CI checks pass:
+3. Update documentation if needed
+4. Ensure all CI checks pass:
    - **Quick tests** run automatically on all PRs
    - **Security scans** run on PRs to main branch
    - **Builds** are triggered only for releases
-4. Update documentation if needed
-3. Ensure all tests pass
-4. Update documentation if needed
 
 ## Code Style
 
@@ -72,13 +80,22 @@ cd ztictl && make test
 ## Testing
 
 Test your changes:
+
 ```bash
-./tests/test_ssm.sh
+# Run shell linting
+make test
+
+# Or manually run shellcheck
+shellcheck -x authaws ssm src/*.sh
+
+# For Go code
+cd ztictl && make test
 ```
 
 ## Commit Messages
 
 Format:
+
 ```
 type(scope): description
 
@@ -87,6 +104,7 @@ type(scope): description
 ```
 
 Types:
+
 - feat: New feature
 - fix: Bug fix
 - docs: Documentation
@@ -94,6 +112,7 @@ Types:
 - chore: Maintenance
 
 Example:
+
 ```
 feat(regions): add EU West 2 London region
 
@@ -118,6 +137,7 @@ ZTiAWS uses an automated CI/CD pipeline for releases. See [docs/CI_CD_PIPELINE.m
 ### Quick Release Process:
 
 1. **Prepare release** on main branch:
+
    ```bash
    git checkout main && git pull origin main
    ```
@@ -128,6 +148,7 @@ ZTiAWS uses an automated CI/CD pipeline for releases. See [docs/CI_CD_PIPELINE.m
    - `RELEASE_NOTES.txt` (release description)
 
 3. **Create and push tag**:
+
    ```bash
    git add . && git commit -m "Bump version to vX.Y.Z"
    git tag -a vX.Y.Z -m "Version X.Y.Z: Brief description"

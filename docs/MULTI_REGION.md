@@ -17,12 +17,12 @@ Multi-region operations are configured in `~/.ztictl.yaml`:
 regions:
   # List of enabled regions (shortcodes or full names)
   enabled:
-    - cac1          # ca-central-1
-    - use1          # us-east-1
-    - use2          # us-east-2
-    - euw1          # eu-west-1
-    - apse1         # ap-southeast-1
-  
+    - cac1 # ca-central-1
+    - use1 # us-east-1
+    - use2 # us-east-2
+    - euw1 # eu-west-1
+    - apse1 # ap-southeast-1
+
   # Region groups for logical organization
   groups:
     production:
@@ -144,6 +144,7 @@ ztictl ssm exec-multi --region-group production \
 ### Region-Specific Behavior
 
 The command automatically handles region-specific aspects:
+
 - Validates region names and converts shortcodes
 - Establishes separate AWS clients per region
 - Handles region-specific errors gracefully
@@ -203,6 +204,7 @@ ztictl ssm exec-multi --all-regions \
 ## Use Cases
 
 ### 1. Security Patching
+
 ```bash
 # Apply security updates across all regions
 ztictl ssm exec-multi --all-regions \
@@ -212,6 +214,7 @@ ztictl ssm exec-multi --all-regions \
 ```
 
 ### 2. Configuration Auditing
+
 ```bash
 # Check configuration across regions
 ztictl ssm exec-multi --all-regions \
@@ -220,6 +223,7 @@ ztictl ssm exec-multi --all-regions \
 ```
 
 ### 3. Service Status Monitoring
+
 ```bash
 # Check service status globally
 ztictl ssm exec-multi --region-group production \
@@ -228,6 +232,7 @@ ztictl ssm exec-multi --region-group production \
 ```
 
 ### 4. Log Collection
+
 ```bash
 # Gather logs from all regions
 ztictl ssm exec-multi --all-regions \
@@ -239,6 +244,7 @@ ztictl ssm exec-multi --all-regions \
 ## Best Practices
 
 1. **Test in Development First**
+
    ```bash
    ztictl ssm exec-multi --region-group development --tags "App=test" "your-command"
    ```
@@ -249,6 +255,7 @@ ztictl ssm exec-multi --all-regions \
    - Use sequential (1) for critical changes
 
 3. **Implement Health Checks**
+
    ```bash
    ztictl ssm exec-multi --all-regions \
      --tags "App=web" \

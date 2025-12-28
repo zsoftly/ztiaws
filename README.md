@@ -17,6 +17,7 @@
 ## 🚀 Key Features
 
 **ztictl (Primary Tool):**
+
 - **🌍 Cross-platform**: Native binaries for Linux, macOS, and Windows
 - **🔍 Interactive fuzzy finder**: Real-time instance search and selection with keyboard navigation
 - **🖥️ Multi-OS support**: Full Linux (bash) and Windows Server (PowerShell) command execution
@@ -31,6 +32,7 @@
 - **🎨 Clean UI**: Intuitive fuzzy finder interface for both SSM operations and AWS SSO account/role selection
 
 **Legacy bash tools (deprecated):**
+
 - **ssm**: Connect to EC2 instances, execute commands, power management, tag-based operations
 - **authaws**: AWS SSO authentication with interactive account/role selection
 - Color-coded output and region shortcodes for faster workflows
@@ -47,11 +49,13 @@
 ### Quick Install - ztictl (Recommended)
 
 **Linux/macOS:**
+
 ```bash
 curl -L -o /tmp/ztictl "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')" && chmod +x /tmp/ztictl && sudo mv /tmp/ztictl /usr/local/bin/ztictl && ztictl --version
 ```
 
 **Windows PowerShell:**
+
 ```powershell
 Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-windows-amd64.exe" -OutFile "$env:TEMP\ztictl.exe"; New-Item -ItemType Directory -Force "$env:USERPROFILE\Tools" | Out-Null; Move-Item "$env:TEMP\ztictl.exe" "$env:USERPROFILE\Tools\ztictl.exe"; [Environment]::SetEnvironmentVariable("PATH", "$env:PATH;$env:USERPROFILE\Tools", "User"); $env:PATH += ";$env:USERPROFILE\Tools"; ztictl --version
 ```
@@ -59,6 +63,7 @@ Invoke-WebRequest -Uri "https://github.com/zsoftly/ztiaws/releases/latest/downlo
 ### Other Installation Options
 
 See [INSTALLATION.md](INSTALLATION.md) for:
+
 - **Platform-specific binaries** (Linux, macOS, Windows - AMD64/ARM64)
 - **Building from source** (requires Go 1.24+)
 - **Legacy bash tools** (for existing users)
@@ -71,6 +76,7 @@ See [INSTALLATION.md](INSTALLATION.md) for:
 To update to the latest version, see the update instructions in [INSTALLATION.md](INSTALLATION.md).
 
 **Quick update:**
+
 - **ztictl**: Re-run the installation command from INSTALLATION.md
 - **Bash tools**: `git pull origin main` in your cloned directory
 
@@ -79,11 +85,13 @@ To update to the latest version, see the update instructions in [INSTALLATION.md
 ### ztictl (Recommended)
 
 > **📚 Complete Documentation:**
+>
 > - [Command Reference](docs/COMMANDS.md) - All commands with examples
 > - [Configuration Guide](docs/CONFIGURATION.md) - Setup and configuration
 > - [Multi-Region Operations](docs/MULTI_REGION.md) - Cross-region execution
 
 #### Quick Start
+
 ```bash
 # Initialize configuration interactively (simplified setup)
 ztictl config init --interactive
@@ -110,6 +118,7 @@ ztictl ssm exec --tags "Environment=prod" "uptime" --region euw1
 #### New Features (v2.4+)
 
 **🔋 Power Management:**
+
 ```bash
 # Start/stop instances
 ztictl ssm start i-1234567890abcdef0 --region cac1
@@ -121,6 +130,7 @@ ztictl ssm stop-tagged --tags "Environment=dev" --force --region cac1
 ```
 
 **🌍 Multi-Region Operations (v2.6+):**
+
 ```bash
 # Execute across multiple regions
 ztictl ssm exec-multi cac1,use1,euw1 --tags "App=web" "health-check"
@@ -135,6 +145,7 @@ ztictl ssm exec-multi --region-group production --tags "Critical=true" "backup.s
 See [docs/COMMANDS.md](docs/COMMANDS.md) for complete command reference.
 
 #### Configuration Management
+
 ```bash
 # Interactive setup (recommended for first-time users)
 ztictl config init --interactive
@@ -160,6 +171,7 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for detailed configuration op
 > **Important:** AWS SSO (`ztictl auth login`) requires browser interaction and **cannot be used in CI/CD**. Use IAM-based authentication instead (OIDC, EC2 instance profiles, or IAM access keys).
 
 **Quick Start for CI/CD:**
+
 ```bash
 # ztictl auto-detects CI environments (GitHub Actions, GitLab CI, Jenkins, etc.)
 # and disables interactive prompts automatically
@@ -181,18 +193,21 @@ ztictl ssm power start --tag Environment=test
 ```
 
 **Supported CI/CD Platforms:**
+
 - GitHub Actions (OIDC recommended)
 - GitLab CI (OIDC recommended)
 - Jenkins (EC2 instance profile or IAM keys)
 - CircleCI, AWS CodeBuild, and others
 
 **Complete Guide:** See [docs/CI_CD_AUTHENTICATION.md](docs/CI_CD_AUTHENTICATION.md) for:
+
 - Authentication methods (OIDC, instance profiles, IAM keys)
 - Platform-specific examples (GitHub Actions, GitLab CI, Jenkins)
 - Environment variable reference
 - Troubleshooting CI/CD issues
 
 **Example GitHub Actions Workflow:**
+
 ```yaml
 - name: Configure AWS Credentials
   uses: aws-actions/configure-aws-credentials@v2
@@ -217,6 +232,7 @@ See [docs/examples/](docs/examples/) for complete CI/CD workflow examples.
 **Available flags**: `--region`, `--instance`, `--command`, `--tag-key`, `--tag-value`, `--local-file`, `--remote-file`, `--local-path`, `--remote-path`, `--local-port`, `--remote-port`, `--exec`, `--exec-tagged`, `--upload`, `--download`, `--forward`, `--list`, `--connect`, `--check`, `--help`, `--version`, `--debug`
 
 ##### Check System Requirements
+
 ```bash
 # Traditional syntax (backward compatible)
 ssm check
@@ -226,6 +242,7 @@ ssm --check
 ```
 
 ##### List Instances in a Region
+
 ```bash
 # Traditional syntax (backward compatible)
 ssm cac1  # Lists instances in Canada Central
@@ -236,6 +253,7 @@ ssm --region cac1  # Equivalent to --list
 ```
 
 ##### Connect to an Instance
+
 ```bash
 # Traditional syntax (backward compatible)
 ssm i-1234abcd              # Connect to instance in default region (Canada Central)
@@ -251,7 +269,9 @@ ssm --region use1 i-1234abcd
 ```
 
 ##### Execute Commands Remotely
+
 Execute commands on a single instance:
+
 ```bash
 # Traditional syntax (backward compatible)
 ssm exec cac1 i-1234 "systemctl status nginx"
@@ -264,6 +284,7 @@ ssm exec cac1 --instance i-1234 --command "systemctl status nginx"
 ```
 
 Execute commands on instances matching specific tags:
+
 ```bash
 # Traditional syntax (backward compatible)
 ssm exec-tagged use1 Role web "df -h"
@@ -276,11 +297,12 @@ ssm exec-tagged use1 --tag-key Role --tag-value web --command "df -h"
 ```
 
 **🆕 ztictl Multi-Tag Filtering (Enhanced)**
+
 ```bash
 # Single tag filtering
 ztictl ssm exec-tagged use1 --tags Environment=production "df -h"
 # Multiple tag filtering (AND logic)
-ztictl ssm exec-tagged use1 --tags Environment=prod,Role=web,Team=backend "df -h"  
+ztictl ssm exec-tagged use1 --tags Environment=prod,Role=web,Team=backend "df -h"
 # Short flag syntax
 ztictl ssm exec-tagged use1 -t "Owner=james,Environment=dev" "systemctl status nginx"
 ```
@@ -288,7 +310,9 @@ ztictl ssm exec-tagged use1 -t "Owner=james,Environment=dev" "systemctl status n
 This will run `df -h` on all instances that match **ALL** specified tags. The script provides clear feedback if no instances match the specified tags.
 
 ##### File Transfer Operations
+
 Upload and download files with automatic size-based routing:
+
 ```bash
 # Traditional syntax (backward compatible)
 ssm upload cac1 i-1234 ./config.txt /etc/app/config.txt
@@ -303,6 +327,7 @@ ssm upload cac1 --instance i-1234 --local-file ./config.txt --remote-path /etc/a
 ```
 
 ##### Show Help
+
 ```bash
 # Traditional syntax (backward compatible)
 ssm help
@@ -315,6 +340,7 @@ ssm -h
 #### AWS SSO Authentication Tool
 
 #### First-time Setup
+
 ```bash
 authaws check       # Check dependencies
 authaws help        # Show help information
@@ -323,6 +349,7 @@ authaws help        # Show help information
 **Available flags**: `--profile`, `--region`, `--sso-url`, `--export`, `--list-profiles`, `--debug`, `--help`, `--version`, `--check`, `--creds`
 
 Before using `authaws`, set up a `.env` file in the same directory with the following content:
+
 ```
 SSO_START_URL="https://your-sso-url.awsapps.com/start"
 SSO_REGION="your-region"
@@ -332,6 +359,7 @@ DEFAULT_PROFILE="your-default-profile"
 You can create a template file by running `authaws` without a valid .env file.
 
 #### Log in to AWS SSO
+
 ```bash
 # Traditional syntax (backward compatible)
 authaws             # Use default profile from .env
@@ -344,6 +372,7 @@ authaws --profile dev --sso-url https://alt.awsapps.com/start  # Override SSO UR
 ```
 
 The tool will:
+
 1. Check for valid cached credentials
 2. Initiate AWS SSO login if needed
 3. Show an interactive list of accounts
@@ -351,6 +380,7 @@ The tool will:
 5. Configure your AWS profile with the selected account and role
 
 #### View AWS Credentials
+
 ```bash
 # Traditional syntax
 authaws creds           # Show credentials for current profile
@@ -371,6 +401,7 @@ This will display your AWS access key, secret key, and session token for the spe
 > **✅ Production Ready:** ztictl is now the primary tool. The bash tools are maintained for legacy compatibility but new features are only added to ztictl.
 
 ### Why Choose ztictl:
+
 - **🌍 Cross-platform**: Native binaries for Linux, macOS, and Windows (AMD64/ARM64)
 - **⚡ Enhanced performance**: Intelligent file transfer routing and S3 integration
 - **🔒 Advanced security**: Comprehensive IAM lifecycle management and automatic cleanup
@@ -382,6 +413,7 @@ This will display your AWS access key, secret key, and session token for the spe
 **Installation:** See [INSTALLATION.md](INSTALLATION.md) for complete setup instructions.
 
 **Usage Examples:**
+
 ```bash
 # Check system requirements
 ztictl config check
@@ -399,7 +431,7 @@ ztictl ssm connect i-1234567890abcdef0 --region ca-central-1
 # Linux instance - uses bash
 ztictl ssm exec ca-central-1 i-linux123 "echo 'Hello Linux'; uname -a"
 
-# Windows instance - uses PowerShell  
+# Windows instance - uses PowerShell
 ztictl ssm exec ca-central-1 i-windows456 "Write-Output 'Hello Windows'; Get-ComputerInfo"
 
 # Cross-platform file transfers
@@ -422,6 +454,7 @@ For CI/CD pipeline architecture and development workflow, see [docs/CI_CD_PIPELI
 ## 📚 Documentation
 
 ### Core Documentation
+
 - **[Command Reference](docs/COMMANDS.md)** - Complete list of all commands with examples
 - **[Configuration Guide](docs/CONFIGURATION.md)** - Detailed configuration file reference
 - **[Multi-Region Operations](docs/MULTI_REGION.md)** - Guide for cross-region command execution
@@ -432,6 +465,7 @@ For CI/CD pipeline architecture and development workflow, see [docs/CI_CD_PIPELI
 - **[IAM Permissions](docs/IAM_PERMISSIONS.md)** - Required AWS permissions
 
 ### Additional Resources
+
 - **[CI/CD Pipeline](docs/CI_CD_PIPELINE.md)** - Automated build and release process
 - **[Release Notifications](docs/NOTIFICATIONS.md)** - Google Chat integration
 - **[QA Test Guide](tests/QA_SSM_TESTS.md)** - Testing procedures
@@ -441,6 +475,7 @@ For CI/CD pipeline architecture and development workflow, see [docs/CI_CD_PIPELI
 We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 Key areas for contribution:
+
 - Adding support for new regions
 - Improving documentation
 - Adding new features
@@ -459,13 +494,16 @@ For maintainers who want to create a new release, please see [CONTRIBUTING.md](C
 ## 🔐 Security
 
 ### Built-in Security Features
+
 - **Directory Traversal Protection**: Cross-platform path validation prevents unauthorized file access
 - **Input Validation**: Comprehensive validation for AWS resource identifiers and parameters
 - **IAM Lifecycle Management**: Automatic cleanup of temporary policies and permissions
 - **Secure File Handling**: Protected file operations with permission validation
 
 ### Best Practices
+
 These tools require AWS credentials and access to your AWS resources. Always:
+
 - Keep your AWS credentials secure
 - Use appropriate IAM permissions with least privilege
 - Review security best practices in the [AWS Security Documentation](https://docs.aws.amazon.com/security/)

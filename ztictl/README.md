@@ -16,9 +16,10 @@
 ## Why ztictl?
 
 ### 🎯 **Enhanced Features**
+
 - **🖥️ Multi-OS instance support**: Full Linux (bash) and Windows Server (PowerShell) command execution
 - **🤖 Automatic platform detection**: Detects instance OS via SSM/EC2 APIs and adapts commands
-- **🛡️ Advanced security**: PowerShell injection protection, UNC path validation, path traversal prevention  
+- **🛡️ Advanced security**: PowerShell injection protection, UNC path validation, path traversal prevention
 - **Advanced file transfers**: Intelligent routing (direct <1MB, S3 ≥1MB) with automatic cleanup
 - **Comprehensive IAM management**: Temporary policies with lifecycle tracking and emergency cleanup
 - **S3 lifecycle integration**: Automatic bucket management with expiration policies
@@ -27,16 +28,19 @@
 ### 🌍 **Cross-Platform Support**
 
 **Client Platforms** (where ztictl runs):
+
 - **Linux**: AMD64 and ARM64 (Intel/AMD and ARM processors)
 - **macOS**: Intel and Apple Silicon (M1/M2/M3)
 - **Windows**: AMD64 and ARM64 architectures
 
 **Target Instance Support** (what instances you can manage):
+
 - **✅ Linux instances**: Amazon Linux, Ubuntu, RHEL, CentOS, SUSE (bash commands)
 - **✅ Windows instances**: Windows Server 2016/2019/2022 (PowerShell commands)
 - **🤖 Auto-detection**: Automatically detects instance OS and uses appropriate command syntax
 
 ### ⚡ **Performance Benefits**
+
 - **Native binaries**: No runtime dependencies or script interpretation
 - **Optimized transfers**: Efficient handling of large files via S3 intermediary
 - **Concurrent operations**: Safe multi-instance operations with filesystem locking
@@ -49,6 +53,7 @@
 See [INSTALLATION.md](../INSTALLATION.md) for detailed installation instructions.
 
 **Quick Install (Linux/macOS):**
+
 ```bash
 curl -L -o /tmp/ztictl "https://github.com/zsoftly/ztiaws/releases/latest/download/ztictl-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')"
 chmod +x /tmp/ztictl
@@ -95,6 +100,7 @@ ztictl ssm stop --region cac1
 ```
 
 **Features:**
+
 - 🔍 **Fuzzy search** - Type to filter instances by name, ID, or tags
 - ⌨️ **Keyboard shortcuts** - Vim-style navigation (j/k), arrow keys, Page Up/Down
 - 🖱️ **Mouse support** - Click to select, scroll to navigate
@@ -130,11 +136,13 @@ ztictl auth whoami
 ```
 
 **Best for:**
+
 - Local development
 - Manual operations
 - Multi-account access with role switching
 
 **Requirements:**
+
 - AWS SSO configured
 - Browser access for authentication
 - Interactive terminal
@@ -143,14 +151,15 @@ ztictl auth whoami
 
 For automated pipelines, AWS SSO **cannot be used** (requires browser interaction). Use IAM-based authentication instead:
 
-| Method | When to Use | Security | Setup Complexity |
-|--------|-------------|----------|------------------|
-| **OIDC Federation** | GitHub Actions, GitLab CI, modern platforms | ⭐⭐⭐⭐⭐ Best | Medium |
-| **EC2 Instance Profile** | Self-hosted runners on EC2 | ⭐⭐⭐⭐⭐ Best | Easy |
-| **ECS Task Role** | Containerized CI/CD on ECS/Fargate | ⭐⭐⭐⭐⭐ Best | Easy |
-| **IAM Access Keys** | Legacy systems, quick testing | ⭐⭐ Poor | Easy |
+| Method                   | When to Use                                 | Security        | Setup Complexity |
+| ------------------------ | ------------------------------------------- | --------------- | ---------------- |
+| **OIDC Federation**      | GitHub Actions, GitLab CI, modern platforms | ⭐⭐⭐⭐⭐ Best | Medium           |
+| **EC2 Instance Profile** | Self-hosted runners on EC2                  | ⭐⭐⭐⭐⭐ Best | Easy             |
+| **ECS Task Role**        | Containerized CI/CD on ECS/Fargate          | ⭐⭐⭐⭐⭐ Best | Easy             |
+| **IAM Access Keys**      | Legacy systems, quick testing               | ⭐⭐ Poor       | Easy             |
 
 **OIDC Federation Example (Recommended):**
+
 ```yaml
 # GitHub Actions
 - name: Configure AWS Credentials
@@ -166,6 +175,7 @@ For automated pipelines, AWS SSO **cannot be used** (requires browser interactio
 ```
 
 **EC2 Instance Profile Example:**
+
 ```bash
 # No credential configuration needed - automatic from instance metadata
 ztictl config init --non-interactive
@@ -173,6 +183,7 @@ ztictl ssm list --table
 ```
 
 **IAM Access Keys Example (Not Recommended):**
+
 ```bash
 # Set environment variables (store in CI/CD secrets)
 export AWS_ACCESS_KEY_ID="AKIAIOSFODNN7EXAMPLE"
@@ -186,11 +197,13 @@ ztictl ssm list --table
 ### Non-Interactive Mode
 
 `ztictl` automatically detects CI/CD environments and enables non-interactive mode when:
+
 - `CI` environment variable is set (most platforms set this automatically)
 - `ZTICTL_NON_INTERACTIVE=true` is set
 - `--non-interactive` flag is used
 
 **In non-interactive mode:**
+
 - No splash screen or prompts
 - Commands requiring instance selection will fail with clear error messages
 - Use explicit instance IDs or tag-based commands
@@ -212,6 +225,7 @@ ztictl ssm connect web-server-prod  # ✅ Works (name lookup)
 ```
 
 **Complete Guide:** See [docs/CI_CD_AUTHENTICATION.md](../docs/CI_CD_AUTHENTICATION.md) for:
+
 - Detailed authentication setup for each platform
 - IAM permission requirements
 - Complete workflow examples
@@ -238,7 +252,7 @@ ztictl ssm exec --tags "Environment=prod" "uptime" --region euw1
 ztictl ssm exec cac1 i-linux123 "ps aux | grep nginx"
 ztictl ssm exec cac1 i-linux123 "cat /var/log/app.log | tail -10"
 
-# Windows instances - PowerShell commands  
+# Windows instances - PowerShell commands
 ztictl ssm exec cac1 i-windows456 "Get-Process | Where-Object {$_.Name -like '*iis*'}"
 ztictl ssm exec cac1 i-windows456 "Get-EventLog -LogName Application -Newest 10"
 
@@ -257,13 +271,13 @@ ztictl ssm exec-multi --all-regions --tags "Type=api" "status"
 
 For complete command documentation, see [docs/COMMANDS.md](../docs/COMMANDS.md).
 
-```
+````
 
 ## Advanced Features
 
 ### 🔒 **Security & IAM**
 - **Temporary IAM policies**: Automatically created and cleaned up
-- **Filesystem locking**: Prevents concurrent policy conflicts  
+- **Filesystem locking**: Prevents concurrent policy conflicts
 - **Registry tracking**: Complete audit trail of temporary resources
 - **Emergency procedures**: Comprehensive cleanup capabilities
 
@@ -296,9 +310,10 @@ make test
 
 # Clean artifacts
 make clean
-```
+````
 
 ### 🚀 **Release Process**
+
 ```bash
 # Create and push tag (triggers automated builds)
 git tag v1.1.0
@@ -306,7 +321,7 @@ git push origin v1.1.0
 
 # GitHub Actions automatically:
 # ✅ Builds for all platforms
-# ✅ Runs comprehensive tests  
+# ✅ Runs comprehensive tests
 # ✅ Creates GitHub release
 # ✅ Uploads cross-platform binaries
 ```
@@ -328,11 +343,13 @@ See the main [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 ## Support & Compatibility
 
 ### 🔧 **Requirements**
+
 - **AWS CLI** configured with appropriate credentials
 - **Session Manager plugin** for SSM connections
 - **EC2 instances** with SSM agent and proper IAM roles
 
 ### 🆘 **Getting Help**
+
 ```bash
 # Built-in help
 ztictl --help
