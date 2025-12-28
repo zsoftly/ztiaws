@@ -52,8 +52,8 @@ git checkout -b feature/add-region-euw2
 # For Go code (ztictl)
 cd ztictl && make test
 
-# For shell scripts
-./tests/test_ssm.sh
+# For shell scripts - run shellcheck
+shellcheck -x authaws ssm src/*.sh
 ```
 
 5. Submit a Pull Request
@@ -64,13 +64,11 @@ cd ztictl && make test
 
 1. Update REGIONS.md with new region details (if adding regions)
 2. Update tests to cover new functionality
-3. Ensure all CI checks pass:
+3. Update documentation if needed
+4. Ensure all CI checks pass:
    - **Quick tests** run automatically on all PRs
    - **Security scans** run on PRs to main branch
    - **Builds** are triggered only for releases
-4. Update documentation if needed
-5. Ensure all tests pass
-6. Update documentation if needed
 
 ## Code Style
 
@@ -84,7 +82,14 @@ cd ztictl && make test
 Test your changes:
 
 ```bash
-./tests/test_ssm.sh
+# Run shell linting
+make test
+
+# Or manually run shellcheck
+shellcheck -x authaws ssm src/*.sh
+
+# For Go code
+cd ztictl && make test
 ```
 
 ## Commit Messages

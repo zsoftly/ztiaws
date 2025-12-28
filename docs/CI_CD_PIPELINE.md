@@ -379,10 +379,12 @@ The CI/CD pipeline integrates with the release process defined in [RELEASE.md](d
 
 ### **Regular Updates**
 
-- **Go version**: Currently 1.25, update in all workflow files
-- **Action versions**: Using v4 for checkout, setup-go actions
-- **Security tools**: golangci-lint pinned at v2.4.0 for stability
+- **Go version**: Currently 1.24, update in all workflow files when changing
+- **Action versions**: Using v4 for checkout, v5 for setup-go
+- **Security tools**: golangci-lint pinned at v1.61.0 for stability
 - **Build dependencies**: Regular `go mod tidy` and updates
+
+> **Note:** Keep these values in sync with `.github/workflows/build.yml`
 
 ### **Monitoring**
 

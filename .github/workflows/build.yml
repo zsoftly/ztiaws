@@ -89,14 +89,19 @@ jobs:
         if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
         env:
           GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REPO: ${{ github.repository }}
         run: |
           if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
             ./scripts/send-pr-notification.sh \
-              --pr-title '${{ github.event.pull_request.title }}' \
-              --pr-number '${{ github.event.pull_request.number }}' \
-              --pr-url '${{ github.event.pull_request.html_url }}' \
-              --author '${{ github.event.pull_request.user.login }}' \
-              --repository '${{ github.repository }}' \
+              --pr-title "$PR_TITLE" \
+              --pr-number "$PR_NUMBER" \
+              --pr-url "$PR_URL" \
+              --author "$PR_AUTHOR" \
+              --repository "$REPO" \
               --status "failure" \
               --message "Shell script tests failed - PR needs attention" || true
           fi
@@ -185,14 +190,19 @@ jobs:
         if: failure() && matrix.os == 'ubuntu-latest' && github.event_name == 'pull_request'
         env:
           GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REPO: ${{ github.repository }}
         run: |
           if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
             ./scripts/send-pr-notification.sh \
-              --pr-title '${{ github.event.pull_request.title }}' \
-              --pr-number '${{ github.event.pull_request.number }}' \
-              --pr-url '${{ github.event.pull_request.html_url }}' \
-              --author '${{ github.event.pull_request.user.login }}' \
-              --repository '${{ github.repository }}' \
+              --pr-title "$PR_TITLE" \
+              --pr-number "$PR_NUMBER" \
+              --pr-url "$PR_URL" \
+              --author "$PR_AUTHOR" \
+              --repository "$REPO" \
               --status "failure" \
               --message "Go tests failed - PR needs attention" || true
           fi
@@ -252,14 +262,19 @@ jobs:
         if: success() && github.event_name == 'pull_request'
         env:
           GOOGLE_CHAT_WEBHOOK: ${{ secrets.GOOGLE_CHAT_WEBHOOK }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REPO: ${{ github.repository }}
         run: |
           if [[ -n "$GOOGLE_CHAT_WEBHOOK" ]]; then
             ./scripts/send-pr-notification.sh \
-              --pr-title '${{ github.event.pull_request.title }}' \
-              --pr-number '${{ github.event.pull_request.number }}' \
-              --pr-url '${{ github.event.pull_request.html_url }}' \
-              --author '${{ github.event.pull_request.user.login }}' \
-              --repository '${{ github.repository }}' \
+              --pr-title "$PR_TITLE" \
+              --pr-number "$PR_NUMBER" \
+              --pr-url "$PR_URL" \
+              --author "$PR_AUTHOR" \
+              --repository "$REPO" \
               --status "success" \
               --message "All tests passed - PR is ready for review" || true
           fi

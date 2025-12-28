@@ -453,7 +453,3 @@ ztictl config check
 - **📊 Better logging**: Thread-safe, timestamped logs with debug capabilities
 
 **Migrate from bash tools** by simply installing ztictl and using similar commands with modern flag syntax!
-
-```
-
-```
