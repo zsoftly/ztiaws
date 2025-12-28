@@ -379,12 +379,23 @@ The CI/CD pipeline integrates with the release process defined in [RELEASE.md](d
 
 ### **Regular Updates**
 
-- **Go version**: Currently 1.24, update in all workflow files when changing
+- **Go version**: Currently **1.24** (intentionally, see note below)
 - **Action versions**: Using v4 for checkout, v5 for setup-go
 - **Security tools**: golangci-lint pinned at v1.61.0 for stability
 - **Build dependencies**: Regular `go mod tidy` and updates
 
 > **Note:** Keep these values in sync with `.github/workflows/build.yml`
+
+### **Go Version Policy**
+
+As of December 2025, Go 1.25.5 is the latest stable release. This project **intentionally stays on Go 1.24.x** for the following reasons:
+
+- **Stability**: Go 1.24 is battle-tested and well-supported
+- **Compatibility**: Ensures broader compatibility with user environments
+- **AWS SDK**: Validated against AWS SDK v2 on Go 1.24
+- **Conservative approach**: Upgrade after Go 1.25 has more production exposure
+
+**Upgrade plan**: Evaluate Go 1.25 upgrade when Go 1.26 is released (expected Feb 2026), ensuring one major version buffer for stability.
 
 ### **Monitoring**
 
