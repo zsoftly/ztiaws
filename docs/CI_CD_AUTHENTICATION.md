@@ -167,10 +167,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsRole
           aws-region: ca-central-1
@@ -492,10 +492,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Configure AWS Credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ca-central-1
@@ -588,7 +588,7 @@ jobs:
       --region ca-central-1
 
 - name: Upload artifacts
-  uses: actions/upload-artifact@v3
+  uses: actions/upload-artifact@v5
   with:
     name: logs
     path: artifacts/
@@ -772,7 +772,7 @@ env:
   ZTICTL_LOG_DIR: "/tmp/ztictl-logs"
 
 # Upload logs as artifacts
-- uses: actions/upload-artifact@v3
+- uses: actions/upload-artifact@v5
   if: failure()
   with:
     name: ztictl-logs
