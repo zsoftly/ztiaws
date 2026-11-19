@@ -1,0 +1,14 @@
+name: No AI attribution
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  merge_group:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  no-ai-attribution:
+    uses: zsoftly/.github/.github/workflows/no-ai-attribution.yml@main
